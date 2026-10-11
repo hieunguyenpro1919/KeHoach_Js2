@@ -34,4 +34,4 @@ COPY --from=builder /workspace/app/build/libs/medsched-app.jar app.jar
 ENV PORT=8080
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT:-8080} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Xmx384m -Dserver.port=${PORT:-8080} -Dspring.jpa.database-platform=org.hibernate.dialect.MySQLDialect -jar app.jar"]

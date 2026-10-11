@@ -4,19 +4,30 @@ server:
 spring:
   application:
     name: medsched
-  profiles:
-    active: mysql-xampp
+
+  # Cấu hình DataSource trực tiếp: Tự động dùng DB_URL (Aiven Cloud trên Render),
+  # nếu không có sẽ tự fallback về localhost (XAMPP cho các thành viên trong nhóm).
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:medsched_db}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Chỉ định rõ ràng MySQLDialect để Hibernate không cần thăm dò JDBC metadata khi start
+  # Tránh lỗi: Unable to determine Dialect without JDBC metadata
   jpa:
-    hibernate:
-      # database/medsched_db.sql is the single source of truth for the schema.
-      # "validate" means Hibernate only checks it and is never allowed to ALTER
-      # tables. ("update" used to stop the application from starting because
-      # Hibernate tried to change columns referenced by foreign keys.)
-      ddl-auto: validate
+    database-platform: org.hibernate.dialect.MySQLDialect
     open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # Cấu hình Mail Gmail SMTP gửi OTP xác thực (có đầy đủ fallback mặc định)
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:kietphuchau@gmail.com}
     password: ${MAIL_PASSWORD:tfloxaswoahvffmz}
     properties:
@@ -29,13 +40,12 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
+
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:demo-medsched-local-api-key}
 
-# Spring AI: without the OPENAI_API_KEY environment variable the application
-# still starts; only the AI endpoints fail. Previously a missing key stopped the
-# WHOLE backend, blocking everyone working on Auth / Booking / Frontend.
+# Spring AI fallback key
 spring.ai.openai.api-key: ${OPENAI_API_KEY:chua-cau-hinh}
 
 medsched:
@@ -50,32 +60,3 @@ app:
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 86400
-
----
-# MySQL connection for XAMPP (the default every team member uses)
-spring:
-  config:
-    activate:
-      on-profile: mysql-xampp
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:}
-
----
-# Production profile for Cloud (Render + Aiven MySQL)
-server:
-  port: ${PORT:8080}
-spring:
-  config:
-    activate:
-      on-profile: prod
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&requireSSL=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: validate
-
-
