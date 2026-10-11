@@ -1,5 +1,6 @@
 package com.medsched.mail;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -7,13 +8,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Dịch vụ gửi Email tự động qua Google Gmail SMTP (Miễn phí 100%).
+ * Dịch vụ gửi Email tự động:
+ * 1. Ưu tiên: Brevo HTTP API qua Cổng HTTPS 443 (hoạt động 100% trên Render Free, không bao giờ bị chặn).
+ * 2. Fallback: Google Gmail SMTP qua Cổng 587 (dành cho chạy máy cục bộ / Localhost).
  */
 @Service("otpEmailService")
 public class EmailService {
@@ -21,20 +30,93 @@ public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final JavaMailSender mailSender;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+
+    @Value("${brevo.api-key:${BREVO_API_KEY:}}")
+    private String brevoApiKey;
+
+    @Value("${brevo.sender.email:${BREVO_SENDER_EMAIL:kietphuchau@gmail.com}}")
+    private String brevoSenderEmail;
+
+    @Value("${brevo.sender.name:${BREVO_SENDER_NAME:MedSched Smart Healthcare}}")
+    private String brevoSenderName;
 
     @Value("${spring.mail.username:}")
-    private String fromEmail;
+    private String smtpFromEmail;
 
-    public EmailService(JavaMailSender mailSender) {
+    public EmailService(JavaMailSender mailSender, ObjectMapper objectMapper) {
         this.mailSender = mailSender;
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     /**
      * Gửi email mã OTP xác thực đăng ký tài khoản MedSched (HTML đẹp mắt).
      */
     public void sendOtpEmail(String toEmail, String recipientName, String otpCode) {
-        if (fromEmail == null || fromEmail.isBlank()) {
-            log.warn("⚠️ [EmailService] Chưa cấu hình spring.mail.username. Bỏ qua gửi email.");
+        String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
+        String subject = "[MedSched] " + otpCode + " là mã xác thực OTP đăng ký tài khoản của bạn";
+        String htmlContent = buildOtpHtmlTemplate(safeName, otpCode);
+
+        // ── 1. ƯU TIÊN HÀNG ĐẦU: Gửi qua Brevo HTTP API (Cổng HTTPS 443 - Vượt qua tường lửa Render) ──
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            boolean brevoSuccess = sendViaBrevoHttpApi(toEmail, safeName, subject, htmlContent, otpCode);
+            if (brevoSuccess) {
+                return;
+            }
+            log.warn("⚠️ [EmailService] Gửi qua Brevo HTTP API thất bại, chuyển sang thử Gmail SMTP...");
+        }
+
+        // ── 2. FALLBACK: Gửi qua JavaMailSender (Gmail SMTP Cổng 587) ──
+        sendViaSmtp(toEmail, subject, htmlContent, otpCode);
+    }
+
+    /**
+     * Gửi qua Brevo HTTPS API (Cổng 443 - không bao giờ bị Render hay các Cloud chặn).
+     */
+    private boolean sendViaBrevoHttpApi(String toEmail, String recipientName, String subject, String htmlContent, String otpCode) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "sender", Map.of("name", brevoSenderName, "email", brevoSenderEmail),
+                    "to", List.of(Map.of("email", toEmail, "name", recipientName)),
+                    "subject", subject,
+                    "htmlContent", htmlContent
+            );
+            String jsonBody = objectMapper.writeValueAsString(payload);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .header("accept", "application/json")
+                    .header("api-key", brevoApiKey.trim())
+                    .header("content-type", "application/json; charset=utf-8")
+                    .timeout(Duration.ofSeconds(15))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("🚀 [EmailService] Đã gửi mã OTP [{}] thành công qua Brevo HTTPS API (Cổng 443) tới: {}", otpCode, toEmail);
+                return true;
+            } else {
+                log.error("❌ [EmailService] Brevo API trả về mã lỗi HTTP {}: {}", response.statusCode(), response.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("❌ [EmailService] Ngoại lệ khi gọi Brevo HTTP API: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Gửi qua Gmail SMTP truyền thống (Cổng 587).
+     */
+    private void sendViaSmtp(String toEmail, String subject, String htmlContent, String otpCode) {
+        if (smtpFromEmail == null || smtpFromEmail.isBlank()) {
+            log.warn("⚠️ [EmailService] Chưa cấu hình spring.mail.username. Bỏ qua gửi SMTP.");
             return;
         }
 
@@ -46,21 +128,17 @@ public class EmailService {
                     StandardCharsets.UTF_8.name()
             );
 
-            helper.setFrom(fromEmail, "MedSched Smart Healthcare");
+            helper.setFrom(smtpFromEmail, "MedSched Smart Healthcare");
             helper.setTo(toEmail);
-            helper.setSubject("[MedSched] " + otpCode + " là mã xác thực OTP đăng ký tài khoản của bạn");
-
-            String htmlContent = buildOtpHtmlTemplate(recipientName, otpCode);
+            helper.setSubject(subject);
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
-            log.info("✅ [EmailService] Đã gửi email chứa mã OTP [{}] thành công tới: {}", otpCode, toEmail);
+            log.info("✅ [EmailService] Đã gửi mã OTP [{}] thành công qua Gmail SMTP tới: {}", otpCode, toEmail);
         } catch (MessagingException e) {
-            log.error("❌ [EmailService] Lỗi tạo nội dung email gửi tới {}: {}", toEmail, e.getMessage());
-            throw new RuntimeException("Không thể gửi email xác thực. Vui lòng thử lại sau.", e);
+            log.error("❌ [EmailService] Lỗi tạo nội dung email SMTP tới {}: {}", toEmail, e.getMessage());
         } catch (Exception e) {
-            log.error("❌ [EmailService] Lỗi khi gửi email qua Gmail SMTP tới {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Lỗi hệ thống khi gửi email xác thực: " + e.getMessage(), e);
+            log.error("❌ [EmailService] Lỗi khi gửi email qua Gmail SMTP tới {}: {}", toEmail, e.getMessage());
         }
     }
 

@@ -55,6 +55,12 @@ medsched:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-duration: 3600s
     refresh-token-duration: 604800s
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  sender:
+    email: ${BREVO_SENDER_EMAIL:kietphuchau@gmail.com}
+    name: MedSched Smart Healthcare
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
 
