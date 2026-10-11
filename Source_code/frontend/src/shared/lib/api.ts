@@ -112,7 +112,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         );
       }
     }
-    const message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
+    let message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
+    if (errorData.fields && typeof errorData.fields === "object") {
+      const fieldDetails = Object.values(errorData.fields).join(", ");
+      if (fieldDetails) {
+        message = `${message}: ${fieldDetails}`;
+      }
+    }
     throw new Error(message);
   }
 
@@ -140,6 +146,49 @@ export const api = {
 
   async register(payload: { fullName: string; email: string; phone: string; password: string }) {
     return request<any>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // --- 1.1. XÁC THỰC OTP 4 CHỮ SỐ (ZALO & EMAIL) ---
+  async requestOtp(payload: { fullName: string; email: string; phone: string; password: string }) {
+    return request<{
+      sessionToken: string;
+      phoneMasked: string;
+      emailMasked: string;
+      expiresInSeconds: number;
+      resendCooldownSeconds: number;
+      devDemoOtp: string;
+      message: string;
+    }>("/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async verifyOtp(payload: { sessionToken: string; otpCode: string }) {
+    const res = await request<any>("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const user = res.user || {
+      id: res.userId,
+      email: res.email,
+      fullName: res.fullName,
+      roles: res.roles || [],
+    };
+    setAuthSession(res.accessToken, user);
+    return { ...res, user };
+  },
+
+  async resendOtp(payload: { sessionToken: string }) {
+    return request<{
+      message: string;
+      expiresInSeconds: number;
+      resendCooldownSeconds: number;
+      devDemoOtp: string;
+    }>("/auth/resend-otp", {
       method: "POST",
       body: JSON.stringify(payload),
     });
