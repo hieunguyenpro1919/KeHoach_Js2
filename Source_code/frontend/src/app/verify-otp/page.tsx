@@ -4,16 +4,14 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Mail,
   ShieldCheck,
   Clock,
   RotateCw,
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
-  Copy,
-  Check,
-  MessageCircle,
+  Inbox,
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
@@ -24,9 +22,8 @@ function VerifyOtpContent() {
 
   // Lấy thông tin phiên từ URL params hoặc sessionStorage
   const [sessionToken, setSessionToken] = useState('');
-  const [phoneMasked, setPhoneMasked] = useState('0912***678');
+  const [phoneMasked, setPhoneMasked] = useState('');
   const [emailMasked, setEmailMasked] = useState('');
-  const [devDemoOtp, setDevDemoOtp] = useState('');
 
   // Trạng thái 4 ô số
   const [digits, setDigits] = useState(['', '', '', '']);
@@ -44,15 +41,15 @@ function VerifyOtpContent() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
+  const [resendSuccess, setResendSuccess] = useState('');
   const [success, setSuccess] = useState(false);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [showZaloToast, setShowZaloToast] = useState(true);
 
   // Khởi tạo dữ liệu phiên khi load trang
   useEffect(() => {
     let token = searchParams.get('token');
     let phone = searchParams.get('phone');
+    let email = searchParams.get('email');
 
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('medsched_otp_session');
@@ -61,8 +58,7 @@ function VerifyOtpContent() {
           const parsed = JSON.parse(stored);
           token = token || parsed.sessionToken;
           phone = phone || parsed.phoneMasked;
-          if (parsed.emailMasked) setEmailMasked(parsed.emailMasked);
-          if (parsed.devDemoOtp) setDevDemoOtp(parsed.devDemoOtp);
+          email = email || parsed.emailMasked;
         } catch (e) {
           console.error(e);
         }
@@ -71,6 +67,7 @@ function VerifyOtpContent() {
 
     if (token) setSessionToken(token);
     if (phone) setPhoneMasked(phone);
+    if (email) setEmailMasked(email);
 
     // Auto-focus vào ô đầu tiên
     setTimeout(() => {
@@ -96,56 +93,63 @@ function VerifyOtpContent() {
 
   // Xử lý khi gõ từng ô số
   const handleDigitChange = (index: number, value: string) => {
-    // Chỉ nhận chữ số
     const cleanChar = value.replace(/\D/g, '').slice(-1);
+
     const newDigits = [...digits];
     newDigits[index] = cleanChar;
     setDigits(newDigits);
     setError('');
 
-    // Nếu vừa nhập số và chưa phải ô cuối -> tự động nhảy sang ô tiếp theo
+    // Nếu vừa nhập ký tự hợp lệ -> chuyển focus sang ô tiếp theo
     if (cleanChar && index < 3) {
       inputRefs[index + 1].current?.focus();
     }
 
-    // Nếu đã nhập đủ cả 4 ô -> tự động kích hoạt xác thực
-    const fullCode = newDigits.join('');
-    if (fullCode.length === 4) {
-      handleVerify(fullCode);
+    // Nếu đã nhập đủ 4 ký tự -> tự động gọi xác thực
+    if (cleanChar && index === 3 && newDigits.every((d) => d !== '')) {
+      handleVerify(newDigits.join(''));
     }
   };
 
-  // Xử lý phím Backspace để xóa lùi
+  // Xử lý phím Backspace & mũi tên điều hướng
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       if (!digits[index] && index > 0) {
-        // Ô hiện tại rỗng -> nhảy về ô trước và xóa
         const newDigits = [...digits];
         newDigits[index - 1] = '';
         setDigits(newDigits);
         inputRefs[index - 1].current?.focus();
+      } else {
+        const newDigits = [...digits];
+        newDigits[index] = '';
+        setDigits(newDigits);
       }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs[index - 1].current?.focus();
+    } else if (e.key === 'ArrowRight' && index < 3) {
+      inputRefs[index + 1].current?.focus();
     }
   };
 
-  // Xử lý khi người dùng Dán (Paste) mã 4 số
+  // Hỗ trợ Paste mã 4 số từ clipboard
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').trim().replace(/\D/g, '').slice(0, 4);
-    if (!pasted) return;
+    const pastedData = e.clipboardData.getData('text').trim();
+    const cleanDigits = pastedData.replace(/\D/g, '').slice(0, 4);
 
-    const newDigits = ['', '', '', ''];
-    for (let i = 0; i < pasted.length; i++) {
-      newDigits[i] = pasted[i];
-    }
-    setDigits(newDigits);
+    if (cleanDigits.length > 0) {
+      const newDigits = ['', '', '', ''];
+      for (let i = 0; i < cleanDigits.length; i++) {
+        newDigits[i] = cleanDigits[i];
+      }
+      setDigits(newDigits);
 
-    // Focus vào ô tiếp theo hoặc ô cuối
-    const nextIdx = Math.min(pasted.length, 3);
-    inputRefs[nextIdx].current?.focus();
-
-    if (pasted.length === 4) {
-      handleVerify(pasted);
+      if (cleanDigits.length === 4) {
+        inputRefs[3].current?.focus();
+        handleVerify(cleanDigits);
+      } else {
+        inputRefs[cleanDigits.length].current?.focus();
+      }
     }
   };
 
@@ -161,12 +165,13 @@ function VerifyOtpContent() {
       return;
     }
     if (expiresSeconds <= 0) {
-      setError('Mã xác thực đã hết hạn (quá 2 phút). Vui lòng nhấn "Gửi lại mã qua Zalo".');
+      setError('Mã xác thực đã hết hạn (quá 2 phút). Vui lòng nhấn "Gửi lại mã qua Email".');
       return;
     }
 
     setLoading(true);
     setError('');
+    setResendSuccess('');
 
     try {
       await api.verifyOtp({
@@ -175,8 +180,6 @@ function VerifyOtpContent() {
       });
 
       setSuccess(true);
-      setShowZaloToast(false);
-      // Xóa thông tin phiên tạm sau khi kích hoạt thành công
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('medsched_otp_session');
       }
@@ -203,7 +206,7 @@ function VerifyOtpContent() {
     }
   };
 
-  // Gửi lại mã OTP
+  // Gửi lại mã OTP qua Email
   const handleResend = async () => {
     if (resendCooldown > 0 || resending) return;
     if (!sessionToken) {
@@ -213,15 +216,13 @@ function VerifyOtpContent() {
 
     setResending(true);
     setError('');
+    setResendSuccess('');
 
     try {
       const res = await api.resendOtp({ sessionToken });
       setExpiresSeconds(res.expiresInSeconds || 120);
       setResendCooldown(res.resendCooldownSeconds || 60);
-      if (res.devDemoOtp) {
-        setDevDemoOtp(res.devDemoOtp);
-        setShowZaloToast(true);
-      }
+      setResendSuccess('Mã OTP mới đã được gửi tới hộp thư Gmail của bạn!');
       setDigits(['', '', '', '']);
       inputRefs[0].current?.focus();
     } catch (err: any) {
@@ -231,90 +232,9 @@ function VerifyOtpContent() {
     }
   };
 
-  // Điền nhanh mã Demo (Dành cho kiểm thử/đồ án)
-  const handleQuickFillDemo = () => {
-    if (!devDemoOtp || devDemoOtp.length !== 4) return;
-    const parts = devDemoOtp.split('');
-    setDigits(parts);
-    handleVerify(devDemoOtp);
-  };
-
-  // Sao chép mã vào clipboard
-  const handleCopyCode = () => {
-    if (!devDemoOtp) return;
-    navigator.clipboard.writeText(devDemoOtp);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 relative">
-      {/* ── WIDGET GIẢ LẬP TIN NHẮN ZALO OA (DEV / DEMO HELPER) ── */}
-      {devDemoOtp && showZaloToast && !success && (
-        <div className="w-full max-w-md mb-4 bg-gradient-to-r from-blue-600 via-sky-600 to-teal-600 p-0.5 rounded-2xl shadow-xl animate-fadeIn">
-          <div className="bg-white rounded-[14px] p-3 sm:p-3.5 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xs shadow-xs">
-                  Z
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-bold text-slate-800">MedSched Clinic</span>
-                    <span className="w-3.5 h-3.5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[9px] font-bold">
-                      ✓
-                    </span>
-                    <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.2 rounded-full border border-blue-200">
-                      Zalo OA
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-400">Vừa xong • Tin nhắn ZNS</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowZaloToast(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs px-1 cursor-pointer"
-                title="Đóng thông báo"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-2.5 text-xs text-slate-700 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] text-slate-600">
-                  Mã xác thực đăng ký tài khoản MedSched của bạn là:
-                </p>
-                <span className="font-mono text-lg font-extrabold text-blue-700 tracking-wider">
-                  {devDemoOtp}
-                </span>
-                <span className="text-[10px] text-slate-400 ml-2">(Hiệu lực 2 phút)</span>
-              </div>
-
-              <div className="flex flex-col gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleQuickFillDemo}
-                  className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-bold hover:bg-blue-700 transition shadow-2xs flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles size={11} /> Tự điền
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyCode}
-                  className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[10px] hover:bg-slate-50 transition flex items-center gap-1 justify-center cursor-pointer"
-                >
-                  {copied ? <Check size={10} className="text-emerald-600" /> : <Copy size={10} />}
-                  <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── CARD CHÍNH: XÁC THỰC MÃ 4 CHỮ SỐ ── */}
+      {/* ── CARD CHÍNH: XÁC THỰC MÃ 4 CHỮ SỐ QUA EMAIL ── */}
       <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl w-full max-w-sm sm:max-w-md border border-mint-light text-center relative overflow-hidden">
         {/* Họa tiết trang trí viền trên */}
         <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 via-pine-teal to-blue-600" />
@@ -339,22 +259,36 @@ function VerifyOtpContent() {
             {/* Logo & Tiêu đề */}
             <div className="space-y-2">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-teal-50 text-pine-teal border border-mint-light mx-auto shadow-2xs">
-                <ShieldCheck size={26} />
+                <Mail size={26} />
               </div>
 
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                Xác Thực Tài Khoản
+                Xác Thực Qua Email
               </h1>
 
               <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-                Mã OTP 4 chữ số đã được gửi qua <strong className="text-blue-600 font-bold">Zalo</strong> &amp; Email đến số điện thoại:
+                Mã OTP 4 chữ số đã được gửi tới hộp thư Gmail của bạn:
               </p>
 
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-mono font-bold border border-slate-200">
-                <MessageCircle size={13} className="text-blue-600" />
-                <span>{phoneMasked}</span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-pine-teal text-xs font-mono font-bold border border-teal-200">
+                <Inbox size={13} className="text-pine-teal" />
+                <span>{emailMasked || phoneMasked || 'Địa chỉ email đăng ký'}</span>
               </div>
+
+              <p className="text-[11px] text-slate-400 italic">
+                (Vui lòng kiểm tra mục <strong>Hộp thư đến</strong> hoặc <strong>Thư rác/Spam</strong>)
+              </p>
             </div>
+
+            {/* Thông báo gửi lại thành công */}
+            {resendSuccess && (
+              <AlertMessage
+                type="success"
+                message={resendSuccess}
+                className="py-2 text-xs text-left"
+                onClose={() => setResendSuccess('')}
+              />
+            )}
 
             {/* Thông báo lỗi */}
             {error && (
@@ -429,13 +363,13 @@ function VerifyOtpContent() {
               )}
             </button>
 
-            {/* Cơ chế gửi lại mã qua Zalo */}
+            {/* Cơ chế gửi lại mã qua Email */}
             <div className="pt-2 border-t border-slate-100 flex flex-col items-center gap-2 text-xs">
               <div className="text-slate-500">
-                Chưa nhận được mã?{' '}
+                Chưa nhận được email?{' '}
                 {resendCooldown > 0 ? (
                   <span className="text-slate-400 font-medium">
-                    Gửi lại qua Zalo sau ({resendCooldown}s)
+                    Gửi lại qua Email sau ({resendCooldown}s)
                   </span>
                 ) : (
                   <button
@@ -445,7 +379,7 @@ function VerifyOtpContent() {
                     className="text-pine-teal hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
                   >
                     <RotateCw size={12} className={resending ? 'animate-spin' : ''} />
-                    <span>Gửi lại mã qua Zalo</span>
+                    <span>Gửi lại mã qua Email</span>
                   </button>
                 )}
               </div>
