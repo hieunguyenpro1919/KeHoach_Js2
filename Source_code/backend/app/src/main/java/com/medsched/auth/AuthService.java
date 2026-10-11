@@ -62,6 +62,7 @@ public class AuthService {
         Instant now = Instant.now();
         String fullName = request.fullName().trim();
         String phone = blankToNull(request.phone());
+        validatePasswordSecurity(request.password(), fullName, phone, email);
 
         UserEntity user = new UserEntity(UUID.randomUUID().toString(), email,
                 passwordEncoder.encode(request.password()), fullName, phone, true, now, now);
@@ -140,6 +141,50 @@ public class AuthService {
                 principal.getEmail(),
                 fullName,
                 principal.getRoleNames());
+    }
+
+    private static void validatePasswordSecurity(String password, String fullName, String phone, String email) {
+        if (password == null) {
+            return;
+        }
+        String lowerPwd = removeAccents(password.toLowerCase());
+
+        if (fullName != null) {
+            String normName = removeAccents(fullName.toLowerCase()).trim();
+            String noSpaces = normName.replaceAll("\\s+", "");
+            if (noSpaces.length() >= 3 && lowerPwd.contains(noSpaces)) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa họ tên của bạn");
+            }
+            for (String word : normName.split("\\s+")) {
+                if (word.length() >= 3 && lowerPwd.contains(word)) {
+                    throw new AppExceptions.BadRequestException("Mật khẩu không được chứa từ trong họ tên");
+                }
+            }
+        }
+
+        if (phone != null && !phone.isBlank()) {
+            String cleanPhone = phone.replaceAll("\\D", "");
+            if (cleanPhone.length() >= 6 && (lowerPwd.contains(cleanPhone)
+                    || (cleanPhone.length() == 10 && (lowerPwd.contains(cleanPhone.substring(4)) || lowerPwd.contains(cleanPhone.substring(0, 6)))))) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa số điện thoại của bạn");
+            }
+        }
+
+        if (email != null && email.contains("@")) {
+            String prefix = email.split("@")[0].toLowerCase().trim();
+            if (prefix.length() >= 3 && lowerPwd.contains(prefix)) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa tên tài khoản email");
+            }
+        }
+    }
+
+    private static String removeAccents(String text) {
+        if (text == null) {
+            return "";
+        }
+        String nfd = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
+        return java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+").matcher(nfd)
+                .replaceAll("").replace("đ", "d").replace("Đ", "D");
     }
 
     private static String normalizeEmail(String email) {
