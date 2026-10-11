@@ -7,7 +7,12 @@
 import { AppointmentResponse } from '@/shared/types';
 export type { AppointmentResponse };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1").trim().replace(/\/+$/, "");
+const API_BASE_URL = rawApiUrl.endsWith("/api/v1")
+  ? rawApiUrl
+  : rawApiUrl.endsWith("/api")
+    ? `${rawApiUrl}/v1`
+    : `${rawApiUrl}/api/v1`;
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
