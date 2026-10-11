@@ -278,10 +278,10 @@ export default function RegisterForm() {
         );
       }
 
-      setSuccessMessage('Mã OTP 4 số đã được gửi qua Zalo & Email! Đang chuyển sang trang nhập mã...');
+      setSuccessMessage('Mã OTP 4 số đã được gửi tới Email của bạn! Đang chuyển sang trang xác thực...');
       setTimeout(() => {
         router.push(
-          `/verify-otp?token=${encodeURIComponent(res.sessionToken)}&phone=${encodeURIComponent(res.phoneMasked)}`
+          `/verify-otp?token=${encodeURIComponent(res.sessionToken)}&phone=${encodeURIComponent(res.phoneMasked)}&email=${encodeURIComponent(res.emailMasked)}`
         );
       }, 700);
     } catch (err: any) {

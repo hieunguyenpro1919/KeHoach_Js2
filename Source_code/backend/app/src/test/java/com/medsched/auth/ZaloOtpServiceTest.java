@@ -9,6 +9,7 @@ import com.medsched.persistence.repository.UserJpaRepository;
 import com.medsched.security.AppUserDetails;
 import com.medsched.security.AppUserDetailsService;
 import com.medsched.security.JwtService;
+import com.medsched.mail.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ class ZaloOtpServiceTest {
     private PatientProfileJpaRepository patientProfiles;
     private AppUserDetailsService userDetailsService;
     private JwtService jwtService;
+    private EmailService emailService;
     private ZaloOtpService zaloOtpService;
 
     @BeforeEach
@@ -41,9 +43,10 @@ class ZaloOtpServiceTest {
         patientProfiles = mock(PatientProfileJpaRepository.class);
         userDetailsService = mock(AppUserDetailsService.class);
         jwtService = new JwtService(SECRET, Duration.ofHours(1), Duration.ofDays(7));
+        emailService = mock(EmailService.class);
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-        zaloOtpService = new ZaloOtpService(users, patientProfiles, passwordEncoder, userDetailsService, jwtService);
+        zaloOtpService = new ZaloOtpService(users, patientProfiles, passwordEncoder, userDetailsService, jwtService, emailService);
     }
 
     @Test

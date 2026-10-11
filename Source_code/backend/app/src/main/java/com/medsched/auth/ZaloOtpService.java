@@ -9,6 +9,7 @@ import com.medsched.persistence.repository.UserJpaRepository;
 import com.medsched.security.AppUserDetails;
 import com.medsched.security.AppUserDetailsService;
 import com.medsched.security.JwtService;
+import com.medsched.mail.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,7 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Quản lý quy trình đăng ký tài khoản 2 bước qua mã OTP 4 số (Zalo / Email).
+ * Quản lý quy trình đăng ký tài khoản 2 bước qua mã OTP 4 số (Email Gmail thật).
  */
 @Service
 public class ZaloOtpService {
@@ -39,6 +40,7 @@ public class ZaloOtpService {
     private final PasswordEncoder passwordEncoder;
     private final AppUserDetailsService userDetailsService;
     private final JwtService jwtService;
+    private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     // Cache lưu trữ các phiên đăng ký tạm thời
@@ -48,12 +50,14 @@ public class ZaloOtpService {
                            PatientProfileJpaRepository patientProfiles,
                            PasswordEncoder passwordEncoder,
                            AppUserDetailsService userDetailsService,
-                           JwtService jwtService) {
+                           JwtService jwtService,
+                           EmailService emailService) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
         this.jwtService = jwtService;
+        this.emailService = emailService;
     }
 
     /**
@@ -118,9 +122,16 @@ public class ZaloOtpService {
 
         sessionCache.put(sessionToken, session);
 
+        // Gửi email OTP thật qua Google Gmail SMTP
+        try {
+            emailService.sendOtpEmail(email, fullName, otpCode);
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể gửi email OTP thật tới {}: {}", email, ex.getMessage());
+        }
+
         // Log ra console máy chủ để theo dõi / kiểm thử
         log.info("════════════════════════════════════════════════════════════");
-        log.info("📲 [MEDSCHED ZALO OTP] Gửi mã xác thực tới SĐT: {}", phone);
+        log.info("📧 [MEDSCHED EMAIL OTP] Gửi mã xác thực tới Email: {}", email);
         log.info("🔑 Mã OTP 4 chữ số: [{}] (Hiệu lực 120s)", otpCode);
         log.info("════════════════════════════════════════════════════════════");
 
@@ -130,8 +141,8 @@ public class ZaloOtpService {
                 maskEmail(email),
                 OTP_EXPIRES_SECONDS,
                 RESEND_COOLDOWN_SECONDS,
-                otpCode, // Cung cấp cho Demo Toast trên trình duyệt
-                "Mã xác thực 4 chữ số đã được gửi qua Zalo / Email đến số điện thoại của bạn."
+                otpCode,
+                "Mã xác thực 4 chữ số đã được gửi tới email " + maskEmail(email) + ". Vui lòng kiểm tra hộp thư."
         );
     }
 
@@ -238,10 +249,17 @@ public class ZaloOtpService {
         OtpSession updated = session.withNewOtp(newOtp, newExpiresAt, newResendAt);
         sessionCache.put(request.sessionToken(), updated);
 
-        log.info("🔄 [MEDSCHED RESEND OTP] Gửi lại mã OTP tới SĐT {}: [{}]", session.phone(), newOtp);
+        // Gửi lại email OTP thật
+        try {
+            emailService.sendOtpEmail(session.email(), session.fullName(), newOtp);
+        } catch (Exception ex) {
+            log.warn("⚠️ Không thể gửi lại email OTP tới {}: {}", session.email(), ex.getMessage());
+        }
+
+        log.info("🔄 [MEDSCHED RESEND OTP] Gửi lại mã OTP tới Email {}: [{}]", session.email(), newOtp);
 
         return new ZaloOtpDtos.ResendOtpResponse(
-                "Mã OTP mới đã được gửi lại qua Zalo / Email.",
+                "Mã OTP mới đã được gửi lại tới email " + maskEmail(session.email()) + ".",
                 OTP_EXPIRES_SECONDS,
                 RESEND_COOLDOWN_SECONDS,
                 newOtp
