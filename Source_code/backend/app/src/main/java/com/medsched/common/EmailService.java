@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-@Service
+@Service("passwordResetEmailService")
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);

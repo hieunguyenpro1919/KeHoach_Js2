@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Dịch vụ gửi Email tự động qua Google Gmail SMTP (Miễn phí 100%).
  */
-@Service
+@Service("otpEmailService")
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);

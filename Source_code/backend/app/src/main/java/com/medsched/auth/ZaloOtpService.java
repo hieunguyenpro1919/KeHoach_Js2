@@ -12,6 +12,7 @@ import com.medsched.security.JwtService;
 import com.medsched.mail.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class ZaloOtpService {
     private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
+
     // Cache lưu trữ các phiên đăng ký tạm thời
     private final Map<String, OtpSession> sessionCache = new ConcurrentHashMap<>();
 
@@ -51,7 +53,7 @@ public class ZaloOtpService {
                            PasswordEncoder passwordEncoder,
                            AppUserDetailsService userDetailsService,
                            JwtService jwtService,
-                           EmailService emailService) {
+                           @Qualifier("otpEmailService") EmailService emailService) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.passwordEncoder = passwordEncoder;
