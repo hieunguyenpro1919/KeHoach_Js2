@@ -876,6 +876,44 @@ export const api = {
     });
   },
 
+  async getScheduleAffectedPatients(scheduleId: string) {
+    return request<Array<{
+      appointmentId: string;
+      bookingCode: string;
+      patientName: string;
+      patientPhone: string;
+      slotTime: string;
+      status: string;
+      reassignedDoctorName?: string;
+    }>>(`/doctor/schedules/${scheduleId}/affected-patients`);
+  },
+
+  async emergencyCancelDoctorSchedule(scheduleId: string, payload: { reason: string; autoReassign: boolean }) {
+    return request<{
+      scheduleId: string;
+      workDate: string;
+      affectedCount: number;
+      reassignedCount: number;
+      affectedPatients: Array<any>;
+      message: string;
+    }>(`/doctor/schedules/${scheduleId}/emergency-cancel`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async triggerAutoScheduleTomorrow() {
+    return request<{
+      workDate: string;
+      doctorsScheduledCount: number;
+      totalShiftsCreated: number;
+      totalSlotsCreated: number;
+      message: string;
+    }>("/doctor/schedules/auto-generate-tomorrow", {
+      method: "POST",
+    });
+  },
+
   async getStatisticsOverview(params?: {
     role?: string;
     granularity?: string;

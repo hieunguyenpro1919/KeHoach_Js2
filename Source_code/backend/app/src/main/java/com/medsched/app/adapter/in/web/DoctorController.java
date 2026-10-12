@@ -204,13 +204,51 @@ public class DoctorController {
     }
 
     /**
-     * Bác sĩ hủy ca trực (chỉ cho phép khi chưa có bệnh nhân đặt lịch).
+     * Bác sĩ hủy ca trực thông thường (chỉ cho phép khi chưa có bệnh nhân đặt lịch).
      */
     @DeleteMapping("/schedules/{scheduleId}")
     public ResponseEntity<Void> deleteSchedule(
             @PathVariable String scheduleId) {
         doctorScheduleService.deleteSchedule(scheduleId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Xem trước danh sách bệnh nhân bị ảnh hưởng nếu Bác sĩ hủy ca trực khẩn cấp.
+     */
+    @GetMapping("/schedules/{scheduleId}/affected-patients")
+    public ResponseEntity<List<DoctorScheduleDtos.AffectedPatientInfoDto>> getAffectedPatients(
+            @PathVariable String scheduleId) {
+        List<DoctorScheduleDtos.AffectedPatientInfoDto> result =
+                doctorScheduleService.getScheduleAffectedPatients(scheduleId);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * PHƯƠNG ÁN 2: Bác sĩ hủy ca trực khẩn cấp khi đã có bệnh nhân đặt hẹn (Bất khả kháng).
+     * Bắt buộc cung cấp lý do hủy để chuyển giao Lễ tân và ghi nhận bệnh án.
+     */
+    @PostMapping("/schedules/{scheduleId}/emergency-cancel")
+    public ResponseEntity<DoctorScheduleDtos.EmergencyCancelResponse> emergencyCancelSchedule(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @PathVariable String scheduleId,
+            @Valid @RequestBody DoctorScheduleDtos.EmergencyCancelScheduleRequest request) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        DoctorScheduleDtos.EmergencyCancelResponse response =
+                doctorScheduleService.emergencyCancelSchedule(userId, scheduleId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Kích hoạt thủ công tác vụ tự động xếp lịch ngày mai (dành cho Admin / Kiểm thử Job 17h).
+     */
+    @PostMapping("/schedules/auto-generate-tomorrow")
+    public ResponseEntity<DoctorScheduleDtos.AutoScheduleResultDto> triggerAutoScheduleTomorrow() {
+        LocalDate tomorrow = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(1);
+        DoctorScheduleDtos.AutoScheduleResultDto result =
+                doctorScheduleService.autoGenerateScheduleForTargetDate(tomorrow);
+        return ResponseEntity.ok(result);
     }
 }
 
