@@ -7,7 +7,6 @@ import {
   Users, 
   UserPlus, 
   Search, 
-  Shield, 
   CheckCircle2, 
   XCircle, 
   RefreshCw, 
@@ -269,48 +268,16 @@ export default function UserTable() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-mint-light flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-pine-teal mb-1 text-sm font-semibold">
-            <Shield size={18} />
-            <span>Hệ thống Quản trị MedSched</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Quản Lý Người Dùng & Nhân Sự</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Theo dõi, phân quyền và kích hoạt tài khoản Bác sĩ, Lễ tân và Bệnh nhân.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/admin/create-user"
-            className="flex items-center gap-2 bg-pine-teal hover:bg-pine-teal-hover text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
-          >
-            <UserPlus size={18} />
-            <span>Tạo Tài Khoản Mới</span>
-          </Link>
-          <button
-            onClick={() => loadUsers()}
-            disabled={loading}
-            className="p-2.5 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer"
-            title="Tải lại danh sách"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Alert message */}
       {message && (
         <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
-      {/* Filter & Search Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      {/* Filter & Actions Toolbar */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         {/* Role Tabs */}
-        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap">
+        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
@@ -337,25 +304,47 @@ export default function UserTable() {
           ))}
         </div>
 
-        {/* Search form */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:flex-initial w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tên, email, SĐT..."
-              className="pl-9 pr-3 py-2 text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full text-xs sm:text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer shrink-0"
+        {/* Right Actions: Search + Tạo Tài Khoản Mới + Tải lại */}
+        <div className="flex flex-wrap items-center gap-2.5 justify-start xl:justify-end">
+          {/* Search form */}
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+            <div className="relative w-full sm:w-60">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm theo tên, email, SĐT..."
+                className="pl-9 pr-3 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
+            >
+              Tìm
+            </button>
+          </form>
+
+          {/* Nút Tạo Tài Khoản Mới */}
+          <Link
+            href="/admin/create-user"
+            className="flex items-center gap-1.5 bg-pine-teal hover:bg-pine-teal-hover text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition shrink-0 whitespace-nowrap"
           >
-            Tìm
+            <UserPlus size={16} />
+            <span>Tạo Tài Khoản Mới</span>
+          </Link>
+
+          {/* Nút Tải lại danh sách */}
+          <button
+            onClick={() => loadUsers()}
+            disabled={loading}
+            className="p-2 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer shrink-0 border border-teal-primary/20"
+            title="Tải lại danh sách"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-        </form>
+        </div>
       </div>
 
       {/* Table Data */}
