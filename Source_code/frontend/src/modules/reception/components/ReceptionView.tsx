@@ -62,9 +62,8 @@ export default function ReceptionView() {
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const [method, setMethod] = useState<'QR_CODE' | 'CCCD_QR' | 'WALK_IN'>('QR_CODE');
+  const [method, setMethod] = useState<'QR_CODE' | 'WALK_IN'>('QR_CODE');
   const [bookingCode, setBookingCode] = useState('');
-  const [cccdNumber, setCccdNumber] = useState('');
   const [patientName, setPatientName] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AppointmentResponse | null>(null);
@@ -78,7 +77,6 @@ export default function ReceptionView() {
   // Walk-in Registration states (Khách vãng lai đăng ký tại quầy)
   const [walkinName, setWalkinName] = useState('');
   const [walkinPhone, setWalkinPhone] = useState('');
-  const [walkinCccd, setWalkinCccd] = useState('');
   const [walkinSpecialty, setWalkinSpecialty] = useState('');
   const [walkinPassword, setWalkinPassword] = useState('Med@123456');
   const [specialties, setSpecialties] = useState<any[]>([]);
@@ -373,13 +371,19 @@ export default function ReceptionView() {
     setLoading(true);
     setError(null);
 
+    const cleanCode = bookingCode.trim();
+    if (!cleanCode) {
+      setError('Vui lòng nhập hoặc quét mã QR vé hẹn khám.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await api.checkIn({
-        bookingCode: method === 'QR_CODE' ? bookingCode : undefined,
-        cccdNumber: method === 'CCCD_QR' ? cccdNumber : undefined,
-        fullName: patientName,
+        bookingCode: cleanCode,
+        fullName: patientName.trim() || undefined,
         doctorId: selectedDoctorId,
-        method: method === 'QR_CODE' ? 'QR_CODE' : 'CCCD_QR',
+        method: 'QR_CODE',
       });
 
       setResult(res);
@@ -389,9 +393,9 @@ export default function ReceptionView() {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const newEntry = {
         appointmentId: (res as any).id,
-        queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, method === 'WALK_IN'),
-        bookingCode: res.bookingCode || (method === 'QR_CODE' ? bookingCode : `MED-${cccdNumber.slice(-4)}`),
-        patientName: (res as any).patientName || (method === 'CCCD_QR' ? (patientName || 'Bệnh nhân CCCD') : 'Bệnh nhân tiếp đón'),
+        queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, false),
+        bookingCode: res.bookingCode || cleanCode,
+        patientName: (res as any).patientName || patientName.trim() || 'Bệnh nhân tiếp đón',
         doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
         room: (res as any).roomNumber || 'Phòng khám chuyên khoa',
         checkInTime: timeStr,
@@ -403,7 +407,6 @@ export default function ReceptionView() {
       // Xóa form nhập để tránh bấm lặp lại nhiều lần
       setBookingCode('');
       setPatientName('');
-      setCccdNumber('');
 
       // Bắn tín hiệu đồng bộ buồng khám Bác sĩ ngay lập tức
       try {
@@ -412,60 +415,23 @@ export default function ReceptionView() {
         syncChannel.close();
       } catch {}
     } catch (err: any) {
-      setError(err.message || 'Tiếp đón thất bại. Vui lòng kiểm tra lại mã hoặc thẻ.');
+      setError(err.message || 'Tiếp đón thất bại. Vui lòng kiểm tra lại mã vé hẹn.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCameraScanSuccess = async (scan: QrScanResult) => {
-    if (scan.type === 'CCCD' && scan.cccdNumber) {
-      setMethod('CCCD_QR');
-      setCccdNumber(scan.cccdNumber);
-      if (scan.fullName) {
-        setPatientName(scan.fullName);
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await api.checkIn({
-          cccdNumber: scan.cccdNumber,
-          fullName: scan.fullName || patientName,
-          doctorId: selectedDoctorId,
-          method: 'CCCD_QR',
-        });
-        setResult(res);
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-        const newEntry = {
-          appointmentId: (res as any).id,
-          queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, false),
-          bookingCode: res.bookingCode || `MED-${scan.cccdNumber.slice(-4)}`,
-          patientName: (res as any).patientName || scan.fullName || 'Bệnh nhân CCCD',
-          doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
-          room: (res as any).roomNumber || 'Phòng khám chuyên khoa',
-          checkInTime: timeStr,
-          status: 'ĐÃ TIẾP ĐÓN',
-        };
-        upsertHistoryEntry(newEntry);
-        try {
-          const syncChannel = new BroadcastChannel('medsched_queue_sync');
-          syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
-          syncChannel.close();
-        } catch {}
-      } catch (err: any) {
-        setError(err.message || 'Tiếp đón qua CCCD thất bại.');
-      } finally {
-        setLoading(false);
-      }
-    } else if (scan.bookingCode) {
+    if (scan.bookingCode) {
       setMethod('QR_CODE');
       setBookingCode(scan.bookingCode);
+      setShowCameraScanner(false);
       setLoading(true);
       setError(null);
       try {
         const res = await api.checkIn({
           bookingCode: scan.bookingCode,
+          doctorId: selectedDoctorId,
           method: 'QR_CODE',
         });
         setResult(res);
@@ -492,6 +458,11 @@ export default function ReceptionView() {
       } finally {
         setLoading(false);
       }
+    } else if (scan.fullName) {
+      // Trường hợp camera quét thấy thông tin họ tên -> chuyển nhanh sang tab Khách Vãng Lai
+      setMethod('WALK_IN');
+      setWalkinName(scan.fullName);
+      setShowCameraScanner(false);
     }
   };
 
@@ -522,7 +493,6 @@ export default function ReceptionView() {
       const walkinRes = await api.registerWalkinPatient({
         fullName: cleanName,
         phone: cleanPhone,
-        cccdNumber: walkinCccd.trim() || undefined,
         doctorId: docId,
         specialty: spec,
         password: autoPass,
@@ -592,7 +562,6 @@ export default function ReceptionView() {
       // Reset form
       setWalkinName('');
       setWalkinPhone('');
-      setWalkinCccd('');
       handleGenerateRandomPass();
     } catch (err: any) {
       setError(err.message || 'Tiếp đón tại quầy thất bại. Vui lòng thử lại.');
@@ -639,7 +608,7 @@ export default function ReceptionView() {
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Quầy Tiếp Nhận Bệnh Nhân Ngoại Trú</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Hỗ trợ đầu đọc quét mã QR vé hẹn điện tử, quét chip thẻ CCCD 12 số hoặc tạo hồ sơ & cấp tài khoản trực tiếp tại quầy.
+            Hỗ trợ quét mã QR vé hẹn điện tử hoặc tiếp đón khách vãng lai trực tiếp tại quầy (chỉ cần Tên &amp; Số điện thoại).
           </p>
         </div>
 
@@ -749,43 +718,31 @@ export default function ReceptionView() {
         {/* Left Column: Scanner & Walk-in Panel (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            {/* Method Tabs */}
+            {/* Method Tabs (Tinh gọn 2 tab chuẩn) */}
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
               <button
                 type="button"
                 onClick={() => { setMethod('QR_CODE'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   method === 'QR_CODE'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <QrCode size={15} />
-                <span>1. QR Vé</span>
+                <QrCode size={16} />
+                <span>1. Quét QR Vé Hẹn</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setMethod('WALK_IN'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   method === 'WALK_IN'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <UserPlus size={15} />
-                <span>2. Khách Vãng Lai</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMethod('CCCD_QR'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  method === 'CCCD_QR'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CreditCard size={15} />
-                <span>3. Thẻ CCCD</span>
+                <UserPlus size={16} />
+                <span>2. Tiếp Đón Khách Vãng Lai (Tên &amp; SĐT)</span>
               </button>
             </div>
 
@@ -966,72 +923,7 @@ export default function ReceptionView() {
                 </div>
               )}
 
-              {/* Form Thẻ CCCD */}
-              {method === 'CCCD_QR' && (
-                <div className="space-y-3">
-                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
-                    <span>Quét mã QR hoặc nhập 12 số CCCD gắn chip của người bệnh.</span>
-                    <button
-                      type="button"
-                      onClick={() => { setMethod('WALK_IN'); setError(null); }}
-                      className="text-emerald-700 font-bold hover:underline cursor-pointer ml-2 shrink-0"
-                    >
-                      Chưa có CCCD? Tiếp đón bằng SĐT →
-                    </button>
-                  </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        Số Định Danh CCCD Gắn Chip (12 số):
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowCameraScanner(true)}
-                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition cursor-pointer"
-                      >
-                        <Camera size={13} />
-                        <span>Quét QR Thẻ CCCD</span>
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                          ref={qrInputRef}
-                          type="text"
-                          required
-                          value={cccdNumber}
-                          onChange={(e) => setCccdNumber(e.target.value)}
-                          placeholder="Ví dụ: 079095012345"
-                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowCameraScanner(true)}
-                        className="px-3.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
-                        title="Quét mã QR trên thẻ CCCD gắn chip"
-                      >
-                        <Camera size={16} />
-                        <span className="hidden sm:inline">Quét CCCD</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Họ và Tên Bệnh Nhân (Khớp thẻ):
-                    </label>
-                    <input
-                      type="text"
-                      value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
-                      placeholder="Châu Tuấn Kiệt"
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-sm"
-                    />
-                  </div>
-                </div>
-              )}
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
@@ -1055,7 +947,7 @@ export default function ReceptionView() {
             </form>
           </div>
 
-          {/* Instant Result Card for QR/CCCD */}
+          {/* Instant Result Card */}
           {result && (
             <div className="bg-emerald-600 text-white rounded-2xl p-6 shadow-lg shadow-emerald-600/30 space-y-4 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
@@ -1754,7 +1646,7 @@ export default function ReceptionView() {
         isOpen={showCameraScanner}
         onClose={() => setShowCameraScanner(false)}
         onScanSuccess={handleCameraScanSuccess}
-        title="Quét Mã QR Vé Khám Hoặc Thẻ CCCD Gắn Chip"
+        title="Quét Mã QR Vé Khám Điện Tử"
       />
 
       {/* ── Overlay Khóa Đa Tab (Single Tab Enforcement) ── */}
