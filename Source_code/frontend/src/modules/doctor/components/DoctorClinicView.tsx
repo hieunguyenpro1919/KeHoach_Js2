@@ -920,7 +920,12 @@ export default function DoctorClinicView() {
         })),
       };
 
-      const res = await api.createDoctorPrescription(currentPatient.id, payload);
+      let res;
+      try {
+        res = await api.completeDoctorVisit(currentPatient.id, payload);
+      } catch {
+        res = await api.createDoctorPrescription(currentPatient.id, payload);
+      }
 
       setLastSavedPrescription({
         patient: currentPatient,
