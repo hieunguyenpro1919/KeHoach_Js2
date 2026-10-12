@@ -26,7 +26,10 @@ import {
   X,
   Filter,
   Camera,
-  History
+  History,
+  Zap,
+  CalendarDays,
+  DoorOpen
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -38,6 +41,7 @@ import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOver
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { QrCameraScannerModal, QrScanResult } from '@/shared/components/QrCameraScannerModal';
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
+import ReceptionScheduleBoard from './ReceptionScheduleBoard';
 
 const normalizeQueueNumber = (num?: string, isWalkin = false): string => {
   if (!num) return isWalkin ? 'W-01' : 'A-01';
@@ -79,6 +83,31 @@ export default function ReceptionView() {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+
+  // Tab điều hướng chính của Lễ Tân: Tiếp đón & Check-in vs Tra cứu lịch toàn viện
+  const [mainTab, setMainTab] = useState<'CHECK_IN' | 'SCHEDULE_CONSULT'>('CHECK_IN');
+  const [preselectedWalkinInfo, setPreselectedWalkinInfo] = useState<{
+    doctorName: string;
+    roomNumber: string;
+    slotTime: string;
+    date: string;
+  } | null>(null);
+
+  const handleSelectSlotForWalkin = (doctor: any, slot: any, date: string) => {
+    setMainTab('CHECK_IN');
+    setMethod('WALK_IN');
+    setSelectedDoctorId(doctor.id);
+    if (doctor.specialtyName) {
+      setWalkinSpecialty(doctor.specialtyName);
+    }
+    setPreselectedWalkinInfo({
+      doctorName: formatDoctorFullName(doctor.academicTitle, doctor.fullName),
+      roomNumber: doctor.roomNumber || 'P.208',
+      slotTime: slot.time,
+      date,
+    });
+    setError(null);
+  };
 
   // Modal Bàn Giao Tài Khoản & In Phiếu K80
   const [accountHandoverModal, setAccountHandoverModal] = useState<{
@@ -611,7 +640,47 @@ export default function ReceptionView() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* ── THANH CHUYỂN TAB CHÍNH CỦA LỄ TÂN (TIẾP ĐÓN vs TRA CỨU LỊCH TOÀN VIỆN) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-3xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setMainTab('CHECK_IN')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 cursor-pointer ${
+              mainTab === 'CHECK_IN'
+                ? 'bg-white text-emerald-800 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UserCheck size={16} className={mainTab === 'CHECK_IN' ? 'text-emerald-600' : ''} />
+            <span>1. Tiếp Đón &amp; Quét Mã Check-in</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('SCHEDULE_CONSULT')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 cursor-pointer ${
+              mainTab === 'SCHEDULE_CONSULT'
+                ? 'bg-white text-teal-800 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <CalendarDays size={16} className={mainTab === 'SCHEDULE_CONSULT' ? 'text-teal-600' : ''} />
+            <span>2. Tra Cứu Lịch Toàn Viện &amp; Tư Vấn Bác Sĩ</span>
+            <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full ml-1">
+              {doctors.length} Bác sĩ
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium px-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Hệ thống điều phối ngoại trú trực tuyến</span>
+        </div>
+      </div>
+
+      {mainTab === 'CHECK_IN' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Scanner & Walk-in Panel (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
@@ -771,6 +840,28 @@ export default function ReceptionView() {
 
               {method === 'WALK_IN' && (
                 <div className="space-y-3.5">
+                  {preselectedWalkinInfo && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-950 flex items-start justify-between gap-2 shadow-2xs animate-in fade-in">
+                      <div>
+                        <span className="font-extrabold flex items-center gap-1.5 text-emerald-800">
+                          <Zap size={14} className="text-emerald-600" />
+                          Tiếp nhận theo lịch đã tra cứu:
+                        </span>
+                        <p className="text-[11px] mt-0.5 text-emerald-900">
+                          Khám cùng <strong>{preselectedWalkinInfo.doctorName}</strong> ({preselectedWalkinInfo.roomNumber}) • Khung giờ <strong>{preselectedWalkinInfo.slotTime}</strong> (Ngày {preselectedWalkinInfo.date}).
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreselectedWalkinInfo(null)}
+                        className="text-emerald-700 hover:text-emerald-950 font-bold p-1 cursor-pointer"
+                        title="Bỏ chọn khung giờ này"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Họ và Tên Bệnh Nhân: <span className="text-red-500">*</span>
@@ -819,12 +910,36 @@ export default function ReceptionView() {
                     </label>
                     <select
                       value={walkinSpecialty}
-                      onChange={(e) => setWalkinSpecialty(e.target.value)}
+                      onChange={(e) => {
+                        const newSpec = e.target.value;
+                        setWalkinSpecialty(newSpec);
+                        const matchDoc = doctors.find((d) => d.specialtyName === newSpec);
+                        if (matchDoc) setSelectedDoctorId(matchDoc.id);
+                      }}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
                     >
                       {specialties.map((s) => (
                         <option key={s.id} value={s.name}>{s.name}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Bác Sĩ Phụ Trách &amp; Buồng Khám:
+                    </label>
+                    <select
+                      value={selectedDoctorId}
+                      onChange={(e) => setSelectedDoctorId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-semibold"
+                    >
+                      {doctors
+                        .filter((d) => !walkinSpecialty || d.specialtyName === walkinSpecialty)
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {formatDoctorFullName(d.academicTitle, d.fullName)} ({d.roomNumber || 'Phòng P.208'}) - {Number(d.consultationFee || 200000).toLocaleString('vi-VN')} đ
+                          </option>
+                        ))}
                     </select>
                   </div>
 
@@ -1189,6 +1304,13 @@ export default function ReceptionView() {
           </div>
         </div>
       </div>
+      ) : (
+        <ReceptionScheduleBoard
+          onSelectSlotForWalkin={handleSelectSlotForWalkin}
+          specialties={specialties}
+          doctors={doctors}
+        />
+      )}
 
       {/* ── Modal Bàn Giao Tài Khoản & In Phiếu Tiếp Đón K80 (Walk-in Handover Ticket) ── */}
       {accountHandoverModal && (
