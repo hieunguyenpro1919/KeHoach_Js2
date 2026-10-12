@@ -719,30 +719,30 @@ export default function ReceptionView() {
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             {/* Method Tabs (Tinh gọn 2 tab chuẩn) */}
-            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 gap-1">
               <button
                 type="button"
                 onClick={() => { setMethod('QR_CODE'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                   method === 'QR_CODE'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                <QrCode size={16} />
+                <QrCode size={16} className="shrink-0" />
                 <span>1. Quét QR Vé Hẹn</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setMethod('WALK_IN'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                   method === 'WALK_IN'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                <UserPlus size={16} />
-                <span>2. Tiếp Đón Khách Vãng Lai (Tên &amp; SĐT)</span>
+                <UserPlus size={16} className="shrink-0" />
+                <span>2. Khách Vãng Lai</span>
               </button>
             </div>
 
