@@ -10,7 +10,9 @@ import {
   DoorOpen, 
   Lock,
   Check, 
-  AlertCircle 
+  AlertCircle,
+  GraduationCap,
+  Coins
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
@@ -21,6 +23,18 @@ import {
   validateEmail, 
   validateTemporaryPassword 
 } from '@/shared/lib/formValidations';
+
+export const MEDICAL_ACADEMIC_TITLES = [
+  { value: 'BS', label: 'Bác sĩ (BS)', defaultFee: 200000 },
+  { value: 'BS.CKI', label: 'Bác sĩ Chuyên khoa I (BS.CKI)', defaultFee: 250000 },
+  { value: 'BS.CKII', label: 'Bác sĩ Chuyên khoa II (BS.CKII)', defaultFee: 350000 },
+  { value: 'ThS.BS', label: 'Thạc sĩ - Bác sĩ (ThS.BS)', defaultFee: 300000 },
+  { value: 'TS.BS', label: 'Tiến sĩ - Bác sĩ (TS.BS)', defaultFee: 400000 },
+  { value: 'PGS.TS.BS', label: 'Phó Giáo sư, Tiến sĩ - Bác sĩ (PGS.TS.BS)', defaultFee: 500000 },
+  { value: 'GS.TS.BS', label: 'Giáo sư, Tiến sĩ - Bác sĩ (GS.TS.BS)', defaultFee: 600000 },
+  { value: 'BSNT', label: 'Bác sĩ Nội trú (BSNT)', defaultFee: 250000 },
+  { value: 'CUSTOM', label: 'Khác (Nhập tùy chỉnh...)', defaultFee: 300000 },
+];
 
 interface CreateDoctorFormProps {
   medicalCenters: Array<{ id: string; name: string }>;
@@ -40,6 +54,10 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   const [selectedRoom, setSelectedRoom] = useState<string>('P.208');
   const [isCustomRoom, setIsCustomRoom] = useState<boolean>(false);
   const [customRoomValue, setCustomRoomValue] = useState<string>('');
+
+  // Học hàm / học vị chuẩn y khoa
+  const [isCustomTitle, setIsCustomTitle] = useState<boolean>(false);
+  const [customTitleValue, setCustomTitleValue] = useState<string>('');
 
   useEffect(() => {
     const refreshRooms = () => {
@@ -75,14 +93,16 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
   const isFormValid = useMemo(() => {
     const roomValid = isCustomRoom ? Boolean(customRoomValue.trim()) : Boolean(selectedRoom);
+    const titleValid = !isCustomTitle || (Boolean(customTitleValue.trim()) && customTitleValue.trim().length >= 2);
     return fullNameValidation.isValid &&
       emailValidation.isValid &&
       phoneValidation.isValid &&
       passwordValidation.isValid &&
       Boolean(doctorForm.medicalCenterId) &&
       Boolean(doctorForm.specialtyId) &&
-      roomValid;
-  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom]);
+      roomValid &&
+      titleValid;
+  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom, isCustomTitle, customTitleValue]);
 
   const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +124,16 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       return;
     }
 
+    const finalAcademicTitle = isCustomTitle 
+      ? customTitleValue.trim() 
+      : (doctorForm.academicTitle || 'ThS.BS');
+
+    if (!finalAcademicTitle) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn hoặc nhập học hàm / học vị cho Bác sĩ.' });
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.createDoctor({
         fullName: doctorForm.fullName.trim(),
@@ -112,7 +142,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         temporaryPassword: doctorForm.temporaryPassword.trim() || undefined,
         medicalCenterId: doctorForm.medicalCenterId,
         specialtyId: doctorForm.specialtyId,
-        academicTitle: doctorForm.academicTitle,
+        academicTitle: finalAcademicTitle,
         consultationFee: Number(doctorForm.consultationFee) || 200000,
         roomNumber: finalRoomNumber,
         bio: doctorForm.bio.trim(),
@@ -120,7 +150,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
       setMessage({
         type: 'success',
-        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại phòng [${finalRoomNumber}]! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
+        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại phòng [${finalRoomNumber}] (${finalAcademicTitle})! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
       });
 
       const newInitialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
@@ -137,6 +167,8 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       });
       setIsCustomRoom(false);
       setCustomRoomValue('');
+      setIsCustomTitle(false);
+      setCustomTitleValue('');
       if (onSuccess) onSuccess();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Tạo tài khoản Bác sĩ thất bại.' });
@@ -379,24 +411,78 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Học Hàm / Học Vị</label>
-          <input
-            type="text"
-            value={doctorForm.academicTitle}
-            onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
-            placeholder="GS, PGS, ThS, BS.CKII..."
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-          />
+          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <span>Học Hàm / Học Vị <span className="text-red-500">*</span></span>
+            <span className="text-[10px] text-blue-600 font-semibold">Chuẩn danh xưng Y khoa</span>
+          </label>
+          <div className="relative">
+            <GraduationCap className="absolute left-3.5 top-3 text-slate-400" size={17} />
+            <select
+              value={isCustomTitle ? 'CUSTOM' : doctorForm.academicTitle}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'CUSTOM') {
+                  setIsCustomTitle(true);
+                  setDoctorForm({ ...doctorForm, academicTitle: customTitleValue || '' });
+                } else {
+                  setIsCustomTitle(false);
+                  const matched = MEDICAL_ACADEMIC_TITLES.find(t => t.value === val);
+                  setDoctorForm({ 
+                    ...doctorForm, 
+                    academicTitle: val,
+                    consultationFee: matched?.defaultFee || doctorForm.consultationFee
+                  });
+                }
+              }}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-medium transition cursor-pointer"
+            >
+              {MEDICAL_ACADEMIC_TITLES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {isCustomTitle && (
+            <div className="mt-2">
+              <input
+                type="text"
+                required
+                maxLength={50}
+                placeholder="Nhập danh xưng tùy chỉnh (ví dụ: TS.BS.CKII, MD...)"
+                value={customTitleValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomTitleValue(val);
+                  setDoctorForm({ ...doctorForm, academicTitle: val });
+                }}
+                className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+              />
+              {!customTitleValue.trim() && (
+                <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                  <AlertCircle size={12} />
+                  <span>Vui lòng nhập học hàm / học vị tùy chỉnh</span>
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Giá Khám Tư Vấn (VND)</label>
-          <input
-            type="number"
-            step="10000"
-            value={doctorForm.consultationFee}
-            onChange={(e) => setDoctorForm({ ...doctorForm, consultationFee: Number(e.target.value) })}
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-          />
+          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <span>Giá Khám Tư Vấn (VNĐ) <span className="text-red-500">*</span></span>
+            <span className="text-[10px] text-slate-400 font-normal">Tự động gợi ý theo học vị</span>
+          </label>
+          <div className="relative">
+            <Coins className="absolute left-3.5 top-3 text-slate-400" size={17} />
+            <input
+              type="number"
+              step="10000"
+              min="0"
+              value={doctorForm.consultationFee}
+              onChange={(e) => setDoctorForm({ ...doctorForm, consultationFee: Number(e.target.value) })}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono font-medium"
+            />
+          </div>
         </div>
       </div>
 
