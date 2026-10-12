@@ -17,6 +17,7 @@ import {
   Bell,
   AlertCircle,
   UserPlus,
+  User,
   KeyRound,
   Copy,
   Phone,
@@ -86,6 +87,44 @@ export default function ReceptionView() {
 
   // Tab điều hướng chính của Lễ Tân: Tiếp đón & Check-in vs Tra cứu lịch toàn viện
   const [mainTab, setMainTab] = useState<'CHECK_IN' | 'SCHEDULE_CONSULT'>('CHECK_IN');
+
+  // CLAB-120: Ràng buộc từng ký tự thời gian thực cho Khách Vãng Lai (chỉ cần Tên & Số ĐT)
+  const walkinPhoneValidation = useMemo(() => {
+    const p = walkinPhone.trim();
+    if (!p) return { isValid: false, message: 'Bắt buộc nhập số điện thoại (10 chữ số)' };
+    if (!/^\d+$/.test(p)) {
+      return { isValid: false, message: 'Số điện thoại chỉ được chứa các chữ số từ 0-9.' };
+    }
+    if (p.length < 10) {
+      return { isValid: false, message: `Số điện thoại còn thiếu (${p.length}/10 số). Vui lòng nhập đủ 10 chữ số.` };
+    }
+    if (p.length > 10) {
+      return { isValid: false, message: `Số điện thoại quá dài (${p.length}/10 số).` };
+    }
+    const prefix = p.substring(0, 2);
+    const validPrefixes = ['03', '05', '07', '08', '09'];
+    if (!validPrefixes.includes(prefix)) {
+      return { isValid: false, message: `Đầu số '${prefix}' không hợp lệ (phải bắt đầu bằng 03, 05, 07, 08 hoặc 09).` };
+    }
+    return { isValid: true, message: 'Số điện thoại hợp lệ (10/10 số)' };
+  }, [walkinPhone]);
+
+  const walkinNameValidation = useMemo(() => {
+    const n = walkinName.trim();
+    if (!n) return { isValid: false, message: 'Bắt buộc nhập họ và tên người bệnh' };
+    if (n.length < 2) return { isValid: false, message: `Họ và tên quá ngắn (${n.length}/2 ký tự tối thiểu).` };
+    if (n.length > 100) return { isValid: false, message: `Họ và tên quá dài (${n.length}/100 ký tự tối đa).` };
+    for (let i = 0; i < n.length; i++) {
+      const c = n[i];
+      if (/[0-9]/.test(c)) {
+        return { isValid: false, message: `Họ tên không được chứa chữ số ('${c}' tại vị trí ${i + 1}).` };
+      }
+      if (!/^[\p{L}\s]$/u.test(c)) {
+        return { isValid: false, message: `Ký tự đặc biệt '${c}' tại vị trí ${i + 1} không được phép. Chỉ dùng chữ cái tiếng Việt.` };
+      }
+    }
+    return { isValid: true, message: 'Họ và tên hợp lệ' };
+  }, [walkinName]);
   const [preselectedWalkinInfo, setPreselectedWalkinInfo] = useState<{
     doctorName: string;
     roomNumber: string;
@@ -458,12 +497,25 @@ export default function ReceptionView() {
 
   const handleWalkinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!walkinPhoneValidation.isValid) {
+      setError(`Lỗi số điện thoại: ${walkinPhoneValidation.message}`);
+      return;
+    }
+    if (!walkinNameValidation.isValid) {
+      setError(`Lỗi họ và tên: ${walkinNameValidation.message}`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const cleanPhone = walkinPhone.trim();
     const cleanName = walkinName.trim();
     const generatedEmail = `${cleanPhone}@medsched.vn`;
+    const docId = selectedDoctorId || (doctors[0]?.id);
+    const spec = walkinSpecialty || (doctors.find((d) => d.id === docId)?.specialtyName) || 'Đa khoa';
+    const autoPass = walkinPassword || (cleanPhone.length >= 4 ? `Med@${cleanPhone.slice(-4)}` : 'Med@1234');
 
     try {
       // 1. Tạo tài khoản & ca khám thực tế lưu vào CSDL MySQL
@@ -471,9 +523,9 @@ export default function ReceptionView() {
         fullName: cleanName,
         phone: cleanPhone,
         cccdNumber: walkinCccd.trim() || undefined,
-        doctorId: selectedDoctorId,
-        specialty: walkinSpecialty,
-        password: walkinPassword,
+        doctorId: docId,
+        specialty: spec,
+        password: autoPass,
       });
 
       const now = new Date();
@@ -502,6 +554,19 @@ export default function ReceptionView() {
       };
 
       upsertHistoryEntry(newEntry);
+
+      // Hiển thị thẻ kết quả tức thì
+      setResult({
+        id: walkinRes.appointmentId,
+        bookingCode: walkinRes.bookingCode,
+        queueNumber: queueNumber,
+        patientName: cleanName,
+        doctorName: docName,
+        roomNumber: roomNum,
+        specialtyName: specName,
+        checkInTime: timeStr,
+        status: 'CHECKED_IN',
+      } as any);
 
       // 2. Phát tín hiệu đồng bộ tức thì qua BroadcastChannel tới Buồng khám Bác sĩ
       try {
@@ -700,18 +765,6 @@ export default function ReceptionView() {
               </button>
               <button
                 type="button"
-                onClick={() => { setMethod('CCCD_QR'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  method === 'CCCD_QR'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CreditCard size={15} />
-                <span>2. Thẻ CCCD</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => { setMethod('WALK_IN'); setError(null); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   method === 'WALK_IN'
@@ -720,7 +773,19 @@ export default function ReceptionView() {
                 }`}
               >
                 <UserPlus size={15} />
-                <span>3. Cấp TK Quầy</span>
+                <span>2. Khách Vãng Lai</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMethod('CCCD_QR'); setError(null); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  method === 'CCCD_QR'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CreditCard size={15} />
+                <span>3. Thẻ CCCD</span>
               </button>
             </div>
 
@@ -783,8 +848,138 @@ export default function ReceptionView() {
                 </div>
               )}
 
+              {/* Form Tiếp Đón Khách Vãng Lai: Chỉ cần Tên và Số Điện Thoại */}
+              {method === 'WALK_IN' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2 shadow-2xs">
+                    <Zap size={16} className="text-emerald-700 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-extrabold text-emerald-800">Tiếp Đón Khách Vãng Lai:</span>
+                      <p className="text-[11px] text-emerald-800/90 mt-0.5">
+                        Khách đến khám trực tiếp — <strong>Chỉ cần nhập Số điện thoại và Họ tên</strong>, hệ thống tự động cấp số thứ tự STT khám ngay lập tức!
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Số Điện Thoại */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <div>
+                        <span>Số Điện Thoại Người Bệnh</span> <span className="text-red-500">*</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">Đúng 10 chữ số</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        required
+                        autoFocus
+                        maxLength={10}
+                        value={walkinPhone}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                          setWalkinPhone(val);
+                          if (val.length >= 4) {
+                            setWalkinPassword(`Med@${val.slice(-4)}`);
+                          }
+                          if (error) setError(null);
+                        }}
+                        placeholder="Ví dụ: 0912345678"
+                        className={`w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
+                          walkinPhone
+                            ? walkinPhoneValidation.isValid
+                              ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                              : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                            : 'border-slate-200 focus:border-emerald-600 focus:ring-emerald-100'
+                        }`}
+                      />
+                      <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                    {walkinPhone && (
+                      <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+                        walkinPhoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+                      }`}>
+                        {walkinPhoneValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+                        <span>{walkinPhoneValidation.message}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Họ và Tên */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <div>
+                        <span>Họ và Tên Bệnh Nhân</span> <span className="text-red-500">*</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">Chữ cái tiếng Việt</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        maxLength={100}
+                        value={walkinName}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^a-zA-Z\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g, '');
+                          setWalkinName(val);
+                          if (error) setError(null);
+                        }}
+                        placeholder="Ví dụ: Nguyễn Văn An"
+                        className={`w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
+                          walkinName
+                            ? walkinNameValidation.isValid
+                              ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                              : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                            : 'border-slate-200 focus:border-emerald-600 focus:ring-emerald-100'
+                        }`}
+                      />
+                      <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                    {walkinName && (
+                      <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+                        walkinNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+                      }`}>
+                        {walkinNameValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+                        <span>{walkinNameValidation.message}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Bác Sĩ & Buồng Khám Tiếp Nhận (Tự động điều phối) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Bác Sĩ &amp; Buồng Khám Tiếp Nhận:</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Tự động chọn</span>
+                    </label>
+                    <select
+                      value={selectedDoctorId}
+                      onChange={(e) => setSelectedDoctorId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs font-semibold text-slate-800"
+                    >
+                      {doctors.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {formatDoctorFullName(d.academicTitle, d.fullName)} ({d.roomNumber || 'Phòng P.205'}) - {d.specialtyName || 'Khám Đa Khoa'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Thẻ CCCD */}
               {method === 'CCCD_QR' && (
                 <div className="space-y-3">
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
+                    <span>Quét mã QR hoặc nhập 12 số CCCD gắn chip của người bệnh.</span>
+                    <button
+                      type="button"
+                      onClick={() => { setMethod('WALK_IN'); setError(null); }}
+                      className="text-emerald-700 font-bold hover:underline cursor-pointer ml-2 shrink-0"
+                    >
+                      Chưa có CCCD? Tiếp đón bằng SĐT →
+                    </button>
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-bold text-slate-700 uppercase">
@@ -838,142 +1033,6 @@ export default function ReceptionView() {
                 </div>
               )}
 
-              {method === 'WALK_IN' && (
-                <div className="space-y-3.5">
-                  {preselectedWalkinInfo && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-950 flex items-start justify-between gap-2 shadow-2xs animate-in fade-in">
-                      <div>
-                        <span className="font-extrabold flex items-center gap-1.5 text-emerald-800">
-                          <Zap size={14} className="text-emerald-600" />
-                          Tiếp nhận theo lịch đã tra cứu:
-                        </span>
-                        <p className="text-[11px] mt-0.5 text-emerald-900">
-                          Khám cùng <strong>{preselectedWalkinInfo.doctorName}</strong> ({preselectedWalkinInfo.roomNumber}) • Khung giờ <strong>{preselectedWalkinInfo.slotTime}</strong> (Ngày {preselectedWalkinInfo.date}).
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPreselectedWalkinInfo(null)}
-                        className="text-emerald-700 hover:text-emerald-950 font-bold p-1 cursor-pointer"
-                        title="Bỏ chọn khung giờ này"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Họ và Tên Bệnh Nhân: <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={walkinName}
-                      onChange={(e) => setWalkinName(e.target.value)}
-                      placeholder="Ví dụ: Nguyễn Văn An"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-medium"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                        Số ĐT (Username): <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={walkinPhone}
-                        onChange={handlePhoneChange}
-                        placeholder="0912345678"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-mono font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                        Số CCCD (12 số):
-                      </label>
-                      <input
-                        type="text"
-                        value={walkinCccd}
-                        onChange={(e) => setWalkinCccd(e.target.value)}
-                        placeholder="079095012345 (tùy chọn)"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Chuyên Khoa Thăm Khám:
-                    </label>
-                    <select
-                      value={walkinSpecialty}
-                      onChange={(e) => {
-                        const newSpec = e.target.value;
-                        setWalkinSpecialty(newSpec);
-                        const matchDoc = doctors.find((d) => d.specialtyName === newSpec);
-                        if (matchDoc) setSelectedDoctorId(matchDoc.id);
-                      }}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
-                    >
-                      {specialties.map((s) => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Bác Sĩ Phụ Trách &amp; Buồng Khám:
-                    </label>
-                    <select
-                      value={selectedDoctorId}
-                      onChange={(e) => setSelectedDoctorId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-semibold"
-                    >
-                      {doctors
-                        .filter((d) => !walkinSpecialty || d.specialtyName === walkinSpecialty)
-                        .map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {formatDoctorFullName(d.academicTitle, d.fullName)} ({d.roomNumber || 'Phòng P.208'}) - {Number(d.consultationFee || 200000).toLocaleString('vi-VN')} đ
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {/* Khung Mật Khẩu Khởi Tạo & Hướng Dẫn Bàn Giao */}
-                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
-                        <KeyRound size={14} className="text-emerald-700" />
-                        <span>Mật Khẩu Khởi Tạo Cho Bệnh Nhân:</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleGenerateRandomPass}
-                        className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
-                      >
-                        Đổi ngẫu nhiên
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        required
-                        value={walkinPassword}
-                        onChange={(e) => setWalkinPassword(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-emerald-300 rounded-lg text-sm font-mono font-bold text-emerald-900 focus:outline-none"
-                      />
-                    </div>
-                    <p className="text-[11px] text-emerald-700 leading-tight">
-                      * Mật khẩu này sẽ được in trên phiếu khám để bệnh nhân mang về tự đăng nhập tra cứu.
-                    </p>
-                  </div>
-                </div>
-              )}
-
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
@@ -983,12 +1042,7 @@ export default function ReceptionView() {
                 {loading ? (
                   <>
                     <RefreshCw size={18} className="animate-spin" />
-                    <span>Đang xử lý...</span>
-                  </>
-                ) : method === 'WALK_IN' ? (
-                  <>
-                    <UserPlus size={18} />
-                    <span>Cấp Tài Khoản &amp; In Phiếu Bàn Giao</span>
+                    <span>Đang tiếp đón...</span>
                   </>
                 ) : (
                   <>
