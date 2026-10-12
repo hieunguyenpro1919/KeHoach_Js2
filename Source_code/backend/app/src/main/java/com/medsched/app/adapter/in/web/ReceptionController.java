@@ -103,6 +103,7 @@ public class ReceptionController {
     public record QuickBookRequest(
             String fullName,
             String phone,
+            String email,
             String symptoms,
             String doctorId,
             String slotId,
@@ -118,6 +119,7 @@ public class ReceptionController {
             String queueNumber,
             String patientName,
             String phone,
+            String email,
             String doctorId,
             String doctorName,
             String roomNumber,
@@ -460,6 +462,7 @@ public class ReceptionController {
     public ResponseEntity<QuickBookResponse> quickBookAppointment(@RequestBody QuickBookRequest req) {
         String cleanPhone = req.phone() != null ? req.phone().trim() : "";
         String cleanName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân đặt khám";
+        String rawEmail = req.email() != null ? req.email().trim() : "";
         String symptoms = req.symptoms() != null ? req.symptoms().trim() : "";
         String bookingType = req.bookingType() != null && req.bookingType().equalsIgnoreCase("WALKIN") ? "WALKIN" : "PHONE";
 
@@ -467,17 +470,20 @@ public class ReceptionController {
             throw new IllegalArgumentException("Vui lòng cung cấp số điện thoại của người bệnh để tiếp nhận lịch.");
         }
 
-        // 1. Tìm hoặc tạo User
-        String email = cleanPhone + "@medsched.vn";
+        // 1. Tìm hoặc tạo User (hỗ trợ nhập email/gmail của người bệnh)
+        String resolvedEmail = !rawEmail.isBlank() ? rawEmail : cleanPhone + "@medsched.vn";
         UserEntity user = userJpaRepository.findByPhone(cleanPhone).orElse(null);
+        if (user == null && !rawEmail.isBlank()) {
+            user = userJpaRepository.findByEmail(rawEmail).orElse(null);
+        }
         if (user == null) {
-            user = userJpaRepository.findByEmail(email).orElse(null);
+            user = userJpaRepository.findByEmail(resolvedEmail).orElse(null);
         }
         if (user == null) {
             String defaultPass = cleanPhone.length() >= 4 ? "Med@" + cleanPhone.substring(cleanPhone.length() - 4) : "Med@1234";
             user = new UserEntity(
                     UUID.randomUUID().toString(),
-                    email,
+                    resolvedEmail,
                     passwordEncoder.encode(defaultPass),
                     cleanName,
                     cleanPhone,
@@ -487,6 +493,13 @@ public class ReceptionController {
             );
             user.setCurrentSessionId(UUID.randomUUID().toString());
             user = userJpaRepository.save(user);
+        } else {
+            // Cập nhật email nếu người bệnh cung cấp email/gmail mới
+            if (!rawEmail.isBlank() && (user.getEmail() == null || user.getEmail().endsWith("@medsched.vn"))) {
+                user.setEmail(rawEmail);
+                user.setUpdatedAt(Instant.now());
+                user = userJpaRepository.save(user);
+            }
         }
 
         // 2. Tìm hoặc tạo Hồ sơ Bệnh nhân (PatientProfileEntity)
@@ -631,6 +644,7 @@ public class ReceptionController {
                 queueNumber,
                 cleanName,
                 cleanPhone,
+                user.getEmail(),
                 doctorId,
                 doctorName,
                 roomNumber,

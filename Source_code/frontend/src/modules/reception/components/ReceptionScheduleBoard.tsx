@@ -30,7 +30,8 @@ import {
   Copy,
   Check,
   X,
-  FileText
+  FileText,
+  Mail
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -133,6 +134,7 @@ export default function ReceptionScheduleBoard({
 
   const [bookingFullName, setBookingFullName] = useState<string>('');
   const [bookingPhone, setBookingPhone] = useState<string>('');
+  const [bookingEmail, setBookingEmail] = useState<string>('');
   const [bookingSymptoms, setBookingSymptoms] = useState<string>('');
   const [bookingType, setBookingType] = useState<'PHONE' | 'WALKIN'>('PHONE');
   const [bookingSubmitting, setBookingSubmitting] = useState<boolean>(false);
@@ -145,6 +147,7 @@ export default function ReceptionScheduleBoard({
     queueNumber: string;
     patientName: string;
     phone: string;
+    email?: string;
     doctorName: string;
     roomNumber: string;
     specialtyName: string;
@@ -166,6 +169,7 @@ export default function ReceptionScheduleBoard({
     });
     setBookingFullName('');
     setBookingPhone('');
+    setBookingEmail('');
     setBookingSymptoms('');
     setBookingType('PHONE');
     setBookingError(null);
@@ -193,6 +197,7 @@ export default function ReceptionScheduleBoard({
       const res = await api.quickBookAppointment({
         fullName: cleanName,
         phone: cleanPhone,
+        email: bookingEmail.trim() || undefined,
         symptoms: bookingSymptoms.trim(),
         doctorId: quickBookingModal.doctor.id,
         slotId: quickBookingModal.slot.id,
@@ -236,6 +241,7 @@ export default function ReceptionScheduleBoard({
         queueNumber: res.queueNumber,
         patientName: res.patientName || cleanName,
         phone: res.phone || cleanPhone,
+        email: res.email || bookingEmail.trim(),
         doctorName: res.doctorName || quickBookingModal.doctor.fullName,
         roomNumber: res.roomNumber || quickBookingModal.doctor.roomNumber,
         specialtyName: res.specialtyName || quickBookingModal.doctor.specialtyName,
@@ -1054,6 +1060,24 @@ export default function ReceptionScheduleBoard({
                 </div>
               </div>
 
+              {/* Email / Gmail người bệnh */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Gmail / Email người bệnh</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Nhận phiếu xác nhận</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={bookingEmail}
+                    onChange={(e) => setBookingEmail(e.target.value)}
+                    placeholder="VD: nguyenvana@gmail.com"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  />
+                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
               {/* Họ và tên */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1171,6 +1195,12 @@ export default function ReceptionScheduleBoard({
                   <span className="text-slate-500">Người bệnh:</span>
                   <strong className="text-slate-800">{bookingSuccessData.patientName} ({bookingSuccessData.phone})</strong>
                 </div>
+                {bookingSuccessData.email && (
+                  <div className="flex justify-between py-1 pt-1.5">
+                    <span className="text-slate-500">Gmail/Email:</span>
+                    <strong className="text-teal-700 truncate max-w-[200px]">{bookingSuccessData.email}</strong>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 pt-1.5">
                   <span className="text-slate-500">Bác sĩ khám:</span>
                   <strong className="text-slate-800">{bookingSuccessData.doctorName}</strong>

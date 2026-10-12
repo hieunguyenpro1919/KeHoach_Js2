@@ -696,6 +696,7 @@ export const api = {
   async quickBookAppointment(payload: {
     fullName: string;
     phone: string;
+    email?: string;
     symptoms?: string;
     doctorId: string;
     slotId?: string;
@@ -710,6 +711,7 @@ export const api = {
       queueNumber: string;
       patientName: string;
       phone: string;
+      email?: string;
       doctorId: string;
       doctorName: string;
       roomNumber: string;
