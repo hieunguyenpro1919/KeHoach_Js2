@@ -158,8 +158,11 @@ export default function BookingForm() {
           api.getDoctors().catch(() => []),
         ]);
         if (c && c.length > 0) {
-          setCenters(c);
-          setSelectedCenter(c[0].id);
+          const activeCenters = c.filter((item: any) => item.active !== false);
+          setCenters(activeCenters);
+          if (activeCenters.length > 0) {
+            setSelectedCenter(activeCenters[0].id);
+          }
         }
         if (s && s.length > 0) {
           setSpecialties(s);
