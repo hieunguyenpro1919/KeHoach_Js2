@@ -2,6 +2,7 @@ package com.medsched.app.adapter.in.web;
 
 import com.medsched.billing.BillingDtos;
 import com.medsched.billing.BillingService;
+import com.medsched.common.InputValidator;
 import com.medsched.core.domain.model.Appointment;
 import com.medsched.core.port.in.CheckinUseCase;
 import com.medsched.core.port.out.AppointmentRepositoryPort;
@@ -135,7 +136,8 @@ public class ReceptionController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
     public ResponseEntity<CheckinUseCase.CheckinResult> checkinByQr(@RequestBody QrCheckinRequest req) {
-        String code = req.bookingCode() != null ? req.bookingCode().trim() : "";
+        String rawCode = req.bookingCode() != null ? req.bookingCode().trim() : "";
+        String code = InputValidator.validateBookingCode(rawCode);
         Optional<AppointmentEntity> appOpt = appointmentJpaRepository.findByBookingCode(code);
         if (appOpt.isEmpty()) {
             appOpt = appointmentJpaRepository.findByQueueNumber(code);
@@ -174,8 +176,11 @@ public class ReceptionController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
     public ResponseEntity<CheckinUseCase.CheckinResult> checkinByCccd(@RequestBody CccdCheckinRequest req) {
-        String cccd = req.cccdNumber() != null ? req.cccdNumber().trim() : "";
-        String fullName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân CCCD";
+        String rawCccd = req.cccdNumber() != null ? req.cccdNumber().trim() : "";
+        String cccd = rawCccd.isBlank() ? "" : InputValidator.validateCccd(rawCccd);
+        String fullName = req.fullName() != null && !req.fullName().isBlank() 
+                ? InputValidator.validateFullName(req.fullName()) 
+                : "Bệnh nhân CCCD";
 
         if (!cccd.isBlank()) {
             List<PatientProfileEntity> profiles = patientProfileJpaRepository.findByCccdNumber(cccd)
@@ -318,8 +323,11 @@ public class ReceptionController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
     public ResponseEntity<WalkinResponse> registerWalkinPatient(@RequestBody WalkinRequest req) {
-        String cleanPhone = req.phone() != null ? req.phone().trim() : "";
-        String cleanName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân vãng lai";
+        String cleanPhone = InputValidator.validatePhone(req.phone());
+        String cleanName = InputValidator.validateFullName(req.fullName());
+        String cccdNumber = req.cccdNumber() != null && !req.cccdNumber().isBlank()
+                ? InputValidator.validateCccd(req.cccdNumber())
+                : null;
         String email = cleanPhone + "@medsched.vn";
 
         // 1. Tìm hoặc tạo User tài khoản
@@ -363,14 +371,14 @@ public class ReceptionController {
                     null,
                     null,
                     cleanPhone,
-                    req.cccdNumber() != null && !req.cccdNumber().isBlank() ? req.cccdNumber().trim() : null,
+                    cccdNumber,
                     null,
                     Instant.now(),
                     Instant.now()
             );
             profile = patientProfileJpaRepository.save(profile);
-        } else if (req.cccdNumber() != null && !req.cccdNumber().isBlank()) {
-            profile.setCccdNumber(req.cccdNumber().trim());
+        } else if (cccdNumber != null) {
+            profile.setCccdNumber(cccdNumber);
             profile.setUpdatedAt(Instant.now());
             patientProfileJpaRepository.save(profile);
         }
@@ -460,20 +468,24 @@ public class ReceptionController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
     public ResponseEntity<QuickBookResponse> quickBookAppointment(@RequestBody QuickBookRequest req) {
-        String cleanPhone = req.phone() != null ? req.phone().trim() : "";
-        String cleanName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân đặt khám";
-        String rawEmail = req.email() != null ? req.email().trim() : "";
-        String symptoms = req.symptoms() != null ? req.symptoms().trim() : "";
+        // 0. Ràng buộc từng ký tự đầu vào từ client (CLAB-117)
+        String cleanPhone = InputValidator.validatePhone(req.phone());
+        String cleanName = InputValidator.validateFullName(req.fullName());
+        String rawEmail = InputValidator.validateEmail(req.email());
+        String symptoms = InputValidator.validateSymptoms(req.symptoms());
         String bookingType = req.bookingType() != null && req.bookingType().equalsIgnoreCase("WALKIN") ? "WALKIN" : "PHONE";
 
-        if (cleanPhone.isBlank()) {
-            throw new IllegalArgumentException("Vui lòng cung cấp số điện thoại của người bệnh để tiếp nhận lịch.");
+        if (req.appointmentDate() != null && !req.appointmentDate().isBlank()) {
+            InputValidator.validateIsoDate(req.appointmentDate());
+        }
+        if (req.slotTime() != null && !req.slotTime().isBlank()) {
+            InputValidator.validateSlotTime(req.slotTime());
         }
 
         // 1. Tìm hoặc tạo User (hỗ trợ nhập email/gmail của người bệnh)
-        String resolvedEmail = !rawEmail.isBlank() ? rawEmail : cleanPhone + "@medsched.vn";
+        String resolvedEmail = rawEmail != null ? rawEmail : cleanPhone + "@medsched.vn";
         UserEntity user = userJpaRepository.findByPhone(cleanPhone).orElse(null);
-        if (user == null && !rawEmail.isBlank()) {
+        if (user == null && rawEmail != null) {
             user = userJpaRepository.findByEmail(rawEmail).orElse(null);
         }
         if (user == null) {
@@ -495,7 +507,7 @@ public class ReceptionController {
             user = userJpaRepository.save(user);
         } else {
             // Cập nhật email nếu người bệnh cung cấp email/gmail mới
-            if (!rawEmail.isBlank() && (user.getEmail() == null || user.getEmail().endsWith("@medsched.vn"))) {
+            if (rawEmail != null && (user.getEmail() == null || user.getEmail().endsWith("@medsched.vn"))) {
                 user.setEmail(rawEmail);
                 user.setUpdatedAt(Instant.now());
                 user = userJpaRepository.save(user);

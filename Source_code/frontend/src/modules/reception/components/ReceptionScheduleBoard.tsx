@@ -1045,14 +1045,19 @@ export default function ReceptionScheduleBoard({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Số điện thoại người bệnh <span className="text-red-500">*</span>
+                  <span className="text-[10px] text-slate-400 font-normal ml-2">(Chỉ chữ số, đúng 10 số)</span>
                 </label>
                 <div className="relative">
                   <input
                     type="tel"
                     required
                     autoFocus
+                    maxLength={10}
                     value={bookingPhone}
-                    onChange={(e) => setBookingPhone(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                      setBookingPhone(val);
+                    }}
                     placeholder="VD: 0912345678"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   />
@@ -1069,8 +1074,12 @@ export default function ReceptionScheduleBoard({
                 <div className="relative">
                   <input
                     type="email"
+                    maxLength={100}
                     value={bookingEmail}
-                    onChange={(e) => setBookingEmail(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[\s<>'";`\\]/g, '');
+                      setBookingEmail(val);
+                    }}
                     placeholder="VD: nguyenvana@gmail.com"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   />
@@ -1082,13 +1091,18 @@ export default function ReceptionScheduleBoard({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Họ và tên người bệnh <span className="text-red-500">*</span>
+                  <span className="text-[10px] text-slate-400 font-normal ml-2">(Chỉ chữ cái tiếng Việt, không chứa số)</span>
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     required
+                    maxLength={100}
                     value={bookingFullName}
-                    onChange={(e) => setBookingFullName(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g, '');
+                      setBookingFullName(val);
+                    }}
                     placeholder="VD: Nguyễn Văn An"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   />
@@ -1100,12 +1114,17 @@ export default function ReceptionScheduleBoard({
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Triệu chứng bệnh ngắn gọn / Lý do khám
+                  <span className="text-[10px] text-slate-400 font-normal ml-2">(Tối đa 500 ký tự)</span>
                 </label>
                 <div className="relative">
                   <textarea
                     rows={2}
+                    maxLength={500}
                     value={bookingSymptoms}
-                    onChange={(e) => setBookingSymptoms(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[<>'`\\{}]/g, '').slice(0, 500);
+                      setBookingSymptoms(val);
+                    }}
                     placeholder="Mô tả ngắn gọn khách báo qua điện thoại (VD: Sốt 2 ngày, nổi mẩn ngứa da, đau họng, tái khám định kỳ...)"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 resize-none"
                   />
