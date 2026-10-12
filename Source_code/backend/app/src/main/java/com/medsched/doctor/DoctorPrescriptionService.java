@@ -527,9 +527,10 @@ public class DoctorPrescriptionService {
         String diagnosis = medicalRecord != null ? medicalRecord.getDiagnosis() : "";
         String doctorAdvice = medicalRecord != null ? medicalRecord.getDoctorNotes() : "";
         String prescriptionId = prescription != null ? prescription.getId() : "";
-        String doctorName = prescription != null && prescription.getDoctorName() != null 
+        String doctorName = (prescription != null && prescription.getDoctorName() != null && !prescription.getDoctorName().isBlank())
                 ? prescription.getDoctorName() 
-                : "Bác sĩ phụ trách";
+                : resolveDoctorName(appointment);
+
         BigDecimal totalMedicineAmount = prescription != null && prescription.getTotalMedicineAmount() != null 
                 ? prescription.getTotalMedicineAmount() 
                 : BigDecimal.ZERO;
