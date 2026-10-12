@@ -23,7 +23,14 @@ import {
   UserCheck,
   Lock,
   Tag,
-  Sparkles
+  Sparkles,
+  Phone,
+  PhoneCall,
+  Printer,
+  Copy,
+  Check,
+  X,
+  FileText
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -115,6 +122,152 @@ export default function ReceptionScheduleBoard({
     } finally {
       setSyncingTomorrow(false);
     }
+  };
+
+  // Modal Đặt Lịch Khám Nhanh Qua Điện Thoại & Tiếp Nhận
+  const [quickBookingModal, setQuickBookingModal] = useState<{
+    doctor: any;
+    slot: any;
+    date: string;
+  } | null>(null);
+
+  const [bookingFullName, setBookingFullName] = useState<string>('');
+  const [bookingPhone, setBookingPhone] = useState<string>('');
+  const [bookingSymptoms, setBookingSymptoms] = useState<string>('');
+  const [bookingType, setBookingType] = useState<'PHONE' | 'WALKIN'>('PHONE');
+  const [bookingSubmitting, setBookingSubmitting] = useState<boolean>(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+
+  // Modal Báo Đặt Lịch Thành Công & Phiếu Khám
+  const [bookingSuccessData, setBookingSuccessData] = useState<{
+    appointmentId: string;
+    bookingCode: string;
+    queueNumber: string;
+    patientName: string;
+    phone: string;
+    doctorName: string;
+    roomNumber: string;
+    specialtyName: string;
+    appointmentDate: string;
+    slotTime: string;
+    symptoms: string;
+    bookingType: 'PHONE' | 'WALKIN';
+    message: string;
+  } | null>(null);
+
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [copiedSms, setCopiedSms] = useState<boolean>(false);
+
+  const handleSlotClick = (doc: any, slot: any) => {
+    setQuickBookingModal({
+      doctor: doc,
+      slot: slot,
+      date: selectedDate,
+    });
+    setBookingFullName('');
+    setBookingPhone('');
+    setBookingSymptoms('');
+    setBookingType('PHONE');
+    setBookingError(null);
+  };
+
+  const handleConfirmQuickBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickBookingModal) return;
+
+    const cleanPhone = bookingPhone.trim();
+    const cleanName = bookingFullName.trim();
+    if (!cleanPhone) {
+      setBookingError('Vui lòng nhập số điện thoại người bệnh.');
+      return;
+    }
+    if (!cleanName) {
+      setBookingError('Vui lòng nhập họ và tên người bệnh.');
+      return;
+    }
+
+    try {
+      setBookingSubmitting(true);
+      setBookingError(null);
+
+      const res = await api.quickBookAppointment({
+        fullName: cleanName,
+        phone: cleanPhone,
+        symptoms: bookingSymptoms.trim(),
+        doctorId: quickBookingModal.doctor.id,
+        slotId: quickBookingModal.slot.id,
+        slotTime: quickBookingModal.slot.time,
+        appointmentDate: quickBookingModal.date,
+        specialty: quickBookingModal.doctor.specialtyName,
+        bookingType: bookingType,
+      });
+
+      // 1. Cập nhật ngay slot đó thành đã đặt (BOOKED) trên Bảng điều phối
+      setDoctorSlotsMap((prev) => {
+        const docId = quickBookingModal.doctor.id;
+        const currentSlots = prev[docId] || [];
+        const updated = currentSlots.map((s) => {
+          if (s.id === quickBookingModal.slot.id || s.time === quickBookingModal.slot.time) {
+            return {
+              ...s,
+              status: 'booked',
+              disabled: true,
+            };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          [docId]: updated,
+        };
+      });
+
+      // 2. Phát BroadcastChannel để buồng khám Bác sĩ và Live Feed cập nhật tức thì
+      try {
+        const syncChannel = new BroadcastChannel('medsched_queue_sync');
+        syncChannel.postMessage({ type: 'QUEUE_UPDATED', doctorId: quickBookingModal.doctor.id });
+        syncChannel.close();
+      } catch {}
+
+      // 3. Mở Modal thông báo thành công
+      setBookingSuccessData({
+        appointmentId: res.appointmentId,
+        bookingCode: res.bookingCode,
+        queueNumber: res.queueNumber,
+        patientName: res.patientName || cleanName,
+        phone: res.phone || cleanPhone,
+        doctorName: res.doctorName || quickBookingModal.doctor.fullName,
+        roomNumber: res.roomNumber || quickBookingModal.doctor.roomNumber,
+        specialtyName: res.specialtyName || quickBookingModal.doctor.specialtyName,
+        appointmentDate: res.appointmentDate || quickBookingModal.date,
+        slotTime: res.slotTime || quickBookingModal.slot.time,
+        symptoms: res.symptoms || bookingSymptoms.trim(),
+        bookingType: bookingType,
+        message: res.message,
+      });
+
+      // Đóng modal nhập liệu
+      setQuickBookingModal(null);
+    } catch (err: any) {
+      setBookingError(err?.message || 'Có lỗi khi đặt lịch khám. Vui lòng kiểm tra lại.');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
+  const handleCopyBookingCode = () => {
+    if (!bookingSuccessData) return;
+    navigator.clipboard.writeText(bookingSuccessData.bookingCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  const handleCopySmsMessage = () => {
+    if (!bookingSuccessData) return;
+    const msg = `[MEDSCHED] Xác nhận lịch khám:\n- Mã hẹn: ${bookingSuccessData.bookingCode}\n- Bệnh nhân: ${bookingSuccessData.patientName}\n- Bác sĩ: ${bookingSuccessData.doctorName} (${bookingSuccessData.roomNumber})\n- Thời gian: ${bookingSuccessData.slotTime}, ngày ${formatDisplayDateVN(bookingSuccessData.appointmentDate)}\n- Triệu chứng: ${bookingSuccessData.symptoms || 'Khám tổng quát'}\nQuý khách vui lòng có mặt trước 10 phút. Hotline hỗ trợ: 1900 8888.`;
+    navigator.clipboard.writeText(msg);
+    setCopiedSms(true);
+    setTimeout(() => setCopiedSms(false), 2500);
   };
 
   // Tải danh sách slots cho tất cả bác sĩ trong ngày đang chọn
@@ -646,8 +799,8 @@ export default function ReceptionScheduleBoard({
                                   type="button"
                                   disabled={!isClickable}
                                   onClick={() => {
-                                    if (isClickable && onSelectSlotForWalkin) {
-                                      onSelectSlotForWalkin(doc, slot, selectedDate);
+                                    if (isClickable) {
+                                      handleSlotClick(doc, slot);
                                     }
                                   }}
                                   className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
@@ -670,7 +823,7 @@ export default function ReceptionScheduleBoard({
                                       ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
                                       : isLocked
                                       ? 'Bác sĩ tạm khóa'
-                                      : 'Click để tiếp nhận khách vãng lai cho khung giờ này'
+                                      : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
                                   }
                                 >
                                   <span className="text-xs font-black tracking-tight">{slot.time}</span>
@@ -726,8 +879,8 @@ export default function ReceptionScheduleBoard({
                                   type="button"
                                   disabled={!isClickable}
                                   onClick={() => {
-                                    if (isClickable && onSelectSlotForWalkin) {
-                                      onSelectSlotForWalkin(doc, slot, selectedDate);
+                                    if (isClickable) {
+                                      handleSlotClick(doc, slot);
                                     }
                                   }}
                                   className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
@@ -750,7 +903,7 @@ export default function ReceptionScheduleBoard({
                                       ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
                                       : isLocked
                                       ? 'Bác sĩ tạm khóa'
-                                      : 'Click để tiếp nhận khách vãng lai cho khung giờ này'
+                                      : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
                                   }
                                 >
                                   <span className="text-xs font-black tracking-tight">{slot.time}</span>
@@ -783,6 +936,295 @@ export default function ReceptionScheduleBoard({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Modal Đặt Lịch Khám Nhanh Qua Điện Thoại & Tiếp Nhận Tại Quầy (CLAB-115) ── */}
+      {quickBookingModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center font-bold text-white shadow-2xs">
+                  <PhoneCall size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight">
+                    Đặt Lịch Khám Qua Điện Thoại &amp; Tiếp Nhận
+                  </h3>
+                  <p className="text-[11px] text-teal-100 mt-0.5">
+                    Nhập nhanh thông tin người bệnh cho ca khám đã chọn
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickBookingModal(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Thông Tin Khung Giờ & Bác Sĩ Được Chọn */}
+            <div className="p-4 bg-teal-50/70 border-b border-teal-100/80">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-white rounded-xl border border-teal-200/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-teal-700 block uppercase tracking-wider">Bác sĩ phụ trách</span>
+                  <div className="font-black text-slate-800 mt-0.5 truncate">
+                    {formatDoctorFullName(quickBookingModal.doctor.academicTitle, quickBookingModal.doctor.fullName)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {quickBookingModal.doctor.specialtyName} • {quickBookingModal.doctor.roomNumber || 'P.205'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-white rounded-xl border border-teal-200/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-teal-700 block uppercase tracking-wider">Thời gian khám</span>
+                  <div className="font-black text-teal-900 mt-0.5 flex items-center gap-1">
+                    <Clock size={13} className="text-teal-600" />
+                    <span>{quickBookingModal.slot.time}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                    <Calendar size={11} className="text-slate-400" />
+                    <span>{formatDisplayDateVN(quickBookingModal.date)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Nhập Liệu Nhanh */}
+            <form onSubmit={handleConfirmQuickBooking} className="p-5 space-y-4">
+              {/* Lựa chọn hình thức: Điện thoại vs Quầy */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBookingType('PHONE')}
+                  className={`p-2.5 rounded-2xl border text-left transition cursor-pointer ${
+                    bookingType === 'PHONE'
+                      ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-black text-xs">
+                    <Phone size={14} className={bookingType === 'PHONE' ? 'text-teal-700' : 'text-slate-400'} />
+                    <span>Khách Gọi Điện Thoại</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                    Hẹn giờ trước • Trạng thái: Đã xác nhận
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBookingType('WALKIN')}
+                  className={`p-2.5 rounded-2xl border text-left transition cursor-pointer ${
+                    bookingType === 'WALKIN'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-900 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-black text-xs">
+                    <Zap size={14} className={bookingType === 'WALKIN' ? 'text-emerald-700' : 'text-slate-400'} />
+                    <span>Tiếp Đón Tại Quầy</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                    Khách có mặt • Cấp số STT khám ngay
+                  </p>
+                </button>
+              </div>
+
+              {/* Số điện thoại */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Số điện thoại người bệnh <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    required
+                    autoFocus
+                    value={bookingPhone}
+                    onChange={(e) => setBookingPhone(e.target.value)}
+                    placeholder="VD: 0912345678"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  />
+                  <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Họ và tên */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Họ và tên người bệnh <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={bookingFullName}
+                    onChange={(e) => setBookingFullName(e.target.value)}
+                    placeholder="VD: Nguyễn Văn An"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  />
+                  <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Triệu chứng bệnh ngắn gọn */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Triệu chứng bệnh ngắn gọn / Lý do khám
+                </label>
+                <div className="relative">
+                  <textarea
+                    rows={2}
+                    value={bookingSymptoms}
+                    onChange={(e) => setBookingSymptoms(e.target.value)}
+                    placeholder="Mô tả ngắn gọn khách báo qua điện thoại (VD: Sốt 2 ngày, nổi mẩn ngứa da, đau họng, tái khám định kỳ...)"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 resize-none"
+                  />
+                  <FileText size={15} className="absolute left-3 top-3 text-slate-400" />
+                </div>
+              </div>
+
+              {bookingError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{bookingError}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setQuickBookingModal(null)}
+                  disabled={bookingSubmitting}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={bookingSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {bookingSubmitting ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Đang Xử Lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} />
+                      <span>Xác Nhận Đặt Lịch</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Báo Thành Công & Phiếu Tiếp Nhận (CLAB-115) ── */}
+      {bookingSuccessData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Header Thành Công */}
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 text-center">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2 text-white shadow-xs">
+                <CheckCircle2 size={28} />
+              </div>
+              <h3 className="font-black text-lg tracking-tight">ĐẶT LỊCH THÀNH CÔNG!</h3>
+              <p className="text-xs text-emerald-100 mt-0.5">
+                {bookingSuccessData.bookingType === 'PHONE'
+                  ? 'Lịch hẹn qua điện thoại đã được lưu vào hệ thống'
+                  : 'Bệnh nhân đã được tiếp nhận và phát số vào buồng khám'}
+              </p>
+            </div>
+
+            {/* Chi Tiết Phiếu Hẹn */}
+            <div className="p-5 space-y-3.5">
+              {/* Mã Đặt Lịch & STT */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Mã đặt khám</span>
+                  <div className="text-base font-black text-teal-800 tracking-wider font-mono">
+                    {bookingSuccessData.bookingCode}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Số thứ tự khám</span>
+                  <div className="text-lg font-black text-emerald-600">
+                    #{bookingSuccessData.queueNumber}
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông tin bệnh nhân & Bác sĩ */}
+              <div className="space-y-2 text-xs divide-y divide-slate-100 border border-slate-100 p-3 rounded-2xl bg-slate-50/50">
+                <div className="flex justify-between py-1">
+                  <span className="text-slate-500">Người bệnh:</span>
+                  <strong className="text-slate-800">{bookingSuccessData.patientName} ({bookingSuccessData.phone})</strong>
+                </div>
+                <div className="flex justify-between py-1 pt-1.5">
+                  <span className="text-slate-500">Bác sĩ khám:</span>
+                  <strong className="text-slate-800">{bookingSuccessData.doctorName}</strong>
+                </div>
+                <div className="flex justify-between py-1 pt-1.5">
+                  <span className="text-slate-500">Phòng khám:</span>
+                  <strong className="text-emerald-700">{bookingSuccessData.roomNumber} ({bookingSuccessData.specialtyName})</strong>
+                </div>
+                <div className="flex justify-between py-1 pt-1.5">
+                  <span className="text-slate-500">Thời gian:</span>
+                  <strong className="text-slate-800">
+                    {bookingSuccessData.slotTime} • {formatDisplayDateVN(bookingSuccessData.appointmentDate)}
+                  </strong>
+                </div>
+                {bookingSuccessData.symptoms && (
+                  <div className="flex justify-between py-1 pt-1.5">
+                    <span className="text-slate-500">Triệu chứng:</span>
+                    <span className="text-slate-700 italic max-w-[200px] text-right truncate">
+                      {bookingSuccessData.symptoms}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Nút hành động nhanh */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCopySmsMessage}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {copiedSms ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                  <span>{copiedSms ? 'Đã sao chép SMS!' : 'Sao chép SMS/Zalo'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Printer size={14} />
+                  <span>In Phiếu Khám</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBookingSuccessData(null)}
+                className="w-full py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black transition cursor-pointer"
+              >
+                Đóng &amp; Tiếp Tục
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
