@@ -212,38 +212,60 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4">Mã CS</th>
-              <th className="py-3 px-4">Tên Chi Nhánh</th>
-              <th className="py-3 px-4">Địa Chỉ</th>
-              <th className="py-3 px-4">SĐT</th>
-              <th className="py-3 px-4">Trạng Thái</th>
-              <th className="py-3 px-4 text-right">Thao Tác</th>
+              <th className="py-3 px-4 whitespace-nowrap">Mã CS</th>
+              <th className="py-3 px-4 min-w-[200px]">Tên Chi Nhánh</th>
+              <th className="py-3 px-4 min-w-[250px]">Địa Chỉ</th>
+              <th className="py-3 px-4 whitespace-nowrap">SĐT</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[130px]">Trạng Thái</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[130px]">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {centers.map(c => (
               <tr key={c.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium">{c.code}</td>
+                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{c.code}</td>
                 <td className="py-3 px-4 font-semibold text-slate-800">{c.name}</td>
                 <td className="py-3 px-4 text-slate-600">{c.address}</td>
-                <td className="py-3 px-4">{c.phone || '—'}</td>
-                <td className="py-3 px-4">
+                <td className="py-3 px-4 whitespace-nowrap text-slate-700">{c.phone || '—'}</td>
+                <td className="py-3 px-4 whitespace-nowrap">
                   {c.active ? (
-                    <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full text-xs font-semibold">Hoạt động</span>
+                    <span className="inline-flex items-center justify-center text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+                      Hoạt động
+                    </span>
                   ) : (
-                    <span className="text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-semibold border border-red-200 shadow-sm animate-pulse">Phong Tỏa Khẩn CẤp</span>
+                    <span className="inline-flex items-center justify-center text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full text-xs font-semibold border border-rose-200 shadow-sm animate-pulse whitespace-nowrap">
+                      Phong Tỏa Khẩn Cấp
+                    </span>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openModal('edit', c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" title="Sửa thông tin"><Edit2 size={16} /></button>
-                  <button 
-                    onClick={() => handleToggleLockdown(c.id, c.active, c.name)} 
-                    className={`p-1.5 rounded-lg cursor-pointer ${c.active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                    title={c.active ? 'Phong Tỏa Khẩn Cấp (Cháy nổ/Thiên tai)' : 'Khôi Phục Hoạt Động'}
-                  >
-                    <AlertTriangle size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(c.id)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg cursor-pointer" title="Xóa mềm (DevOnly)"><Trash2 size={16} /></button>
+                <td className="py-3 px-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                    <button 
+                      onClick={() => openModal('edit', c)} 
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
+                      title="Sửa thông tin"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleToggleLockdown(c.id, c.active, c.name)} 
+                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                        c.active 
+                          ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' 
+                          : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                      title={c.active ? 'Phong Tỏa Khẩn Cấp (Cháy nổ/Thiên tai)' : 'Khôi Phục Hoạt Động'}
+                    >
+                      <AlertTriangle size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(c.id)} 
+                      className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition cursor-pointer" 
+                      title="Vô hiệu hóa chi nhánh"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -257,21 +279,35 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4">Mã Khoa</th>
-              <th className="py-3 px-4">Tên Chuyên Khoa</th>
-              <th className="py-3 px-4">Thuộc Chi Nhánh</th>
-              <th className="py-3 px-4 text-right">Thao Tác</th>
+              <th className="py-3 px-4 whitespace-nowrap">Mã Khoa</th>
+              <th className="py-3 px-4 min-w-[200px]">Tên Chuyên Khoa</th>
+              <th className="py-3 px-4 min-w-[250px]">Thuộc Chi Nhánh</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {specialties.map(s => (
               <tr key={s.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium">{s.code}</td>
+                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{s.code}</td>
                 <td className="py-3 px-4 font-semibold text-slate-800">{s.name}</td>
                 <td className="py-3 px-4 text-slate-600">{s.medicalCenterName}</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openModal('edit', s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"><Edit2 size={16} /></button>
-                  <button onClick={() => handleDelete(s.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"><Trash2 size={16} /></button>
+                <td className="py-3 px-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                    <button 
+                      onClick={() => openModal('edit', s)} 
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer"
+                      title="Sửa chuyên khoa"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(s.id)} 
+                      className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer"
+                      title="Xóa chuyên khoa"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -285,25 +321,39 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4">Mã DV</th>
-              <th className="py-3 px-4">Tên Dịch Vụ</th>
-              <th className="py-3 px-4">Chuyên Khoa</th>
-              <th className="py-3 px-4 text-right">Giá (VND)</th>
-              <th className="py-3 px-4 text-center">Thời gian</th>
-              <th className="py-3 px-4 text-right">Thao Tác</th>
+              <th className="py-3 px-4 whitespace-nowrap">Mã DV</th>
+              <th className="py-3 px-4 min-w-[200px]">Tên Dịch Vụ</th>
+              <th className="py-3 px-4 min-w-[180px]">Chuyên Khoa</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[120px]">Giá (VND)</th>
+              <th className="py-3 px-4 text-center whitespace-nowrap min-w-[100px]">Thời gian</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {services.map(sv => (
               <tr key={sv.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium">{sv.code}</td>
+                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{sv.code}</td>
                 <td className="py-3 px-4 font-semibold text-slate-800">{sv.name}</td>
                 <td className="py-3 px-4 text-slate-600">{sv.specialtyName}</td>
-                <td className="py-3 px-4 text-right font-mono font-medium text-emerald-600">{sv.price?.toLocaleString()} đ</td>
-                <td className="py-3 px-4 text-center">{sv.estimatedDurationMinutes} phút</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openModal('edit', sv)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"><Edit2 size={16} /></button>
-                  <button onClick={() => handleDelete(sv.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"><Trash2 size={16} /></button>
+                <td className="py-3 px-4 text-right font-mono font-medium text-emerald-600 whitespace-nowrap">{sv.price?.toLocaleString()} đ</td>
+                <td className="py-3 px-4 text-center whitespace-nowrap">{sv.estimatedDurationMinutes} phút</td>
+                <td className="py-3 px-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                    <button 
+                      onClick={() => openModal('edit', sv)} 
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer"
+                      title="Sửa dịch vụ"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(sv.id)} 
+                      className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer"
+                      title="Vô hiệu hóa dịch vụ"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -317,13 +367,13 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4">Mã Phòng</th>
-              <th className="py-3 px-4">Tên Phòng Khám</th>
-              <th className="py-3 px-4">Vị Trí / Tầng</th>
-              <th className="py-3 px-4">Thuộc Chi Nhánh</th>
-              <th className="py-3 px-4">Ghi Chú / Thiết Bị</th>
-              <th className="py-3 px-4">Trạng Thái</th>
-              <th className="py-3 px-4 text-right">Thao Tác</th>
+              <th className="py-3 px-4 whitespace-nowrap">Mã Phòng</th>
+              <th className="py-3 px-4 min-w-[180px]">Tên Phòng Khám</th>
+              <th className="py-3 px-4 whitespace-nowrap">Vị Trí / Tầng</th>
+              <th className="py-3 px-4 min-w-[200px]">Thuộc Chi Nhánh</th>
+              <th className="py-3 px-4 min-w-[180px]">Ghi Chú / Thiết Bị</th>
+              <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Trạng Thái</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[130px]">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
@@ -336,10 +386,10 @@ export default function CatalogManager() {
             ) : (
               rooms.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 transition">
-                  <td className="py-3 px-4 font-mono font-bold text-blue-700">{r.code}</td>
+                  <td className="py-3 px-4 font-mono font-bold text-blue-700 whitespace-nowrap">{r.code}</td>
                   <td className="py-3 px-4 font-semibold text-slate-800">{r.name}</td>
-                  <td className="py-3 px-4 text-slate-600">
-                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium">
+                  <td className="py-3 px-4 whitespace-nowrap text-slate-600">
+                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
                       {r.floor}
                     </span>
                   </td>
@@ -347,41 +397,43 @@ export default function CatalogManager() {
                   <td className="py-3 px-4 text-slate-500 text-xs max-w-xs truncate" title={r.note || ''}>
                     {r.note || '—'}
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 whitespace-nowrap">
                     {r.status === 'active' ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
                         <CheckCircle2 size={12} />
                         Sẵn sàng khám
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
                         <Wrench size={12} />
                         Đang bảo trì
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                    <button 
-                      onClick={() => openModal('edit', r)} 
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" 
-                      title="Sửa phòng khám"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleToggleRoomStatus(r.id, r.status, r.code)} 
-                      className={`p-1.5 rounded-lg cursor-pointer ${r.status === 'active' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                      title={r.status === 'active' ? 'Chuyển sang bảo trì' : 'Mở lại hoạt động'}
-                    >
-                      <Wrench size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(r.id)} 
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg cursor-pointer" 
-                      title="Xóa phòng khám"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <button 
+                        onClick={() => openModal('edit', r)} 
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
+                        title="Sửa phòng khám"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleToggleRoomStatus(r.id, r.status, r.code)} 
+                        className={`p-1.5 rounded-lg transition cursor-pointer ${r.status === 'active' ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                        title={r.status === 'active' ? 'Chuyển sang bảo trì' : 'Mở lại hoạt động'}
+                      >
+                        <Wrench size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(r.id)} 
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer" 
+                        title="Xóa phòng khám"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
