@@ -377,18 +377,18 @@ export default function UserTable() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-mint-soft border-b border-mint-light text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[210px]">Họ và Tên</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[190px]">Email & SĐT</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[110px]">Vai Trò</th>
-                  <th className="py-3.5 px-4 min-w-[240px]">Chi Nhánh Phòng Khám</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[130px]">Trạng Thái</th>
-                  <th className="py-3.5 px-4 text-right whitespace-nowrap min-w-[220px]">Thao Tác</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Họ và Tên</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Email & SĐT</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Vai Trò</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Chi Nhánh</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Trạng Thái</th>
+                  <th className="py-3.5 px-3.5 text-right whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-mint-soft/50 transition">
-                    <td className="py-3.5 px-4 font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-medium text-slate-800 whitespace-nowrap">
                       <div 
                         onClick={() => { setDetailUser(user); setCopied(false); }}
                         className="flex items-center gap-2.5 cursor-pointer group"
@@ -405,72 +405,83 @@ export default function UserTable() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="text-slate-700 font-medium">{user.email}</div>
-                      <div className="text-xs text-slate-400">{user.phone || 'Chưa có SĐT'}</div>
+                    <td className="py-3.5 px-3.5 whitespace-nowrap">
+                      <div className="text-slate-700 font-medium text-xs sm:text-sm">{user.email}</div>
+                      <div className="text-xs text-slate-400 font-mono">{user.phone || 'Chưa có SĐT'}</div>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
                       {roleBadge(user.roles)}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 text-xs font-medium">
-                      {user.medicalCenterName || '—'}
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      {user.medicalCenterName ? (
+                        <span 
+                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100 max-w-[150px] truncate" 
+                          title={user.medicalCenterName}
+                        >
+                          {user.medicalCenterName.includes('Quận 1') ? 'CN Quận 1' : user.medicalCenterName.includes('Quận 7') ? 'CN Quận 7' : user.medicalCenterName.replace('Phòng Khám Đa Khoa MedSched - ', '')}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
                       {user.active ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
-                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
                           <span>Hoạt động</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2.5 py-1 rounded-full border border-red-200 shadow-xs">
-                          <XCircle size={13} className="text-red-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 shadow-xs">
+                          <XCircle size={12} className="text-red-600 shrink-0" />
                           <span>Đã khóa</span>
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={() => { setDetailUser(user); setCopied(false); }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
-                        title="Xem đầy đủ chi tiết người dùng này"
-                      >
-                        <Eye size={13} />
-                        <span>Chi tiết</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setResetModalUser(user);
-                          setNewPassword('Medsched@123');
-                          setShowPassword(false);
-                        }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
-                        title="Đặt lại mật khẩu cho tài khoản này"
-                      >
-                        <KeyRound size={13} />
-                        <span>Đặt lại MK</span>
-                      </button>
-
-                      {user.id === currentUser?.id || user.email === currentUser?.email ? (
-                        <span
-                          className="inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                          title="Không thể tự khóa tài khoản quản trị viên của chính mình"
-                        >
-                          Chính bạn
-                        </span>
-                      ) : (
+                    <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
-                          onClick={() => handleToggleStatus(user)}
-                          disabled={actionLoadingId === user.id}
-                          className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
-                            user.active
-                              ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                          }`}
+                          onClick={() => { setDetailUser(user); setCopied(false); }}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
+                          title="Xem đầy đủ chi tiết người dùng này"
                         >
-                          {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
+                          <Eye size={13} />
+                          <span>Chi tiết</span>
                         </button>
-                      )}
+
+                        <button
+                          onClick={() => {
+                            setResetModalUser(user);
+                            setNewPassword('Medsched@123');
+                            setShowPassword(false);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
+                          title="Đặt lại mật khẩu cho tài khoản này"
+                        >
+                          <KeyRound size={13} />
+                          <span>Đặt lại MK</span>
+                        </button>
+
+                        {user.id === currentUser?.id || user.email === currentUser?.email ? (
+                          <span
+                            className="inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                            title="Không thể tự khóa tài khoản quản trị viên của chính mình"
+                          >
+                            Chính bạn
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleStatus(user)}
+                            disabled={actionLoadingId === user.id}
+                            className={`inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
+                              user.active
+                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                            }`}
+                          >
+                            {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
