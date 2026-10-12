@@ -124,7 +124,9 @@ export default function UserTable() {
           return {
             id: u.userId || u.id,
             email: u.email,
-            fullName: u.fullName,
+            fullName: u.academicTitle && !u.fullName?.includes(u.academicTitle)
+              ? `${u.academicTitle} ${u.fullName}`
+              : u.fullName,
             phone: u.phone,
             roles: roleStrings,
             active: u.active ?? true,
