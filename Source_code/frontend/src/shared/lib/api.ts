@@ -793,7 +793,7 @@ export const api = {
   },
 
   async getAppointmentPrescription(appointmentId: string) {
-    return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
+    return request<PrescriptionDetail>(`/appointments/${appointmentId}/prescription`);
   },
 
   async getDoctorAppointmentPrescription(appointmentId: string) {
