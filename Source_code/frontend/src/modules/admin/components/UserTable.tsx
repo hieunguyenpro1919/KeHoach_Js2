@@ -343,38 +343,30 @@ export default function UserTable() {
 
         {/* Right Actions: Search + Tạo Tài Khoản Mới + Tải lại */}
         <div className="flex flex-wrap items-center gap-2.5 justify-start xl:justify-end">
-          {/* Search form */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 flex-1 sm:flex-initial">
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Tìm theo tên, email, SĐT..."
-                className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
-              />
-              {isSearching ? (
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <RefreshCw size={13} className="animate-spin text-pine-teal" />
-                </div>
-              ) : searchQuery ? (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 rounded-full cursor-pointer"
-                  title="Xóa tìm kiếm"
-                >
-                  <X size={14} />
-                </button>
-              ) : null}
-            </div>
-            <button
-              type="submit"
-              className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
-            >
-              Tìm
-            </button>
+          {/* Search input (tìm kiếm trực tiếp theo từng ký tự) */}
+          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Tìm theo tên, email, SĐT..."
+              className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
+            />
+            {isSearching ? (
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                <RefreshCw size={13} className="animate-spin text-pine-teal" />
+              </div>
+            ) : searchQuery ? (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 rounded-full cursor-pointer"
+                title="Xóa tìm kiếm"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
           </form>
 
           {/* Nút Tạo Tài Khoản Mới */}
