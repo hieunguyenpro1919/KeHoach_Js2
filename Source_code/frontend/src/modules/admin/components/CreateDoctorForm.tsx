@@ -1,18 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Stethoscope, 
   Building2, 
   Mail, 
   Phone, 
-  User,
-  DoorOpen,
-  Plus
+  User, 
+  DoorOpen, 
+  Lock,
+  Check, 
+  AlertCircle 
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import { getClinicRooms, ROOMS_UPDATED_EVENT, ClinicRoom } from '@/shared/lib/clinicRooms';
+import { 
+  validateFullName, 
+  validatePhone, 
+  validateEmail, 
+  validateTemporaryPassword 
+} from '@/shared/lib/formValidations';
 
 interface CreateDoctorFormProps {
   medicalCenters: Array<{ id: string; name: string }>;
@@ -59,8 +67,30 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     bio: '',
   });
 
+  // Ràng buộc từng ký tự thời gian thực (Real-time Validation)
+  const fullNameValidation = useMemo(() => validateFullName(doctorForm.fullName), [doctorForm.fullName]);
+  const emailValidation = useMemo(() => validateEmail(doctorForm.email), [doctorForm.email]);
+  const phoneValidation = useMemo(() => validatePhone(doctorForm.phone), [doctorForm.phone]);
+  const passwordValidation = useMemo(() => validateTemporaryPassword(doctorForm.temporaryPassword), [doctorForm.temporaryPassword]);
+
+  const isFormValid = useMemo(() => {
+    const roomValid = isCustomRoom ? Boolean(customRoomValue.trim()) : Boolean(selectedRoom);
+    return fullNameValidation.isValid &&
+      emailValidation.isValid &&
+      phoneValidation.isValid &&
+      passwordValidation.isValid &&
+      Boolean(doctorForm.medicalCenterId) &&
+      Boolean(doctorForm.specialtyId) &&
+      roomValid;
+  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom]);
+
   const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isFormValid) {
+      setMessage({ type: 'error', text: 'Vui lòng kiểm tra và sửa các thông tin chưa hợp lệ theo hướng dẫn bên dưới mỗi ô.' });
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -79,7 +109,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         fullName: doctorForm.fullName.trim(),
         email: doctorForm.email.trim(),
         phone: doctorForm.phone.trim(),
-        temporaryPassword: doctorForm.temporaryPassword || undefined,
+        temporaryPassword: doctorForm.temporaryPassword.trim() || undefined,
         medicalCenterId: doctorForm.medicalCenterId,
         specialtyId: doctorForm.specialtyId,
         academicTitle: doctorForm.academicTitle,
@@ -123,60 +153,121 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
+      {/* Họ và Tên Bác Sĩ */}
       <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Họ và Tên Bác Sĩ <span className="text-red-500">*</span>
+        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+          <span>Họ và Tên Bác Sĩ <span className="text-red-500">*</span></span>
+          <span className="text-[10px] text-slate-400 font-normal">Chữ cái tiếng Việt</span>
         </label>
         <div className="relative">
           <User className="absolute left-3.5 top-3 text-slate-400" size={18} />
           <input
             type="text"
             required
+            maxLength={100}
             value={doctorForm.fullName}
-            onChange={(e) => setDoctorForm({ ...doctorForm, fullName: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value.replace(/[^a-zA-Z\s.àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g, '');
+              setDoctorForm({ ...doctorForm, fullName: val });
+            }}
             placeholder="Ví dụ: PGS.TS Nguyễn Văn Bình"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
+            className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 transition ${
+              doctorForm.fullName
+                ? fullNameValidation.isValid
+                  ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                  : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                : 'border-slate-200 focus:border-blue-500 focus:ring-blue-100'
+            }`}
           />
         </div>
+        {doctorForm.fullName && (
+          <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+            fullNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+          }`}>
+            {fullNameValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+            <span>{fullNameValidation.message}</span>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Email Đăng Nhập */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Email Đăng Nhập <span className="text-red-500">*</span>
+          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <span>Email Đăng Nhập <span className="text-red-500">*</span></span>
+            <span className="text-[10px] text-slate-400 font-normal">Định dạng email</span>
           </label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-3 text-slate-400" size={18} />
             <input
               type="email"
               required
+              maxLength={120}
               value={doctorForm.email}
-              onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\s/g, '').toLowerCase();
+                setDoctorForm({ ...doctorForm, email: val });
+              }}
               placeholder="doctor.binh@medsched.vn"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
+              className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 transition ${
+                doctorForm.email
+                  ? emailValidation.isValid
+                    ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                    : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                  : 'border-slate-200 focus:border-blue-500 focus:ring-blue-100'
+              }`}
             />
           </div>
+          {doctorForm.email && (
+            <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+              emailValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
+              {emailValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+              <span>{emailValidation.message}</span>
+            </p>
+          )}
         </div>
 
+        {/* Số Điện Thoại */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Số Điện Thoại <span className="text-red-500">*</span>
+          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <span>Số Điện Thoại <span className="text-red-500">*</span></span>
+            <span className="text-[10px] text-slate-400 font-normal">Đúng 10 chữ số</span>
           </label>
           <div className="relative">
             <Phone className="absolute left-3.5 top-3 text-slate-400" size={18} />
             <input
               type="tel"
               required
+              maxLength={10}
               value={doctorForm.phone}
-              onChange={(e) => setDoctorForm({ ...doctorForm, phone: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                setDoctorForm({ ...doctorForm, phone: val });
+              }}
               placeholder="0987654321"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
+              className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 transition ${
+                doctorForm.phone
+                  ? phoneValidation.isValid
+                    ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                    : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                  : 'border-slate-200 focus:border-blue-500 focus:ring-blue-100'
+              }`}
             />
           </div>
+          {doctorForm.phone && (
+            <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+              phoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
+              {phoneValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+              <span>{phoneValidation.message}</span>
+            </p>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Chuyên Khoa Khám */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
             Chuyên Khoa Khám <span className="text-red-500">*</span>
@@ -198,6 +289,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
           </select>
         </div>
 
+        {/* Chi Nhánh Phòng Khám Công Tác */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
             Chi Nhánh Phòng Khám Công Tác <span className="text-red-500">*</span>
@@ -308,17 +400,40 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         </div>
       </div>
 
+      {/* Mật Khẩu Tạm Thời */}
       <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Mật Khẩu Tạm Thời (Tùy chọn)
+        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center justify-between">
+          <span>Mật Khẩu Tạm Thời (Tùy chọn, mặc định: Medsched@123)</span>
+          <span className="text-[10px] text-slate-400 font-normal">Tối thiểu 8 ký tự</span>
         </label>
-        <input
-          type="text"
-          value={doctorForm.temporaryPassword}
-          onChange={(e) => setDoctorForm({ ...doctorForm, temporaryPassword: e.target.value })}
-          placeholder="Để trống: Medsched@123"
-          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-        />
+        <div className="relative">
+          <Lock className="absolute left-3.5 top-3 text-slate-400" size={18} />
+          <input
+            type="text"
+            maxLength={72}
+            value={doctorForm.temporaryPassword}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\s/g, '');
+              setDoctorForm({ ...doctorForm, temporaryPassword: val });
+            }}
+            placeholder="Để trống sẽ tự tạo Medsched@123"
+            className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 transition ${
+              doctorForm.temporaryPassword
+                ? passwordValidation.isValid
+                  ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                  : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                : 'border-slate-200 focus:border-blue-500 focus:ring-blue-100'
+            }`}
+          />
+        </div>
+        {doctorForm.temporaryPassword && (
+          <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+            passwordValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+          }`}>
+            {passwordValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+            <span>{passwordValidation.message}</span>
+          </p>
+        )}
       </div>
 
       <div>
@@ -335,8 +450,8 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       <div className="pt-4">
         <button
           type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+          disabled={loading || !isFormValid}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
         >
           <Stethoscope size={18} />
           <span>{loading ? 'Đang tạo tài khoản...' : 'Xác Nhận Tạo Tài Khoản Bác Sĩ'}</span>
