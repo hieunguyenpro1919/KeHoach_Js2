@@ -693,6 +693,38 @@ export const api = {
     });
   },
 
+  async quickBookAppointment(payload: {
+    fullName: string;
+    phone: string;
+    symptoms?: string;
+    doctorId: string;
+    slotId?: string;
+    slotTime?: string;
+    appointmentDate: string;
+    specialty?: string;
+    bookingType?: "PHONE" | "WALKIN";
+  }) {
+    return request<{
+      appointmentId: string;
+      bookingCode: string;
+      queueNumber: string;
+      patientName: string;
+      phone: string;
+      doctorId: string;
+      doctorName: string;
+      roomNumber: string;
+      specialtyName: string;
+      appointmentDate: string;
+      slotTime: string;
+      symptoms: string;
+      status: string;
+      message: string;
+    }>("/reception/quick-book", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getBillDetail(appointmentId: string) {
     return request<any>(`/reception/appointments/${appointmentId}/bill`);
   },

@@ -13,9 +13,12 @@ import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.CheckinMethod;
 import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.enums.RelationshipType;
+import com.medsched.persistence.entity.TimeSlotEntity;
+import com.medsched.persistence.enums.SlotStatus;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.PatientProfileJpaRepository;
+import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +49,7 @@ public class ReceptionController {
     private final AppointmentRepositoryPort appointmentRepositoryPort;
     private final UserJpaRepository userJpaRepository;
     private final DoctorJpaRepository doctorJpaRepository;
+    private final TimeSlotJpaRepository timeSlotJpaRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.medsched.reception.ReceptionHistoryService receptionHistoryService;
 
@@ -57,6 +61,7 @@ public class ReceptionController {
             AppointmentRepositoryPort appointmentRepositoryPort,
             UserJpaRepository userJpaRepository,
             DoctorJpaRepository doctorJpaRepository,
+            TimeSlotJpaRepository timeSlotJpaRepository,
             PasswordEncoder passwordEncoder,
             com.medsched.reception.ReceptionHistoryService receptionHistoryService) {
         this.checkinUseCase = checkinUseCase;
@@ -66,6 +71,7 @@ public class ReceptionController {
         this.appointmentRepositoryPort = appointmentRepositoryPort;
         this.userJpaRepository = userJpaRepository;
         this.doctorJpaRepository = doctorJpaRepository;
+        this.timeSlotJpaRepository = timeSlotJpaRepository;
         this.passwordEncoder = passwordEncoder;
         this.receptionHistoryService = receptionHistoryService;
     }
@@ -92,6 +98,35 @@ public class ReceptionController {
             String specialtyName,
             String checkInTime,
             String status
+    ) {}
+
+    public record QuickBookRequest(
+            String fullName,
+            String phone,
+            String symptoms,
+            String doctorId,
+            String slotId,
+            String slotTime,
+            String appointmentDate,
+            String specialty,
+            String bookingType // "PHONE" (Khách gọi hotline) hoặc "WALKIN" (Khách tại quầy)
+    ) {}
+
+    public record QuickBookResponse(
+            String appointmentId,
+            String bookingCode,
+            String queueNumber,
+            String patientName,
+            String phone,
+            String doctorId,
+            String doctorName,
+            String roomNumber,
+            String specialtyName,
+            String appointmentDate,
+            String slotTime,
+            String symptoms,
+            String status,
+            String message
     ) {}
 
     @PostMapping("/checkin/qr")
@@ -413,6 +448,201 @@ public class ReceptionController {
         );
 
         return ResponseEntity.ok(res);
+    }
+
+    /**
+     * CLAB-115: Đặt lịch khám nhanh qua điện thoại & tiếp đón tại quầy từ Bảng Điều Phối Lịch Toàn Viện.
+     * Hỗ trợ lưu triệu chứng ngắn gọn, tự động liên kết slot giờ khám và khóa slot thành BOOKED.
+     */
+    @PostMapping("/quick-book")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @Transactional
+    public ResponseEntity<QuickBookResponse> quickBookAppointment(@RequestBody QuickBookRequest req) {
+        String cleanPhone = req.phone() != null ? req.phone().trim() : "";
+        String cleanName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân đặt khám";
+        String symptoms = req.symptoms() != null ? req.symptoms().trim() : "";
+        String bookingType = req.bookingType() != null && req.bookingType().equalsIgnoreCase("WALKIN") ? "WALKIN" : "PHONE";
+
+        if (cleanPhone.isBlank()) {
+            throw new IllegalArgumentException("Vui lòng cung cấp số điện thoại của người bệnh để tiếp nhận lịch.");
+        }
+
+        // 1. Tìm hoặc tạo User
+        String email = cleanPhone + "@medsched.vn";
+        UserEntity user = userJpaRepository.findByPhone(cleanPhone).orElse(null);
+        if (user == null) {
+            user = userJpaRepository.findByEmail(email).orElse(null);
+        }
+        if (user == null) {
+            String defaultPass = cleanPhone.length() >= 4 ? "Med@" + cleanPhone.substring(cleanPhone.length() - 4) : "Med@1234";
+            user = new UserEntity(
+                    UUID.randomUUID().toString(),
+                    email,
+                    passwordEncoder.encode(defaultPass),
+                    cleanName,
+                    cleanPhone,
+                    true,
+                    Instant.now(),
+                    Instant.now()
+            );
+            user.setCurrentSessionId(UUID.randomUUID().toString());
+            user = userJpaRepository.save(user);
+        }
+
+        // 2. Tìm hoặc tạo Hồ sơ Bệnh nhân (PatientProfileEntity)
+        final String userId = user.getId();
+        PatientProfileEntity profile = patientProfileJpaRepository.findByUserId(userId).stream()
+                .findFirst()
+                .orElse(null);
+        if (profile == null) {
+            profile = new PatientProfileEntity(
+                    UUID.randomUUID().toString(),
+                    userId,
+                    RelationshipType.SELF,
+                    cleanName,
+                    null,
+                    null,
+                    null,
+                    null,
+                    cleanPhone,
+                    null,
+                    null,
+                    Instant.now(),
+                    Instant.now()
+            );
+            profile = patientProfileJpaRepository.save(profile);
+        }
+
+        // 3. Tìm Bác sĩ phụ trách
+        DoctorEntity doctor = null;
+        if (req.doctorId() != null && !req.doctorId().isBlank()) {
+            doctor = doctorJpaRepository.findById(req.doctorId()).orElse(null);
+        }
+        if (doctor == null) {
+            doctor = doctorJpaRepository.findAll().stream().findFirst().orElse(null);
+        }
+
+        String doctorId = doctor != null ? doctor.getId() : "10b2c3d4-0001-4000-8000-000000000001";
+        String roomNumber = doctor != null && doctor.getRoomNumber() != null ? doctor.getRoomNumber() : "P.205 - Tầng 2";
+        String doctorName = "BS. Chuyên Khoa";
+        if (doctor != null) {
+            Optional<UserEntity> docUserOpt = userJpaRepository.findById(doctor.getUserId());
+            if (docUserOpt.isPresent()) {
+                String prefix = doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank()
+                        ? doctor.getAcademicTitle() + " "
+                        : "BS. ";
+                doctorName = prefix + docUserOpt.get().getFullName();
+            }
+        }
+
+        // 4. Liên kết & Khóa Slot Khám (Đánh dấu BOOKED)
+        String slotId = null;
+        String slotTimeStr = req.slotTime() != null ? req.slotTime().trim() : "";
+        if (req.slotId() != null && !req.slotId().isBlank()) {
+            Optional<TimeSlotEntity> slotOpt = timeSlotJpaRepository.findById(req.slotId());
+            if (slotOpt.isPresent()) {
+                TimeSlotEntity slot = slotOpt.get();
+                slot.setStatus(SlotStatus.BOOKED);
+                slot.setUpdatedAt(Instant.now());
+                timeSlotJpaRepository.save(slot);
+                slotId = slot.getId();
+            }
+        } else if (!slotTimeStr.isBlank() && req.appointmentDate() != null) {
+            try {
+                LocalDate targetDate = LocalDate.parse(req.appointmentDate());
+                ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+                Instant dayStart = targetDate.atStartOfDay(vnZone).toInstant();
+                Instant dayEnd = targetDate.atTime(23, 59, 59).atZone(vnZone).toInstant();
+                List<TimeSlotEntity> slots = timeSlotJpaRepository.findByDoctorIdAndStartTimeBetweenOrderByStartTimeAsc(
+                        doctorId, dayStart, dayEnd);
+                String startPart = slotTimeStr.split("-")[0].trim();
+                for (TimeSlotEntity s : slots) {
+                    String sTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+                            .withZone(vnZone).format(s.getStartTime());
+                    if (sTime.equals(startPart)) {
+                        s.setStatus(SlotStatus.BOOKED);
+                        s.setUpdatedAt(Instant.now());
+                        timeSlotJpaRepository.save(s);
+                        slotId = s.getId();
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 5. Tính số thứ tự và mã lịch hẹn
+        LocalDate targetDate = req.appointmentDate() != null && !req.appointmentDate().isBlank()
+                ? LocalDate.parse(req.appointmentDate())
+                : LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        Instant startOfDay = targetDate.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant endOfDay = targetDate.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        long count = appointmentJpaRepository.countByDoctorIdAndCreatedAtBetween(doctorId, startOfDay, endOfDay);
+
+        String bookingCode;
+        String queueNumber;
+        AppointmentStatus status;
+        QueueType queueType;
+        Instant checkInTime = null;
+
+        if ("WALKIN".equals(bookingType)) {
+            bookingCode = "WALK-" + (100000 + new Random().nextInt(900000));
+            queueNumber = "W-" + String.format("%02d", count + 1);
+            status = AppointmentStatus.CHECKED_IN;
+            queueType = QueueType.WALKIN;
+            checkInTime = Instant.now();
+        } else {
+            bookingCode = "TEL-" + (100000 + new Random().nextInt(900000));
+            queueNumber = "A-" + String.format("%02d", count + 1);
+            status = AppointmentStatus.CONFIRMED;
+            queueType = QueueType.ONLINE_BOOKED;
+        }
+
+        String specialty = req.specialty() != null && !req.specialty().isBlank() ? req.specialty() : "Khám chuyên khoa";
+
+        // 6. Tạo AppointmentEntity
+        AppointmentEntity app = new AppointmentEntity(
+                UUID.randomUUID().toString(),
+                bookingCode,
+                "a1b2c3d4-0001-4000-8000-000000000001",
+                profile.getId(),
+                doctorId,
+                slotId,
+                queueNumber,
+                queueType,
+                symptoms,
+                status,
+                Instant.now(),
+                Instant.now()
+        );
+        app.setCheckinMethod(CheckinMethod.MANUAL);
+        if (checkInTime != null) {
+            app.setCheckInTime(checkInTime);
+        }
+        app = appointmentJpaRepository.save(app);
+
+        String displayDate = targetDate.toString();
+        String successMsg = "WALKIN".equals(bookingType)
+                ? "Tiếp đón và phát số khám #" + queueNumber + " thành công cho bệnh nhân " + cleanName + " tại buồng khám " + roomNumber + "."
+                : "Đặt lịch khám qua điện thoại thành công cho bệnh nhân " + cleanName + " (" + cleanPhone + ") vào khung giờ " + slotTimeStr + ", ngày " + displayDate + ". Mã hẹn: " + bookingCode;
+
+        QuickBookResponse response = new QuickBookResponse(
+                app.getId(),
+                bookingCode,
+                queueNumber,
+                cleanName,
+                cleanPhone,
+                doctorId,
+                doctorName,
+                roomNumber,
+                specialty,
+                displayDate,
+                slotTimeStr,
+                symptoms,
+                app.getStatus().name(),
+                successMsg
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     /**
