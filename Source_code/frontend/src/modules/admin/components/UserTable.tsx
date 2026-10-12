@@ -137,15 +137,16 @@ export default function UserTable() {
           };
         });
 
-      if (selectedRole === 'ROLE_ADMIN') {
-        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_ADMIN'));
-      } else if (selectedRole === 'ROLE_DOCTOR') {
+      // Lọc bỏ tài khoản Quản trị viên (Admin) khỏi bảng quản trị nhân sự & bệnh nhân
+      normalizedUsers = normalizedUsers.filter((u) => !u.roles.includes('ROLE_ADMIN'));
+
+      if (selectedRole === 'ROLE_DOCTOR') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
       } else if (selectedRole === 'ROLE_STAFF') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
       } else if (selectedRole === 'CUSTOMER') {
         normalizedUsers = normalizedUsers.filter(
-          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_ADMIN') && !u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
+          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
         );
       } else if (selectedRole === 'LOCKED') {
         normalizedUsers = normalizedUsers.filter((u) => !u.active);
@@ -312,7 +313,6 @@ export default function UserTable() {
         <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap">
           {[
             { id: 'ALL', label: 'Tất cả' },
-            { id: 'ROLE_ADMIN', label: 'Quản trị viên' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
             { id: 'ROLE_STAFF', label: 'Lễ tân' },
             { id: 'CUSTOMER', label: 'Bệnh nhân' },
