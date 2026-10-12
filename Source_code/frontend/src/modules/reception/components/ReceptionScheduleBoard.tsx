@@ -1094,7 +1094,7 @@ export default function ReceptionScheduleBoard({
                     <span>Khách Gọi Điện Thoại</span>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1 leading-snug">
-                    Hẹn giờ trước • Trạng thái: Đã xác nhận
+                    Hẹn giờ trước • Trạng thái: Đã xác nhận • Không cần email
                   </p>
                 </button>
 
@@ -1156,10 +1156,15 @@ export default function ReceptionScheduleBoard({
                 )}
               </div>
 
-              {/* Email / Gmail người bệnh */}
+              {/* Email / Gmail người bệnh (Tùy chọn - Không bắt buộc) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Gmail / Email người bệnh</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Gmail / Email người bệnh</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+                      Không bắt buộc
+                    </span>
+                  </div>
                   <span className="text-[10px] text-slate-400 font-normal">Nhận phiếu xác nhận</span>
                 </label>
                 <div className="relative">
@@ -1172,7 +1177,7 @@ export default function ReceptionScheduleBoard({
                       setBookingEmail(val);
                       if (bookingError) setBookingError(null);
                     }}
-                    placeholder="VD: nguyenvana@gmail.com"
+                    placeholder="VD: nguyenvana@gmail.com (Có thể để trống nếu khách không dùng)"
                     className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
                       bookingEmail
                         ? emailValidation.isValid
@@ -1183,12 +1188,16 @@ export default function ReceptionScheduleBoard({
                   />
                   <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
-                {bookingEmail && (
+                {bookingEmail ? (
                   <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
                     emailValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
                   }`}>
                     {emailValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
                     <span>{emailValidation.message}</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] mt-1 text-slate-400 flex items-center gap-1">
+                    <span>💡 Khách gọi điện thoại có thể để trống ô này nếu không có Gmail.</span>
                   </p>
                 )}
               </div>
