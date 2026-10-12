@@ -63,8 +63,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Endpoints công khai hoàn toàn: Auth, tài liệu Swagger / OpenAPI
+                        // 1. Endpoints công khai hoàn toàn: Health check, Auth, tài liệu Swagger / OpenAPI
                         .requestMatchers(
+                                "/",
+                                "/health",
+                                "/api/health",
+                                "/api/v1/health",
                                 "/error",
                                 "/api/v1/auth/**",
                                 "/v3/api-docs/**",
