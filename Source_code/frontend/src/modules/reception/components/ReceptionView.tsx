@@ -760,14 +760,6 @@ export default function ReceptionView() {
                     <label className="block text-xs font-bold text-slate-700 uppercase">
                       Mã Vé Hẹn Khám (Booking Code):
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowCameraScanner(true)}
-                      className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition cursor-pointer"
-                    >
-                      <Camera size={13} />
-                      <span>Bật Camera Quét</span>
-                    </button>
                   </div>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -778,8 +770,8 @@ export default function ReceptionView() {
                         required
                         value={bookingCode}
                         onChange={(e) => setBookingCode(e.target.value)}
-                        placeholder="Quét mã QR hoặc nhập: MED-2026-8899"
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
+                        placeholder="Ví dụ: MED-2026-8899"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800 placeholder:font-sans placeholder:font-normal placeholder:text-slate-400"
                       />
                     </div>
                     <button
