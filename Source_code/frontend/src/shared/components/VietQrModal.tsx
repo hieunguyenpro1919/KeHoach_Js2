@@ -72,7 +72,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   const [checkingStatus, setCheckingStatus] = useState<boolean>(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [simulatingWebhook, setSimulatingWebhook] = useState<boolean>(false);
-  const [checkCount, setCheckCount] = useState<number>(0);
 
   const cleanBookingCode = (bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   const transferContent = `MEDPAY ${cleanBookingCode}`;
@@ -94,7 +93,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     setIsPaidSuccess(false);
     setPaidDetails(null);
     setCheckError(null);
-    setCheckCount(0);
 
     // Gửi yêu cầu khởi tạo thanh toán pending tới backend
     api.createRealPayment({
@@ -149,36 +147,16 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  // Kiểm tra trạng thái thanh toán (Quy trình 2 bước: Lần 1 cảnh báo chặn gian lận, Lần 2 xác nhận tiền về mượt mà)
+  // Kiểm tra trạng thái thanh toán thực tế (Chỉ cho phép xác nhận khi TIỀN ĐÃ VỀ)
   const handleCheckPaymentStatus = async () => {
     setCheckingStatus(true);
     setCheckError(null);
 
-    const nextCount = checkCount + 1;
-    setCheckCount(nextCount);
-
     try {
-      let res = await api.checkRealPaymentStatus({
+      const res = await api.checkRealPaymentStatus({
         appointmentId,
         bookingCode: cleanBookingCode,
       });
-
-      // Nếu lần 2 bấm kiểm tra trở đi (sau khi đã đọc cảnh báo và thực hiện chuyển tiền thật trên app)
-      if ((!res.success || res.status !== 'SUCCEEDED') && nextCount >= 2) {
-        try {
-          await api.simulateBankWebhook({
-            bookingCode: cleanBookingCode,
-            amount: activeAmount,
-            paymentType,
-          });
-          res = await api.checkRealPaymentStatus({
-            appointmentId,
-            bookingCode: cleanBookingCode,
-          });
-        } catch (simErr) {
-          // Bỏ qua lỗi simulate
-        }
-      }
 
       if (res.success && res.status === 'SUCCEEDED') {
         setIsPaidSuccess(true);
@@ -190,7 +168,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
           if (onConfirmSuccess) onConfirmSuccess();
         }, 1500);
       } else {
-        // Lần 1: Chưa nhận được tiền -> Báo lỗi đỏ đúng kịch bản chống gian lận!
+        // Chưa nhận được tiền -> TUYỆT ĐỐI KHÔNG CHO PHÉP XÁC NHẬN!
         setCheckError(
           `Hệ thống chưa ghi nhận số tiền ${activeAmount.toLocaleString(
             'vi-VN'
