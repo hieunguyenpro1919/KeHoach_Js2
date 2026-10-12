@@ -120,9 +120,25 @@ export default function UserTable() {
     loadUsers(debouncedQuery, currentPage, selectedRole);
   }, [debouncedQuery, selectedRole, currentPage, isAuthenticated]);
 
-  const loadUsers = async (query = debouncedQuery, page = currentPage, role = selectedRole) => {
-    setLoading(true);
-    setMessage(null);
+  // 4. Cơ chế tự động làm mới ngầm định kỳ (Background Auto-refresh mỗi 30 giây)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      // Chỉ làm mới ngầm khi tab đang mở, không mở Modal và không đang gõ tìm kiếm
+      if (document.visibilityState === 'visible' && !detailUser && !resetModalUser && !isSearching) {
+        loadUsers(debouncedQuery, currentPage, selectedRole, true);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, debouncedQuery, currentPage, selectedRole, detailUser, resetModalUser, isSearching]);
+
+  const loadUsers = async (query = debouncedQuery, page = currentPage, role = selectedRole, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setMessage(null);
+    }
     try {
       const res = await api.getAdminUsers({
         role: (role === 'ALL' || role === 'LOCKED') ? undefined : role,
@@ -174,19 +190,23 @@ export default function UserTable() {
       setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
-      const isAuthErr = err.message && (
-        err.message.includes('đăng nhập') || 
-        err.message.includes('hết hạn') || 
-        err.message.includes('401')
-      );
-      if (isAuthErr) {
-        setIsAuthenticated(false);
-        setCurrentUser(null);
-      } else {
-        setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+      if (!silent) {
+        const isAuthErr = err.message && (
+          err.message.includes('đăng nhập') || 
+          err.message.includes('hết hạn') || 
+          err.message.includes('401')
+        );
+        if (isAuthErr) {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        } else {
+          setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+        }
       }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -377,16 +397,6 @@ export default function UserTable() {
             <UserPlus size={16} />
             <span>Tạo Tài Khoản Mới</span>
           </Link>
-
-          {/* Nút Tải lại danh sách */}
-          <button
-            onClick={() => loadUsers(debouncedQuery, currentPage, selectedRole)}
-            disabled={loading}
-            className="p-2 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer shrink-0 border border-teal-primary/20"
-            title="Tải lại danh sách"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
         </div>
       </div>
 
