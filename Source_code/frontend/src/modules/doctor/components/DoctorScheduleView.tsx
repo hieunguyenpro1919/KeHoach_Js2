@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -16,13 +16,16 @@ import {
   Building2,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   Lightbulb,
   HelpCircle,
   Info,
   MousePointerClick,
   ArrowRight,
   X,
-  DoorOpen
+  DoorOpen,
+  LayoutGrid,
+  ListFilter
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -88,6 +91,65 @@ export default function DoctorScheduleView() {
 
   // Toggle hướng dẫn sử dụng nhanh
   const [showGuide, setShowGuide] = useState(true);
+
+  // Chế độ xem: Ma Trận Tuần (Weekly Matrix) vs Danh Sách Chi Tiết (List)
+  const [viewMode, setViewMode] = useState<'matrix' | 'list'>('matrix');
+  const [currentWeekOffset, setCurrentWeekOffset] = useState<number>(0);
+
+  // Tính toán 7 ngày trong tuần theo offset
+  const getWeekDays = (offsetWeeks: number = 0) => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday...
+    const distanceToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + distanceToMonday + offsetWeeks * 7);
+
+    const days: Array<{ dateStr: string; displayDay: string; displayDate: string; isToday: boolean }> = [];
+    const dayNames = ['Thứ 2 (T2)', 'Thứ 3 (T3)', 'Thứ 4 (T4)', 'Thứ 5 (T5)', 'Thứ 6 (T6)', 'Thứ 7 (T7)', 'Chủ Nhật (CN)'];
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      days.push({
+        dateStr,
+        displayDay: dayNames[i],
+        displayDate: `${day}/${month}`,
+        isToday: dateStr === todayStr,
+      });
+    }
+    return days;
+  };
+
+  const weekDays = useMemo(() => getWeekDays(currentWeekOffset), [currentWeekOffset]);
+
+  const weekSchedules = useMemo(() => {
+    const dates = new Set(weekDays.map((d) => d.dateStr));
+    return schedules.filter((s) => dates.has(s.workDate));
+  }, [schedules, weekDays]);
+
+  const weekMetrics = useMemo(() => {
+    let totalHours = 0;
+    let totalBooked = 0;
+    let totalSlots = 0;
+    weekSchedules.forEach((s) => {
+      totalBooked += s.bookedSlots || 0;
+      totalSlots += s.totalSlots || 0;
+      const [sh, sm] = (s.startTime || '08:00').split(':').map(Number);
+      const [eh, em] = (s.endTime || '12:00').split(':').map(Number);
+      const durationHours = (eh * 60 + em - (sh * 60 + sm)) / 60;
+      if (durationHours > 0) totalHours += durationHours;
+    });
+    return {
+      totalShifts: weekSchedules.length,
+      totalHours: Math.round(totalHours * 10) / 10,
+      totalBooked,
+      availableSlots: totalSlots - totalBooked,
+    };
+  }, [weekSchedules]);
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -493,7 +555,75 @@ export default function DoctorScheduleView() {
         </div>
       </div>
 
-      {/* ── Danh Sách Ca Trực & Khung Giờ (Read / Update / Delete) ── */}
+      {/* ── Thanh Điều Hướng Chế Độ Xem: Ma Trận Tuần vs Danh Sách Chi Tiết ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Segmented Control */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setViewMode('matrix')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'matrix'
+                ? 'bg-white text-teal-800 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutGrid size={14} />
+            <span>Ma Trận Ca Trực Theo Tuần</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'list'
+                ? 'bg-white text-teal-800 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ListFilter size={14} />
+            <span>Danh Sách Chi Tiết ({schedules.length} ca)</span>
+          </button>
+        </div>
+
+        {/* Tuần điều hướng khi ở chế độ Ma Trận */}
+        {viewMode === 'matrix' && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Tuần trước"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <span className="text-xs font-bold text-slate-800 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+              Tuần: {weekDays[0].displayDate} - {weekDays[6].displayDate}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Tuần kế tiếp"
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {currentWeekOffset !== 0 && (
+              <button
+                type="button"
+                onClick={() => setCurrentWeekOffset(0)}
+                className="text-[11px] font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
+              >
+                Hôm nay
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Khối Nội Dung Chính (Loading / Empty / Matrix / List) ── */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
@@ -508,7 +638,177 @@ export default function DoctorScheduleView() {
               Bác sĩ bấm vào nút <strong>&ldquo;Đăng Ký Ca Trực Mới&rdquo;</strong> ở trên để mở lịch khám cho bệnh nhân.
             </p>
           </div>
+        ) : viewMode === 'matrix' ? (
+          /* ── Chế độ 1: Ma Trận Ca Trực Theo Tuần (Chuẩn Ảnh 4) ── */
+          <div className="space-y-4">
+            {/* Header tóm tắt chỉ số tuần */}
+            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-teal-300 shrink-0">
+                  <CalendarDays size={20} />
+                </div>
+                <div>
+                  <span className="text-[11px] text-teal-200 uppercase tracking-wider font-semibold block">
+                    Tổng Quan Ca Trực Tuần Này
+                  </span>
+                  <div className="text-sm sm:text-base font-extrabold text-white">
+                    Từ {weekDays[0].displayDay} ({weekDays[0].displayDate}) đến {weekDays[6].displayDay} ({weekDays[6].displayDate})
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
+                  <span className="text-teal-200 text-[10px] block">Tổng ca trực:</span>
+                  <strong className="text-white text-sm font-black">{weekMetrics.totalShifts} ca</strong>
+                </div>
+                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
+                  <span className="text-teal-200 text-[10px] block">Tổng giờ làm việc:</span>
+                  <strong className="text-white text-sm font-black">{weekMetrics.totalHours} giờ</strong>
+                </div>
+                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
+                  <span className="text-teal-200 text-[10px] block">Bệnh nhân đã đặt:</span>
+                  <strong className="text-emerald-300 text-sm font-black">{weekMetrics.totalBooked} người</strong>
+                </div>
+                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
+                  <span className="text-teal-200 text-[10px] block">Khung giờ còn trống:</span>
+                  <strong className="text-cyan-300 text-sm font-black">{weekMetrics.availableSlots} slots</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Lưới 7 Cột Ma Trận Tuần (Thứ 2 - Chủ Nhật) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 items-stretch">
+              {weekDays.map((day) => {
+                const daySchedules = schedules.filter((s) => s.workDate === day.dateStr);
+
+                return (
+                  <div
+                    key={day.dateStr}
+                    className={`flex flex-col rounded-2xl border transition overflow-hidden min-h-[300px] ${
+                      day.isToday
+                        ? 'border-teal-500 bg-teal-50/20 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    {/* Header Cột Ngày */}
+                    <div className={`p-2.5 text-center border-b ${
+                      day.isToday
+                        ? 'bg-teal-700 text-white font-extrabold'
+                        : 'bg-slate-50 text-slate-700 font-bold'
+                    }`}>
+                      <div className="text-xs">{day.displayDay}</div>
+                      <div className="text-sm font-black mt-0.5">{day.displayDate}</div>
+                      {day.isToday && (
+                        <span className="text-[9px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full mt-1 inline-block">
+                          Hôm nay
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Danh sách ca trực trong ngày */}
+                    <div className="p-2.5 flex-1 flex flex-col gap-2.5">
+                      {daySchedules.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 space-y-2">
+                          <span className="text-[11px] font-medium">Trống ca trực</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWorkDate(day.dateStr);
+                              setStartTime('08:00');
+                              setEndTime('12:00');
+                              setActivePreset('MORNING');
+                              setSelectedRoom(currentUser?.roomNumber || 'P.208');
+                              setShowCreateModal(true);
+                            }}
+                            className="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                          >
+                            + Mở ca ngày này
+                          </button>
+                        </div>
+                      ) : (
+                        daySchedules.map((sch) => {
+                          const isMorning = sch.startTime < '12:00' && sch.endTime <= '13:00';
+                          const isAfternoon = sch.startTime >= '12:00';
+                          const shiftTheme = isMorning
+                            ? 'border-emerald-300 bg-emerald-50/60 text-emerald-950'
+                            : isAfternoon
+                            ? 'border-blue-300 bg-blue-50/60 text-blue-950'
+                            : 'border-purple-300 bg-purple-50/60 text-purple-950';
+
+                          const percentBooked = sch.totalSlots > 0 ? Math.round((sch.bookedSlots / sch.totalSlots) * 100) : 0;
+
+                          return (
+                            <div
+                              key={sch.id}
+                              className={`p-3 rounded-xl border shadow-2xs space-y-2 ${shiftTheme}`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/80 border border-black/5">
+                                  {isMorning ? 'Ca Sáng' : isAfternoon ? 'Ca Chiều' : 'Cả Ngày'}
+                                </span>
+                                <span className="text-[10px] font-bold text-blue-800 bg-blue-100/70 px-1.5 py-0.5 rounded">
+                                  {sch.roomNumber || 'P.208'}
+                                </span>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <div className="text-xs font-black flex items-center gap-1">
+                                  <Clock size={12} className="opacity-70" />
+                                  <span>{sch.startTime} - {sch.endTime}</span>
+                                </div>
+                                <span className="text-[10px] opacity-75 block">
+                                  {sch.slotDurationMinutes}p/slot • {sch.totalSlots} slots
+                                </span>
+                              </div>
+
+                              {/* Thanh tiến độ nhận bệnh */}
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-[10px] font-bold">
+                                  <span>Đã đặt: {sch.bookedSlots}/{sch.totalSlots}</span>
+                                  <span>{percentBooked}%</span>
+                                </div>
+                                <div className="w-full bg-black/10 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      percentBooked >= 80 ? 'bg-rose-500' : percentBooked >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                                    }`}
+                                    style={{ width: `${percentBooked}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Nút hành động ca */}
+                              <div className="pt-1 flex items-center justify-between border-t border-black/5 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewMode('list')}
+                                  className="font-bold text-teal-800 hover:underline cursor-pointer"
+                                >
+                                  Xem {sch.slots.length} slots &gt;
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSchedule(sch)}
+                                  disabled={actionLoadingId === sch.id || sch.bookedSlots > 0}
+                                  className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5"
+                                  title={sch.bookedSlots > 0 ? 'Đã có người đặt, không thể hủy' : 'Hủy ca trực này'}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
+          /* ── Chế độ 2: Danh Sách Chi Tiết Ca Trực & Khóa/Mở Từng Slot ── */
           schedules.map((schedule) => (
             <div key={schedule.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
               {/* Header ca trực */}

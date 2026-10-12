@@ -815,19 +815,21 @@ export default function MyAppointmentsView() {
             {/* Modal Body */}
             <div className="p-6 text-center space-y-4">
               
-              {/* STT & Code */}
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Số thứ tự tiếp đón</span>
-                <div className="text-3xl font-black text-pine-teal mt-0.5 tracking-tight">
-                  {selectedAppointment.queueNumber || 'STT-01'}
+              {/* STT & Code (Chuẩn Ảnh 2 YouMed) */}
+              <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 text-center">
+                <span className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-widest block">
+                  SỐ THỨ TỰ VÀO KHÁM (STT)
+                </span>
+                <div className="text-4xl font-black text-emerald-600 mt-1 tracking-tight">
+                  STT: #{selectedAppointment.queueNumber ? String(selectedAppointment.queueNumber).replace(/^STT-?/i, '').padStart(4, '0') : '0003'}
                 </div>
-                <div className="inline-flex items-center gap-1.5 mt-1 bg-mint-soft px-3 py-1 rounded-full border border-mint-light">
-                  <span className="text-xs font-mono font-bold text-teal-primary">
-                    {selectedAppointment.bookingCode}
+                <div className="inline-flex items-center gap-1.5 mt-2 bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-2xs">
+                  <span className="text-xs font-mono font-bold text-slate-700">
+                    Mã phiếu: {selectedAppointment.bookingCode}
                   </span>
                   <button
                     onClick={() => copyToClipboard(selectedAppointment.bookingCode)}
-                    className="text-slate-400 hover:text-teal-primary transition cursor-pointer"
+                    className="text-slate-400 hover:text-emerald-700 transition cursor-pointer"
                   >
                     {copiedCode === selectedAppointment.bookingCode ? (
                       <Check size={12} className="text-emerald-600" />
@@ -873,14 +875,14 @@ export default function MyAppointmentsView() {
                 </button>
               )}
 
-              {/* Instructions */}
-              <div className="bg-mint-soft p-3.5 rounded-xl border border-mint-light text-left text-xs space-y-1 text-slate-700">
-                <div className="font-bold text-pine-teal flex items-center gap-1">
-                  <Clock size={13} />
-                  <span>Hướng dẫn tiếp đón:</span>
+              {/* Instructions (Chuẩn Lời Dặn Ảnh 2) */}
+              <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-left text-xs space-y-1 text-slate-700">
+                <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                  <Clock size={14} className="text-amber-600" />
+                  <span>Lời dặn dò tiếp đón:</span>
                 </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Khi đến phòng khám, vui lòng xuất trình mã QR này tại <strong>Quầy Tiếp Đón</strong> (hoặc Kiosk tự phục vụ) để hệ thống tự động in số thứ tự khám và thông báo tới Bác sĩ phụ trách.
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Bệnh nhân vui lòng đến trước giờ khám <strong>15 - 20 phút</strong> và xuất trình mã QR này tại <strong>Quầy Tiếp Đón</strong> (hoặc Kiosk tự phục vụ) để được hướng dẫn vào thẳng buồng khám.
                 </p>
               </div>
 
