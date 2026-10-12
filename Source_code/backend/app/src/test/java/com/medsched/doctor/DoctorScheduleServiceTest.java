@@ -133,4 +133,53 @@ class DoctorScheduleServiceTest {
 
         verify(doctorScheduleRepository).delete(sch);
     }
+
+    @Test
+    @DisplayName("CLAB-113: Khóa đổi buồng khám khi đã bước sang ngày khám mới (hôm nay)")
+    void givenScheduleToday_whenChangeScheduleRoom_thenThrowsIllegalArgumentException() {
+        Instant now = Instant.now();
+        DoctorScheduleEntity sch = new DoctorScheduleEntity(
+                "sch-today", "doc-1", LocalDate.now(), LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorScheduleRepository.findById("sch-today")).willReturn(Optional.of(sch));
+
+        var req = new DoctorScheduleDtos.ChangeScheduleRoomRequest("P.209");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> doctorScheduleService.changeScheduleRoom("u-doc-1", "sch-today", req)
+        );
+    }
+
+    @Test
+    @DisplayName("CLAB-113: Đổi buồng khám thành công khi đổi trước 1 ngày (ngày mai trở đi)")
+    void givenScheduleTomorrow_whenChangeScheduleRoom_thenSuccess() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                java.math.BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        DoctorScheduleEntity sch = new DoctorScheduleEntity(
+                "sch-tomorrow", "doc-1", tomorrow, LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorScheduleRepository.findById("sch-tomorrow")).willReturn(Optional.of(sch));
+        given(doctorRepository.findByUserId("u-doc-1")).willReturn(List.of(doc));
+        given(doctorScheduleRepository.findByWorkDate(tomorrow)).willReturn(List.of(sch));
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc("sch-tomorrow")).willReturn(List.of());
+
+        var req = new DoctorScheduleDtos.ChangeScheduleRoomRequest("P.205");
+
+        var res = doctorScheduleService.changeScheduleRoom("u-doc-1", "sch-tomorrow", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.roomNumber()).isEqualTo("P.205");
+        verify(doctorRepository).save(doc);
+    }
 }

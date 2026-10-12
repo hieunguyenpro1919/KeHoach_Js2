@@ -204,6 +204,23 @@ public class DoctorController {
     }
 
     /**
+     * CLAB-113: Bác sĩ đổi buồng khám cho ca trực.
+     * QUY ĐỊNH BẮT BUỘC: Chỉ được đổi trước tối thiểu 1 ngày (trước 00:00:00).
+     * Khi bước sang ngày khám mới (hôm nay), buồng khám đã chốt cố định và cấm thay đổi.
+     */
+    @PatchMapping("/schedules/{scheduleId}/change-room")
+    public ResponseEntity<DoctorScheduleDtos.DoctorScheduleDto> changeScheduleRoom(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @PathVariable String scheduleId,
+            @Valid @RequestBody DoctorScheduleDtos.ChangeScheduleRoomRequest request) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        DoctorScheduleDtos.DoctorScheduleDto updated =
+                doctorScheduleService.changeScheduleRoom(userId, scheduleId, request);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
      * Bác sĩ hủy ca trực thông thường (chỉ cho phép khi chưa có bệnh nhân đặt lịch).
      */
     @DeleteMapping("/schedules/{scheduleId}")
