@@ -744,6 +744,24 @@ export const api = {
     });
   },
 
+  async completeDoctorVisit(appointmentId: string, payload: {
+    diagnosis: string;
+    doctorAdvice?: string;
+    items?: Array<{
+      medicineName: string;
+      dosage?: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+    }>;
+  }) {
+    return request<any>(`/doctor/appointments/${appointmentId}/complete`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+
   async admitDoctorPatient(appointmentId: string) {
     return request<void>(`/doctor/appointments/${appointmentId}/admit`, {
       method: "POST",

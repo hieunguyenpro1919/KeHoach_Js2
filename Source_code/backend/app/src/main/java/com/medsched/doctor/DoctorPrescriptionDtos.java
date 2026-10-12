@@ -93,4 +93,28 @@ public class DoctorPrescriptionDtos {
             Instant consultationTime,
             String formattedDate
     ) {}
+
+    /**
+     * CAB-71: Request hoàn tất ca khám (Doctor Complete Visit).
+     */
+    public record CompleteVisitRequest(
+            @NotBlank(message = "Chẩn đoán bệnh không được để trống")
+            String diagnosis,
+            String doctorAdvice,
+            List<PrescriptionItemRequest> items
+    ) {}
+
+    /**
+     * CAB-71: Response kết quả hoàn tất ca khám (Doctor Complete Visit).
+     */
+    public record CompleteVisitResponse(
+            String appointmentId,
+            String status,
+            String diagnosis,
+            String doctorAdvice,
+            String prescriptionId,
+            BigDecimal totalMedicineAmount,
+            Instant completedAt
+    ) {}
 }
+

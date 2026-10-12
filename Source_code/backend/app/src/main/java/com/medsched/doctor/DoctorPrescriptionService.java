@@ -125,20 +125,7 @@ public class DoctorPrescriptionService {
         }
 
         // 3. Tra cứu tên bác sĩ phụ trách
-        String doctorName = "Bác sĩ phụ trách";
-        if (appointment.getDoctorId() != null) {
-            var doctorOpt = doctorRepository.findById(appointment.getDoctorId());
-            if (doctorOpt.isPresent()) {
-                var doctor = doctorOpt.get();
-                var userOpt = userRepository.findById(doctor.getUserId());
-                if (userOpt.isPresent()) {
-                    String prefix = (doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank())
-                            ? doctor.getAcademicTitle() + " "
-                            : "BS. ";
-                    doctorName = prefix + userOpt.get().getFullName();
-                }
-            }
-        }
+        String doctorName = resolveDoctorName(appointment);
 
         // 4. Lưu đơn thuốc
         PrescriptionEntity prescription = new PrescriptionEntity(
@@ -168,6 +155,123 @@ public class DoctorPrescriptionService {
                 prescription.getCreatedAt()
         );
     }
+
+    /**
+     * CAB-71: Bác sĩ hoàn tất ca khám (Doctor Complete Visit).
+     * 1. Cập nhật trạng thái ca khám sang COMPLETED.
+     * 2. Lưu hoặc cập nhật hồ sơ bệnh án (medical_records) gồm chẩn đoán và lời dặn.
+     * 3. Kê đơn thuốc nếu có danh sách thuốc chỉ định.
+     * 4. Trả về kết quả hoàn tất ca khám.
+     */
+    @Transactional
+    public DoctorPrescriptionDtos.CompleteVisitResponse completeVisit(
+            String appointmentId,
+            DoctorPrescriptionDtos.CompleteVisitRequest request) {
+
+        AppointmentEntity appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám: " + appointmentId));
+
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Ca khám đã bị hủy, không thể hoàn tất.");
+        }
+
+        // 1. Lưu hoặc cập nhật hồ sơ bệnh án
+        MedicalRecordEntity medicalRecord = medicalRecordRepository.findByAppointmentId(appointmentId)
+                .orElseGet(() -> new MedicalRecordEntity(
+                        UUID.randomUUID().toString(),
+                        appointmentId,
+                        request.diagnosis(),
+                        request.doctorAdvice(),
+                        Instant.now(),
+                        Instant.now()
+                ));
+        medicalRecord.setDiagnosis(request.diagnosis());
+        if (request.doctorAdvice() != null) {
+            medicalRecord.setDoctorNotes(request.doctorAdvice());
+        }
+        medicalRecord.setUpdatedAt(Instant.now());
+        medicalRecord = medicalRecordRepository.save(medicalRecord);
+
+        // 2. Kê đơn thuốc (nếu có thuốc được chỉ định)
+        String prescriptionId = null;
+        BigDecimal totalMedicineAmount = BigDecimal.ZERO;
+
+        if (request.items() != null && !request.items().isEmpty()) {
+            prescriptionId = "pr" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            for (DoctorPrescriptionDtos.PrescriptionItemRequest itemReq : request.items()) {
+                BigDecimal qty = itemReq.quantity() != null ? itemReq.quantity() : BigDecimal.ONE;
+                BigDecimal price = itemReq.unitPrice() != null ? itemReq.unitPrice() : BigDecimal.ZERO;
+                totalMedicineAmount = totalMedicineAmount.add(qty.multiply(price));
+
+                PrescriptionItemEntity item = new PrescriptionItemEntity(
+                        UUID.randomUUID().toString(),
+                        medicalRecord.getId(),
+                        null,
+                        itemReq.medicineName(),
+                        itemReq.unit() != null ? itemReq.unit() : "Viên",
+                        itemReq.dosage() != null ? itemReq.dosage() : "",
+                        itemReq.dosage() != null ? itemReq.dosage() : "Theo chỉ định",
+                        null,
+                        qty,
+                        itemReq.dosage(),
+                        Instant.now(),
+                        Instant.now()
+                );
+                item.setUnitPrice(price);
+                item.setPrescriptionId(prescriptionId);
+                prescriptionItemRepository.save(item);
+            }
+
+            String doctorName = resolveDoctorName(appointment);
+
+            PrescriptionEntity prescription = new PrescriptionEntity(
+                    prescriptionId,
+                    appointmentId,
+                    medicalRecord.getId(),
+                    appointment.getDoctorId(),
+                    doctorName,
+                    totalMedicineAmount,
+                    "COMPLETED",
+                    Instant.now(),
+                    Instant.now()
+            );
+            prescriptionRepository.save(prescription);
+        }
+
+        // 3. Cập nhật trạng thái ca khám sang COMPLETED
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        appointment.setUpdatedAt(Instant.now());
+        appointmentRepository.save(appointment);
+
+        return new DoctorPrescriptionDtos.CompleteVisitResponse(
+                appointment.getId(),
+                appointment.getStatus().name(),
+                request.diagnosis(),
+                request.doctorAdvice(),
+                prescriptionId,
+                totalMedicineAmount,
+                appointment.getUpdatedAt()
+        );
+    }
+
+    private String resolveDoctorName(AppointmentEntity appointment) {
+        String doctorName = "Bác sĩ phụ trách";
+        if (appointment.getDoctorId() != null) {
+            var doctorOpt = doctorRepository.findById(appointment.getDoctorId());
+            if (doctorOpt.isPresent()) {
+                var doctor = doctorOpt.get();
+                var userOpt = userRepository.findById(doctor.getUserId());
+                if (userOpt.isPresent()) {
+                    String prefix = (doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank())
+                            ? doctor.getAcademicTitle() + " "
+                            : "BS. ";
+                    doctorName = prefix + userOpt.get().getFullName();
+                }
+            }
+        }
+        return doctorName;
+    }
+
 
     /**
      * Lấy danh sách toàn bộ bệnh nhân khám hôm nay của bác sĩ:

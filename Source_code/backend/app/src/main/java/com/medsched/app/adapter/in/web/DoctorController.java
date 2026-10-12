@@ -63,6 +63,22 @@ public class DoctorController {
     }
 
     /**
+     * CAB-71: Bác sĩ hoàn tất ca khám (Doctor Complete Visit).
+     * Chuyển trạng thái sang COMPLETED, lưu chẩn đoán, lời dặn và đơn thuốc (nếu có).
+     */
+    @PostMapping("/appointments/{appointmentId}/complete")
+    public ResponseEntity<DoctorPrescriptionDtos.CompleteVisitResponse> completeVisit(
+            @PathVariable String appointmentId,
+            @Valid @RequestBody DoctorPrescriptionDtos.CompleteVisitRequest request) {
+
+        DoctorPrescriptionDtos.CompleteVisitResponse response =
+                doctorPrescriptionService.completeVisit(appointmentId, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    /**
      * Bác sĩ tiếp nhận nhanh ca khám (chuyển sang CHECKED_IN).
      */
     @PostMapping("/appointments/{appointmentId}/admit")

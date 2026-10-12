@@ -247,4 +247,101 @@ class DoctorPrescriptionServiceTest {
         assertThat(detail.items().get(0).medicineName()).isEqualTo("Augmentin 1g");
         assertThat(detail.items().get(0).totalPrice()).isEqualByComparingTo("50000");
     }
+
+    @Test
+    @DisplayName("CAB-71: Bác sĩ hoàn tất ca khám có kèm đơn thuốc")
+    void completeVisit_success_withPrescription() {
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(medicalRecordRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.empty());
+        when(medicalRecordRepository.save(any(MedicalRecordEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(doctorRepository.findById("doc-1")).thenReturn(Optional.of(sampleDoctor));
+        when(userRepository.findById("user-doc-1")).thenReturn(Optional.of(sampleDoctorUser));
+        when(prescriptionRepository.save(any(PrescriptionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoctorPrescriptionDtos.CompleteVisitRequest request = new DoctorPrescriptionDtos.CompleteVisitRequest(
+                "Viêm họng đỏ cấp tính",
+                "Tránh uống nước đá, giữ ấm cổ họng",
+                List.of(
+                        new DoctorPrescriptionDtos.PrescriptionItemRequest(
+                                "Amoxicillin 500mg",
+                                "1 viên x 2 lần/ngày sau ăn",
+                                new BigDecimal("14"),
+                                "Viên",
+                                new BigDecimal("3000")
+                        )
+                )
+        );
+
+        DoctorPrescriptionDtos.CompleteVisitResponse response =
+                doctorPrescriptionService.completeVisit("ap000001-xxxx", request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.appointmentId()).isEqualTo("ap000001-xxxx");
+        assertThat(response.status()).isEqualTo("COMPLETED");
+        assertThat(response.diagnosis()).isEqualTo("Viêm họng đỏ cấp tính");
+        assertThat(response.doctorAdvice()).isEqualTo("Tránh uống nước đá, giữ ấm cổ họng");
+        assertThat(response.prescriptionId()).isNotNull();
+        assertThat(response.totalMedicineAmount()).isEqualByComparingTo("42000");
+
+        assertThat(sampleAppointment.getStatus()).isEqualTo(AppointmentStatus.COMPLETED);
+        verify(appointmentRepository).save(sampleAppointment);
+        verify(prescriptionRepository).save(any());
+        verify(prescriptionItemRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("CAB-71: Bác sĩ hoàn tất ca khám không kê đơn thuốc (chỉ tư vấn/lời dặn)")
+    void completeVisit_success_withoutPrescription() {
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(medicalRecordRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.empty());
+        when(medicalRecordRepository.save(any(MedicalRecordEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoctorPrescriptionDtos.CompleteVisitRequest request = new DoctorPrescriptionDtos.CompleteVisitRequest(
+                "Cảm mạo nhẹ, sức khỏe tổng quát bình thường",
+                "Ăn uống bồi bổ, uống nhiều nước, tập thể dục nhẹ",
+                null
+        );
+
+        DoctorPrescriptionDtos.CompleteVisitResponse response =
+                doctorPrescriptionService.completeVisit("ap000001-xxxx", request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.appointmentId()).isEqualTo("ap000001-xxxx");
+        assertThat(response.status()).isEqualTo("COMPLETED");
+        assertThat(response.diagnosis()).isEqualTo("Cảm mạo nhẹ, sức khỏe tổng quát bình thường");
+        assertThat(response.prescriptionId()).isNull();
+        assertThat(response.totalMedicineAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        assertThat(sampleAppointment.getStatus()).isEqualTo(AppointmentStatus.COMPLETED);
+        verify(appointmentRepository).save(sampleAppointment);
+        verify(prescriptionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CAB-71: completeVisit ném ResourceNotFoundException nếu mã ca khám không tồn tại")
+    void completeVisit_throwsNotFound() {
+        when(appointmentRepository.findById("invalid-id")).thenReturn(Optional.empty());
+
+        DoctorPrescriptionDtos.CompleteVisitRequest request = new DoctorPrescriptionDtos.CompleteVisitRequest(
+                "Khám", "Lời dặn", null
+        );
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                doctorPrescriptionService.completeVisit("invalid-id", request));
+    }
+
+    @Test
+    @DisplayName("CAB-71: completeVisit ném IllegalArgumentException nếu ca khám đã bị hủy")
+    void completeVisit_throwsIllegalState_whenCancelled() {
+        sampleAppointment.setStatus(AppointmentStatus.CANCELLED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        DoctorPrescriptionDtos.CompleteVisitRequest request = new DoctorPrescriptionDtos.CompleteVisitRequest(
+                "Khám", "Lời dặn", null
+        );
+
+        assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeVisit("ap000001-xxxx", request));
+    }
 }
+
