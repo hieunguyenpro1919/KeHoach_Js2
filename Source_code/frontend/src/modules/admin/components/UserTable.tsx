@@ -60,6 +60,8 @@ export default function UserTable() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -77,6 +79,7 @@ export default function UserTable() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // 1. Kiểm tra quyền Admin khi mount trang
   useEffect(() => {
     const token = getAuthToken();
     const user = getAuthUser();
@@ -90,7 +93,6 @@ export default function UserTable() {
     setCurrentUser(user);
     setIsAuthenticated(true);
     setAuthChecked(true);
-    loadUsers();
 
     const handleKickout = () => {
       setIsAuthenticated(false);
@@ -100,16 +102,32 @@ export default function UserTable() {
     return () => {
       window.removeEventListener("medsched:concurrent_kickout", handleKickout);
     };
-  }, [selectedRole, currentPage]);
+  }, []);
 
-  const loadUsers = async () => {
+  // 2. Tự động tìm kiếm theo từng ký tự người dùng nhập vào (debounce 250ms)
+  useEffect(() => {
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setIsSearching(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 3. Tự động nạp dữ liệu khi từ khóa (debounced), vai trò hoặc số trang thay đổi
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    loadUsers(debouncedQuery, currentPage, selectedRole);
+  }, [debouncedQuery, selectedRole, currentPage, isAuthenticated]);
+
+  const loadUsers = async (query = debouncedQuery, page = currentPage, role = selectedRole) => {
     setLoading(true);
     setMessage(null);
     try {
       const res = await api.getAdminUsers({
-        role: (selectedRole === 'ALL' || selectedRole === 'LOCKED') ? undefined : selectedRole,
-        q: searchQuery.trim() || undefined,
-        page: currentPage,
+        role: (role === 'ALL' || role === 'LOCKED') ? undefined : role,
+        q: query.trim() || undefined,
+        page: page,
         size: pageSize,
       });
 
@@ -139,20 +157,20 @@ export default function UserTable() {
       // Lọc bỏ tài khoản Quản trị viên (Admin) khỏi bảng quản trị nhân sự & bệnh nhân
       normalizedUsers = normalizedUsers.filter((u) => !u.roles.includes('ROLE_ADMIN'));
 
-      if (selectedRole === 'ROLE_DOCTOR') {
+      if (role === 'ROLE_DOCTOR') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
-      } else if (selectedRole === 'ROLE_STAFF') {
+      } else if (role === 'ROLE_STAFF') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
-      } else if (selectedRole === 'CUSTOMER') {
+      } else if (role === 'CUSTOMER') {
         normalizedUsers = normalizedUsers.filter(
           (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
         );
-      } else if (selectedRole === 'LOCKED') {
+      } else if (role === 'LOCKED') {
         normalizedUsers = normalizedUsers.filter((u) => !u.active);
       }
 
       setUsers(normalizedUsers);
-      setTotalElements(normalizedUsers.length);
+      setTotalElements(res?.totalElements !== undefined ? res.totalElements : normalizedUsers.length);
       setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
@@ -172,10 +190,29 @@ export default function UserTable() {
     }
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setDebouncedQuery('');
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+    loadUsers('', 0, selectedRole);
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(0);
-    loadUsers();
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+    setDebouncedQuery(searchQuery);
+    loadUsers(searchQuery, 0, selectedRole);
   };
 
   const handleToggleStatus = async (user: UserItem) => {
@@ -308,15 +345,29 @@ export default function UserTable() {
         <div className="flex flex-wrap items-center gap-2.5 justify-start xl:justify-end">
           {/* Search form */}
           <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 flex-1 sm:flex-initial">
-            <div className="relative w-full sm:w-60">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Tìm theo tên, email, SĐT..."
-                className="pl-9 pr-3 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
+                className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
               />
+              {isSearching ? (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <RefreshCw size={13} className="animate-spin text-pine-teal" />
+                </div>
+              ) : searchQuery ? (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 rounded-full cursor-pointer"
+                  title="Xóa tìm kiếm"
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
             </div>
             <button
               type="submit"
@@ -337,7 +388,7 @@ export default function UserTable() {
 
           {/* Nút Tải lại danh sách */}
           <button
-            onClick={() => loadUsers()}
+            onClick={() => loadUsers(debouncedQuery, currentPage, selectedRole)}
             disabled={loading}
             className="p-2 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer shrink-0 border border-teal-primary/20"
             title="Tải lại danh sách"
@@ -357,9 +408,11 @@ export default function UserTable() {
             description={
               selectedRole === 'LOCKED'
                 ? 'Tất cả tài khoản Bác sĩ, Lễ tân và Bệnh nhân hiện đều đang hoạt động bình thường.'
-                : `Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}" hoặc từ khóa tìm kiếm.`
+                : searchQuery
+                ? `Không có người dùng nào phù hợp với từ khóa "${searchQuery}".`
+                : `Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}".`
             }
-            onRetry={() => { setSelectedRole('ALL'); setSearchQuery(''); loadUsers(); }}
+            onRetry={() => { setSelectedRole('ALL'); handleClearSearch(); }}
           />
         ) : (
           <div className="overflow-x-auto">
