@@ -330,6 +330,77 @@ public class DoctorScheduleService {
     }
 
     /**
+     * CLAB-113: Bác sĩ đổi buồng khám phân công cho ca trực.
+     * QUY TẮC PHÒNG KHÁM: Bác sĩ CHỈ ĐƯỢC ĐỔI BUỒNG KHÁM TRƯỚC TỐI THIỂU 1 NGÀY (trước 00:00:00).
+     * Khi bước sang ngày khám mới (hôm nay hoặc quá khứ), buồng khám bị KHÓA CỐ ĐỊNH nhằm đồng bộ
+     * tuyệt đối với phiếu số thứ tự tiếp đón và màn hình gọi số LCD ngoài sảnh chờ của người bệnh.
+     */
+    @Transactional
+    public DoctorScheduleDtos.DoctorScheduleDto changeScheduleRoom(String userId, String scheduleId, DoctorScheduleDtos.ChangeScheduleRoomRequest request) {
+        DoctorScheduleEntity schedule = doctorScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca trực: " + scheduleId));
+
+        LocalDate today = LocalDate.now(VN_ZONE);
+        if (!schedule.getWorkDate().isAfter(today)) {
+            throw new IllegalArgumentException(
+                    String.format("Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). " +
+                                  "Khi bước sang ngày khám mới (ngày: %s), buồng khám đã được chốt và đồng bộ với phiếu hẹn/màn hình gọi số của người bệnh.",
+                                  schedule.getWorkDate())
+            );
+        }
+
+        String targetDoctorId = resolveDoctorId(userId, null);
+        if (!schedule.getDoctorId().equals(targetDoctorId)) {
+            throw new IllegalArgumentException("Bác sĩ không có quyền thay đổi buồng khám của ca trực này.");
+        }
+
+        String targetRoom = (request.newRoomNumber() != null && !request.newRoomNumber().isBlank())
+                ? request.newRoomNumber().trim().toUpperCase()
+                : "";
+
+        if (!APPROVED_CLINIC_ROOMS.contains(targetRoom)) {
+            throw new IllegalArgumentException("Buồng khám [" + targetRoom
+                    + "] không hợp lệ hoặc chưa được Quản Trị Viên (Admin) phê duyệt. Vui lòng chỉ chọn các buồng khám hợp lệ: "
+                    + String.join(", ", APPROVED_CLINIC_ROOMS));
+        }
+
+        // Kiểm tra xung đột buồng khám với Bác sĩ khác trong cùng ngày/khung giờ
+        List<DoctorScheduleEntity> allSchedulesOnDate = doctorScheduleRepository.findByWorkDate(schedule.getWorkDate());
+        for (DoctorScheduleEntity ex : allSchedulesOnDate) {
+            if (ex.getStatus() == ScheduleStatus.ACTIVE && !ex.getDoctorId().equals(schedule.getDoctorId())) {
+                DoctorEntity otherDoctor = doctorRepository.findById(ex.getDoctorId()).orElse(null);
+                if (otherDoctor != null) {
+                    String otherRoom = otherDoctor.getRoomNumber() != null ? otherDoctor.getRoomNumber().trim().toUpperCase() : "";
+                    if (targetRoom.equalsIgnoreCase(otherRoom)) {
+                        boolean overlap = schedule.getStartTime().isBefore(ex.getEndTime()) && schedule.getEndTime().isAfter(ex.getStartTime());
+                        if (overlap) {
+                            String otherDoctorName = userJpaRepository.findById(otherDoctor.getUserId())
+                                    .map(UserEntity::getFullName)
+                                    .orElse("Bác sĩ khác");
+                            if (otherDoctor.getAcademicTitle() != null && !otherDoctor.getAcademicTitle().isBlank()) {
+                                otherDoctorName = otherDoctor.getAcademicTitle() + " " + otherDoctorName;
+                            }
+                            throw new IllegalArgumentException(
+                                    String.format("Buồng khám [%s] đã được Bác sĩ %s đăng ký trực trong khung giờ (%s - %s) ngày %s. " +
+                                                  "Vui lòng chọn buồng khám khác hoặc khung giờ khác!",
+                                                  targetRoom, otherDoctorName, ex.getStartTime(), ex.getEndTime(), schedule.getWorkDate())
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        DoctorEntity currentDoctor = doctorRepository.findById(schedule.getDoctorId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Bác sĩ trong hệ thống."));
+        currentDoctor.setRoomNumber(targetRoom);
+        currentDoctor.setUpdatedAt(Instant.now());
+        doctorRepository.save(currentDoctor);
+
+        return mapToDto(schedule);
+    }
+
+    /**
      * Tra cứu danh sách bệnh nhân bị ảnh hưởng trước khi Bác sĩ xác nhận hủy ca khẩn cấp.
      */
     @Transactional(readOnly = true)

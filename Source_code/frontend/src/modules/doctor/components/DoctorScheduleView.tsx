@@ -104,6 +104,12 @@ export default function DoctorScheduleView() {
   const [loadingAffected, setLoadingAffected] = useState<boolean>(false);
   const [cancelSubmitting, setCancelSubmitting] = useState<boolean>(false);
 
+  // Modal Đổi Buồng Khám (CLAB-113: Khóa trong ngày, chỉ cho phép trước 1 ngày)
+  const [showChangeRoomModal, setShowChangeRoomModal] = useState<boolean>(false);
+  const [scheduleToChangeRoom, setScheduleToChangeRoom] = useState<DoctorScheduleDto | null>(null);
+  const [newRoomForChange, setNewRoomForChange] = useState<string>('P.208');
+  const [changingRoom, setChangingRoom] = useState<boolean>(false);
+
   // Kích hoạt thử nghiệm tác vụ Auto-Schedule 17h
   const [triggeringAutoSchedule, setTriggeringAutoSchedule] = useState<boolean>(false);
 
@@ -356,6 +362,44 @@ export default function DoctorScheduleView() {
       alert(err?.message || 'Không thể thay đổi trạng thái khung giờ.');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  // CLAB-113: Đổi buồng khám phân công (Chỉ cho phép trước 1 ngày / trước 00:00:00)
+  const handleOpenChangeRoomModal = (sch: DoctorScheduleDto) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (sch.workDate <= todayStr) {
+      alert(`🔒 Quy định phòng khám:\nBuồng khám cho ca trực ngày ${sch.workDate} đã chốt cố định và đồng bộ với phiếu số thứ tự và màn hình LCD tiếp đón.\nBác sĩ chỉ được phép đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00).`);
+      return;
+    }
+    setScheduleToChangeRoom(sch);
+    setNewRoomForChange(sch.roomNumber || currentUser?.roomNumber || 'P.208');
+    setError(null);
+    setShowChangeRoomModal(true);
+    checkOccupancy(sch.workDate, sch.startTime, sch.endTime);
+  };
+
+  const handleConfirmChangeRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleToChangeRoom) return;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (scheduleToChangeRoom.workDate <= todayStr) {
+      setError(`Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). Khi bước sang ngày mới, buồng khám đã chốt cố định.`);
+      return;
+    }
+    try {
+      setChangingRoom(true);
+      setError(null);
+      await api.changeDoctorScheduleRoom(scheduleToChangeRoom.id, newRoomForChange);
+      setCurrentUser((prev: any) => ({ ...prev, roomNumber: newRoomForChange }));
+      setNotification(`✅ Đã đổi buồng khám sang [${newRoomForChange}] cho ca trực ngày ${scheduleToChangeRoom.workDate} (${scheduleToChangeRoom.startTime} - ${scheduleToChangeRoom.endTime})!`);
+      setShowChangeRoomModal(false);
+      setScheduleToChangeRoom(null);
+      await loadSchedules();
+    } catch (err: any) {
+      setError(err?.message || 'Không thể đổi buồng khám.');
+    } finally {
+      setChangingRoom(false);
     }
   };
 
@@ -848,9 +892,46 @@ export default function DoctorScheduleView() {
                                 <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/80 border border-black/5">
                                   {isMorning ? 'Ca Sáng' : isAfternoon ? 'Ca Chiều' : 'Cả Ngày'}
                                 </span>
-                                <span className="text-[10px] font-bold text-blue-800 bg-blue-100/70 px-1.5 py-0.5 rounded">
-                                  {sch.roomNumber || 'P.208'}
-                                </span>
+                                {(() => {
+                                  const todayStr = new Date().toISOString().slice(0, 10);
+                                  const isToday = sch.workDate === todayStr;
+                                  const isFuture = sch.workDate > todayStr;
+                                  const roomLabel = sch.roomNumber || 'P.208';
+
+                                  if (isToday) {
+                                    return (
+                                      <span 
+                                        className="text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs"
+                                        title="🔒 Buồng khám hôm nay đã được chốt cố định (Theo quy định phòng khám, không thể đổi trong ngày)"
+                                      >
+                                        <Lock size={10} className="text-amber-700" />
+                                        <span>{roomLabel}</span>
+                                      </span>
+                                    );
+                                  }
+
+                                  if (isFuture) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenChangeRoomModal(sch)}
+                                        className="text-[10px] font-bold text-blue-800 hover:text-blue-900 bg-blue-100/80 hover:bg-blue-200 border border-blue-200 px-1.5 py-0.5 rounded transition cursor-pointer flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
+                                        title="Nhấp để đổi buồng khám trước 1 ngày (hạn chót 23:59:59)"
+                                      >
+                                        <DoorOpen size={10} className="text-blue-600" />
+                                        <span>{roomLabel}</span>
+                                        <RefreshCw size={8} className="opacity-60" />
+                                      </button>
+                                    );
+                                  }
+
+                                  return (
+                                    <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                      <DoorOpen size={10} className="text-slate-400" />
+                                      <span>{roomLabel}</span>
+                                    </span>
+                                  );
+                                })()}
                               </div>
 
                               <div className="space-y-0.5">
@@ -924,10 +1005,54 @@ export default function DoctorScheduleView() {
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                         {schedule.status}
                       </span>
-                      <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
-                        <DoorOpen size={12} className="text-blue-600" />
-                        {schedule.roomNumber || currentUser?.roomNumber ? `Phòng ${schedule.roomNumber || currentUser?.roomNumber}` : 'Phòng P.208'}
-                      </span>
+                      {(() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        const isToday = schedule.workDate === todayStr;
+                        const isFuture = schedule.workDate > todayStr;
+                        const roomLabel = schedule.roomNumber || currentUser?.roomNumber || 'P.208';
+
+                        if (isToday) {
+                          return (
+                            <span 
+                              className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs"
+                              title="Theo quy định bệnh viện: Buồng khám hôm nay đã được niêm yết trên phiếu hẹn và hệ thống gọi số tiếp đón. Bác sĩ chỉ được đổi phòng trước 1 ngày (trước 00:00:00)."
+                            >
+                              <Lock size={12} className="text-amber-700" />
+                              <span>Phòng {roomLabel}</span>
+                              <span className="text-[9px] bg-amber-200/90 text-amber-900 px-1.5 py-0.2 rounded font-extrabold uppercase">
+                                Đã chốt hôm nay
+                              </span>
+                            </span>
+                          );
+                        }
+
+                        if (isFuture) {
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                                <DoorOpen size={12} className="text-blue-600" />
+                                <span>Phòng {roomLabel}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenChangeRoomModal(schedule)}
+                                className="text-[10px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
+                                title="Đổi buồng khám trước 1 ngày (trước 00:00:00)"
+                              >
+                                <RefreshCw size={10} />
+                                <span>Đổi buồng</span>
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <span className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+                            <DoorOpen size={12} className="text-slate-400" />
+                            <span>Phòng {roomLabel} (Đã qua)</span>
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 font-medium">
                       <span className="flex items-center gap-1 text-slate-700">
@@ -1165,6 +1290,14 @@ export default function DoctorScheduleView() {
                   <span className="text-[11px] font-normal text-slate-500">
                     Phòng chuyên môn mặc định: <strong className="text-teal-800">{currentUser?.roomNumber || 'P.208'}</strong>
                   </span>
+                </div>
+
+                {/* Thông báo quy định chốt buồng khám */}
+                <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
+                  <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <strong>Quy định đổi buồng khám:</strong> Bác sĩ chỉ được phép chọn hoặc đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). Khi bước sang ngày mới, buồng khám sẽ được <strong>khóa cố định 🔒</strong> nhằm đồng bộ với màn hình gọi số LCD và phiếu số thứ tự tiếp đón của người bệnh.
+                  </p>
                 </div>
                 
                 <select
@@ -1486,6 +1619,120 @@ export default function DoctorScheduleView() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Đổi Buồng Khám (CLAB-113: Chỉ áp dụng trước 1 ngày) ── */}
+      {showChangeRoomModal && scheduleToChangeRoom && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-teal-200 flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 to-emerald-700 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
+                  <DoorOpen size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Đổi Buồng Khám Trực</h3>
+                  <p className="text-[11px] text-teal-100">
+                    Áp dụng cho ngày {scheduleToChangeRoom.workDate} ({scheduleToChangeRoom.startTime} - {scheduleToChangeRoom.endTime})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangeRoomModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmChangeRoom} className="p-5 space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5 text-amber-900">
+                  <Lock size={14} className="text-amber-700" />
+                  <span>Quy định khóa phòng khi bắt đầu ngày mới:</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Bác sĩ chỉ được đổi buồng khám trước <strong>00:00:00</strong> của ngày khám. 
+                  Sau mốc 00:00:00, buồng khám sẽ được chốt cố định và đồng bộ với phiếu in số thứ tự tại quầy tiếp đón.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Chọn buồng khám mới:</span>
+                  {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
+                </label>
+                <select
+                  value={newRoomForChange}
+                  onChange={(e) => setNewRoomForChange(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-semibold cursor-pointer"
+                >
+                  {availableRooms.map((room) => {
+                    const occ = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === room.code.toUpperCase());
+                    return (
+                      <option
+                        key={room.code}
+                        value={room.code}
+                        disabled={!!occ}
+                        className={occ ? 'text-slate-400 bg-slate-100 italic' : 'text-slate-800 font-semibold'}
+                      >
+                        {occ
+                          ? `🚫 ${room.code} - [ĐÃ KÍN] ${occ.doctorName} (${occ.startTime} - ${occ.endTime})`
+                          : `✅ ${room.code} - ${room.name} (${room.floor}) • Sẵn sàng`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Cảnh báo xung đột nếu có */}
+              {(() => {
+                const currentOcc = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === newRoomForChange.toUpperCase());
+                if (currentOcc) {
+                  return (
+                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                      <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                      <span>Buồng khám [{newRoomForChange}] đã có Bác sĩ {currentOcc.doctorName} trực trong khung giờ này. Vui lòng chọn buồng khám khác!</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>Buồng khám [{newRoomForChange}] hoàn toàn khả dụng trong khung giờ này.</span>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowChangeRoomModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  disabled={changingRoom || occupiedRooms.some((o) => o.roomNumber.toUpperCase() === newRoomForChange.toUpperCase())}
+                  className="px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md bg-teal-700 hover:bg-teal-800 text-white"
+                >
+                  {changingRoom ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Đang Cập Nhật...</span>
+                    </>
+                  ) : (
+                    <span>Xác Nhận Đổi Buồng Khám</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

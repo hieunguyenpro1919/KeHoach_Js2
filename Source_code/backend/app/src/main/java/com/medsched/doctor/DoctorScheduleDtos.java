@@ -82,5 +82,10 @@ public class DoctorScheduleDtos {
             int totalSlotsCreated,
             String message
     ) {}
+
+    public record ChangeScheduleRoomRequest(
+            @jakarta.validation.constraints.NotBlank(message = "Buồng khám mới không được để trống")
+            String newRoomNumber
+    ) {}
 }
 

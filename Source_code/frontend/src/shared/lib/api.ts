@@ -876,6 +876,13 @@ export const api = {
     });
   },
 
+  async changeDoctorScheduleRoom(scheduleId: string, newRoomNumber: string) {
+    return request<any>(`/doctor/schedules/${scheduleId}/change-room`, {
+      method: "PATCH",
+      body: JSON.stringify({ newRoomNumber }),
+    });
+  },
+
   async getScheduleAffectedPatients(scheduleId: string) {
     return request<Array<{
       appointmentId: string;
