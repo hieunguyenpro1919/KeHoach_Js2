@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { BreakdownItem } from '../types';
 
 interface BreakdownTableProps {
@@ -22,9 +23,13 @@ export default function BreakdownTable({ title, headers, items }: BreakdownTable
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             {title}
           </h3>
-          <span className="text-[11px] text-sky-600 font-semibold cursor-pointer hover:underline">
+          <Link
+            href="/admin"
+            className="text-[11px] text-sky-600 font-semibold cursor-pointer hover:underline"
+            title="Xem danh sách chi tiết nhân sự & bác sĩ"
+          >
             Chi tiết &rarr;
-          </span>
+          </Link>
         </div>
 
         <div className="overflow-x-auto">
