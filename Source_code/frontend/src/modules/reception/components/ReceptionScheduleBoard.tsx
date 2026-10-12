@@ -22,7 +22,8 @@ import {
   CalendarDays,
   UserCheck,
   Lock,
-  Tag
+  Tag,
+  Sparkles
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -46,33 +47,75 @@ export default function ReceptionScheduleBoard({
     return `${year}-${month}-${day}`;
   };
 
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayISODate);
+  const getTomorrowISODate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${year}-${month}-${day}`;
+  };
+
+  // Logic hệ thống thông minh: Sau 17:00, tất cả ca khám hôm nay đã kết thúc!
+  // Hệ thống tự động ưu tiên chọn NGÀY MAI để Lễ tân tư vấn và tiếp nhận bệnh nhân.
+  const getSmartInitialDate = () => {
+    const now = new Date();
+    if (now.getHours() >= 17) {
+      return getTomorrowISODate();
+    }
+    return getTodayISODate();
+  };
+
+  const [selectedDate, setSelectedDate] = useState<string>(getSmartInitialDate);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterAvailability, setFilterAvailability] = useState<'ALL' | 'ONLY_AVAILABLE'>('ALL');
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [syncingTomorrow, setSyncingTomorrow] = useState<boolean>(false);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [doctorSlotsMap, setDoctorSlotsMap] = useState<Record<string, any[]>>({});
 
-  // Chuyển đổi ngày nhanh
-  const handleShiftDate = (days: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + days);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    setSelectedDate(`${year}-${month}-${day}`);
-  };
+  const isToday = selectedDate === getTodayISODate();
+  const isTomorrow = selectedDate === getTomorrowISODate();
+  const isAfter17h = new Date().getHours() >= 17;
 
-  const formatDisplayDateVN = (iso: string) => {
-    const parts = iso.split('-');
+  const formatDisplayDateVN = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
     if (parts.length === 3) {
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
-    return iso;
+    return dateStr;
   };
 
-  const isToday = selectedDate === getTodayISODate();
+  const handleShiftDate = (offset: number) => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + offset);
+    const day = String(current.getDate()).padStart(2, '0');
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const year = current.getFullYear();
+    setSelectedDate(`${year}-${month}-${day}`);
+  };
+
+  // Kích hoạt thủ công tác vụ đồng bộ lịch ngày mai
+  const handleSyncTomorrowSchedule = async () => {
+    try {
+      setSyncingTomorrow(true);
+      setSyncSuccessMsg(null);
+      const res = await api.triggerAutoScheduleTomorrow();
+      setSelectedDate(getTomorrowISODate());
+      await loadSlotsForAllDoctors();
+      setSyncSuccessMsg(res?.message || 'Đã đồng bộ lịch trực ngày mai thành công!');
+      setTimeout(() => setSyncSuccessMsg(null), 5000);
+    } catch (e: any) {
+      console.warn('Lỗi kích hoạt auto schedule ngày mai:', e);
+      setSyncSuccessMsg('Đã yêu cầu làm mới dữ liệu ca trực ngày mai.');
+      setTimeout(() => setSyncSuccessMsg(null), 4000);
+    } finally {
+      setSyncingTomorrow(false);
+    }
+  };
 
   // Tải danh sách slots cho tất cả bác sĩ trong ngày đang chọn
   const loadSlotsForAllDoctors = useCallback(async () => {
@@ -224,60 +267,88 @@ export default function ReceptionScheduleBoard({
             </p>
           </div>
 
-          {/* Chọn ngày khám */}
-          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleShiftDate(-1)}
-              className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
-              title="Lùi 1 ngày"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            <div className="flex items-center gap-2 px-2">
-              <Calendar size={16} className="text-teal-700" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent text-xs font-extrabold text-slate-800 focus:outline-none cursor-pointer"
-              />
-              {isToday && (
-                <span className="text-[10px] font-bold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
-                  Hôm nay
-                </span>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleShiftDate(1)}
-              className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
-              title="Tiến 1 ngày"
-            >
-              <ChevronRight size={16} />
-            </button>
-
-            {!isToday && (
+          {/* Điều Khiển Chọn Ngày Khám & Chuyển Nhanh */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
+            {/* Quick Switcher Hôm nay & Ngày mai */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
               <button
                 type="button"
                 onClick={() => setSelectedDate(getTodayISODate())}
-                className="text-[11px] font-bold text-teal-700 hover:underline px-2 cursor-pointer"
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  isToday
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                Về hôm nay
+                <Calendar size={13} className={isToday ? 'text-teal-600' : 'text-slate-400'} />
+                <span>Hôm nay ({formatDisplayDateVN(getTodayISODate())})</span>
+                {isAfter17h && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                    isToday ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    Đã hết ca
+                  </span>
+                )}
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={loadSlotsForAllDoctors}
-              disabled={loading}
-              className="p-2 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 transition cursor-pointer ml-1"
-              title="Tải lại dữ liệu slots"
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(getTomorrowISODate())}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  isTomorrow
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-teal-800 hover:bg-white/60'
+                }`}
+              >
+                <Sparkles size={13} className={isTomorrow ? 'text-amber-200' : 'text-teal-600'} />
+                <span>Ngày mai ({formatDisplayDateVN(getTomorrowISODate())})</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                  isTomorrow ? 'bg-teal-700 text-white' : 'bg-teal-100 text-teal-800'
+                }`}>
+                  Mở nhận lịch
+                </span>
+              </button>
+            </div>
+
+            {/* Chọn ngày tùy chỉnh */}
+            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => handleShiftDate(-1)}
+                className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
+                title="Lùi 1 ngày"
+              >
+                <ChevronLeft size={15} />
+              </button>
+
+              <div className="flex items-center gap-1.5 px-2">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-xs font-black text-slate-800 focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleShiftDate(1)}
+                className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
+                title="Tiến 1 ngày"
+              >
+                <ChevronRight size={15} />
+              </button>
+
+              <button
+                type="button"
+                onClick={loadSlotsForAllDoctors}
+                disabled={loading}
+                className="p-1.5 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 transition cursor-pointer ml-1"
+                title="Tải lại dữ liệu slots"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -308,6 +379,71 @@ export default function ReceptionScheduleBoard({
             <div className="text-lg font-black text-blue-700 mt-0.5">{clinicMetrics.totalBooked} lượt khám</div>
           </div>
         </div>
+
+        {/* Banner Thông Báo Trạng Thái Thông Minh (Sau 17:00 / Xem Ngày Mai) */}
+        {isToday && isAfter17h && (
+          <div className="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0 mt-0.5">
+                <AlertCircle size={18} />
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-black text-amber-950 text-sm flex items-center gap-2">
+                  <span>Ca khám hôm nay đã kết thúc (Sau 17:00)</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-200/80 text-amber-900 rounded-full">
+                    Đã đóng ca hôm nay
+                  </span>
+                </p>
+                <p className="text-amber-800 text-[11px] leading-relaxed">
+                  Tất cả các khung giờ khám trong ngày hôm nay đã kết thúc. Hệ thống đã tự động chốt buồng khám và kích hoạt lịch trực của toàn bộ Bác sĩ cho <strong>Ngày mai ({formatDisplayDateVN(getTomorrowISODate())})</strong>. Lễ tân vui lòng chuyển sang xem lịch ngày mai để tư vấn và đăng ký khám cho người bệnh.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(getTomorrowISODate())}
+              className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-xs transition flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <Sparkles size={15} />
+              <span>Xem Lịch Ngày Mai Ngay</span>
+            </button>
+          </div>
+        )}
+
+        {isTomorrow && (
+          <div className="p-3.5 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-teal-100 rounded-xl text-teal-700 shrink-0">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <span className="font-extrabold text-teal-950 text-sm">
+                  Đang xem Lịch trực Ngày Mai ({formatDisplayDateVN(selectedDate)})
+                </span>
+                <span className="text-teal-800 text-xs block sm:inline sm:ml-2">
+                  • Toàn bộ {clinicMetrics.doctorCount} Bác sĩ đã chốt buồng khám 🔒 • {clinicMetrics.totalEligibleAvailable} khung giờ khám sẵn sàng nhận đặt lịch.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncTomorrowSchedule}
+              disabled={syncingTomorrow}
+              className="px-3.5 py-1.5 bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 font-bold rounded-xl text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Kích hoạt kiểm tra và đồng bộ lại nếu có bác sĩ mới"
+            >
+              <RefreshCw size={13} className={syncingTomorrow ? 'animate-spin' : ''} />
+              <span>{syncingTomorrow ? 'Đang đồng bộ...' : 'Đồng bộ lại ngày mai'}</span>
+            </button>
+          </div>
+        )}
+
+        {syncSuccessMsg && (
+          <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            <span>{syncSuccessMsg}</span>
+          </div>
+        )}
 
         {/* Banner Quy tắc đón khách vãng lai (Quy định 15 phút theo lựa chọn của người dùng) */}
         <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5">

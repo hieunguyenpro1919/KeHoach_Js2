@@ -226,6 +226,7 @@ public class AppointmentController {
             }
 
             List<LocalTime[]> standardTimes = List.of(
+                    // Ca Sáng (08:00 - 12:00)
                     new LocalTime[]{LocalTime.of(8, 0), LocalTime.of(8, 30)},
                     new LocalTime[]{LocalTime.of(8, 30), LocalTime.of(9, 0)},
                     new LocalTime[]{LocalTime.of(9, 0), LocalTime.of(9, 30)},
@@ -233,8 +234,15 @@ public class AppointmentController {
                     new LocalTime[]{LocalTime.of(10, 0), LocalTime.of(10, 30)},
                     new LocalTime[]{LocalTime.of(10, 30), LocalTime.of(11, 0)},
                     new LocalTime[]{LocalTime.of(11, 0), LocalTime.of(11, 30)},
+                    new LocalTime[]{LocalTime.of(11, 30), LocalTime.of(12, 0)},
+                    // Ca Chiều (13:30 - 17:00)
+                    new LocalTime[]{LocalTime.of(13, 30), LocalTime.of(14, 0)},
                     new LocalTime[]{LocalTime.of(14, 0), LocalTime.of(14, 30)},
-                    new LocalTime[]{LocalTime.of(14, 30), LocalTime.of(15, 0)}
+                    new LocalTime[]{LocalTime.of(14, 30), LocalTime.of(15, 0)},
+                    new LocalTime[]{LocalTime.of(15, 0), LocalTime.of(15, 30)},
+                    new LocalTime[]{LocalTime.of(15, 30), LocalTime.of(16, 0)},
+                    new LocalTime[]{LocalTime.of(16, 0), LocalTime.of(16, 30)},
+                    new LocalTime[]{LocalTime.of(16, 30), LocalTime.of(17, 0)}
             );
             List<TimeSlotEntity> created = new ArrayList<>();
             for (LocalTime[] pair : standardTimes) {

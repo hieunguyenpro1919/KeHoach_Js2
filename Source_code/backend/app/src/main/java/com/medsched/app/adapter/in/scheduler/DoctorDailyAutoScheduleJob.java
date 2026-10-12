@@ -43,4 +43,25 @@ public class DoctorDailyAutoScheduleJob {
             log.error("❌ [CRON 17:00] Lỗi khi tự động xếp lịch ngày mai:", e);
         }
     }
+
+    /**
+     * Tự động kiểm tra ngay khi ứng dụng khởi động.
+     * Nếu thời gian hiện tại đã sau 17:00, kích hoạt xếp lịch ngày mai để đảm bảo
+     * Lễ tân và Bệnh nhân luôn thấy được lịch ngày hôm sau dù server được restart vào buổi tối.
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void onStartupCheckAutoSchedule() {
+        java.time.LocalTime now = java.time.LocalTime.now(VN_ZONE);
+        if (now.isAfter(java.time.LocalTime.of(17, 0)) || now.equals(java.time.LocalTime.of(17, 0))) {
+            LocalDate tomorrow = LocalDate.now(VN_ZONE).plusDays(1);
+            log.info("🚀 [STARTUP CHECK] Hiện tại đã sau 17:00 ({}), tự động đảm bảo lịch trực ngày mai ({}) cho toàn bộ Bác sĩ...", now, tomorrow);
+            try {
+                DoctorScheduleDtos.AutoScheduleResultDto result =
+                        doctorScheduleService.autoGenerateScheduleForTargetDate(tomorrow);
+                log.info("✅ [STARTUP CHECK] Hoàn tất kiểm tra lịch ngày mai: {}", result.message());
+            } catch (Exception e) {
+                log.error("❌ [STARTUP CHECK] Lỗi khi tự động xếp lịch ngày mai:", e);
+            }
+        }
+    }
 }
