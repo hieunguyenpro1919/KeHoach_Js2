@@ -16,7 +16,6 @@ import {
   EyeOff, 
   Lock, 
   X,
-  BarChart3,
   Copy,
   Check,
   Mail,
@@ -284,20 +283,6 @@ export default function UserTable() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/statistics"
-            className="flex items-center gap-2 bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
-          >
-            <BarChart3 size={17} className="text-sky-600" />
-            <span>Báo Cáo Thống Kê</span>
-          </Link>
-          <Link
-            href="/admin/catalog"
-            className="flex items-center gap-2 bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
-          >
-            <DoorOpen size={17} className="text-blue-600" />
-            <span>Danh Mục & Phòng Khám</span>
-          </Link>
           <Link
             href="/admin/create-user"
             className="flex items-center gap-2 bg-pine-teal hover:bg-pine-teal-hover text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
