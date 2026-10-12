@@ -91,8 +91,13 @@ public class SecurityConfig {
                                 "/api/v1/appointments/booking-code/*"
                         ).permitAll()
 
-                        // 4. AI Triage định hướng chuyên khoa ban đầu
-                        .requestMatchers("/api/ai/**", "/api/v1/ai/**").permitAll()
+                        // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook / Tra cứu thanh toán
+                        .requestMatchers(
+                                "/api/ai/**",
+                                "/api/v1/ai/**",
+                                "/api/payments/**",
+                                "/api/v1/payments/**"
+                        ).permitAll()
 
                         // 5. Phân quyền theo vai trò cụ thể
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

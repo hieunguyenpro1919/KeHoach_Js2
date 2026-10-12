@@ -192,11 +192,24 @@ public class PaymentController {
                 data = (Map<String, Object>) payload.get("data");
             }
 
-            String description = data.getOrDefault("description", "").toString();
-            String amountStr = data.getOrDefault("amount", "0").toString();
-            BigDecimal amount = new BigDecimal(amountStr);
+            String description = "";
+            if (data.containsKey("content") && data.get("content") != null) {
+                description = data.get("content").toString();
+            }
+            if (description.isBlank() && data.containsKey("description") && data.get("description") != null) {
+                description = data.get("description").toString();
+            }
 
-            // Trích xuất mã booking hoặc transactionRef từ nội dung chuyển khoản
+            String amountStr = "0";
+            if (data.containsKey("transferAmount") && data.get("transferAmount") != null) {
+                amountStr = data.get("transferAmount").toString();
+            } else if (data.containsKey("amount") && data.get("amount") != null) {
+                amountStr = data.get("amount").toString();
+            }
+            String cleanDigits = amountStr.replaceAll("[^0-9.]", "");
+            BigDecimal amount = new BigDecimal(cleanDigits.isBlank() ? "0" : cleanDigits);
+
+            // Trích xuất mã booking từ nội dung chuyển khoản (bỏ tiền tố MEDPAY)
             String bookingCode = extractBookingCodeFromText(description);
             AppointmentEntity appointment = null;
             if (!bookingCode.isBlank()) {
@@ -360,8 +373,9 @@ public class PaymentController {
 
     private String extractBookingCodeFromText(String text) {
         if (text == null || text.isBlank()) return "";
-        String s = text.toUpperCase();
-        // Tìm pattern MED[A-Z0-9]+
+        // Loại bỏ tiền tố MEDPAY trước để tránh khớp nhầm chữ MEDPAY làm mã booking
+        String s = text.toUpperCase().replace("MEDPAY", " ").trim();
+        // Tìm pattern mã booking dạng MED[số/chữ] hoặc MED-[số/chữ]
         java.util.regex.Pattern p = java.util.regex.Pattern.compile("(MED[-_A-Z0-9]{3,})");
         java.util.regex.Matcher m = p.matcher(s);
         if (m.find()) {
