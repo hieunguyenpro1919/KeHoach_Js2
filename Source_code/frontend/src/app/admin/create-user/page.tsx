@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Stethoscope, UserCheck } from 'lucide-react';
+import { Stethoscope, UserCheck } from 'lucide-react';
 import { api, getAuthToken } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import CreateStaffForm from '@/modules/admin/components/CreateStaffForm';
@@ -42,18 +41,6 @@ export default function CreateUserPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Top Header */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm transition"
-        >
-          <ArrowLeft size={16} />
-          <span>Quay lại Quản trị</span>
-        </Link>
-        <span className="text-xs text-slate-400 font-mono">Quyền: Quản Trị Viên (Admin)</span>
-      </div>
-
       <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-800">Thêm Thành Viên Nội Bộ</h1>
