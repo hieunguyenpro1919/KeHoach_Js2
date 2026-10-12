@@ -165,6 +165,7 @@ export default function HeaderNav() {
   } else if (isDoctor) {
     navLinks = [
       { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
+      { href: '/doctor/schedule', label: 'Lịch Trực Bác Sĩ', icon: Calendar },
       { href: '/doctor/history', label: 'Lịch Sử Khám & Đơn Thuốc', icon: FileText },
       { href: '/statistics', label: 'Thống Kê Khám Bệnh', icon: BarChart3 },
     ];

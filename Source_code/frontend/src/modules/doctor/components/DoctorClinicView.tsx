@@ -1368,31 +1368,21 @@ export default function DoctorClinicView() {
     <div className="space-y-6">
       {/* ── Sub Navigation: Buồng Khám vs Lịch Trực (Sprint 2 Main Features) ── */}
       <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200 w-fit shadow-2xs">
-        <button
-          type="button"
-          onClick={() => setMainTab('CLINIC')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-            mainTab === 'CLINIC'
-              ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
+        <Link
+          href="/doctor"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition bg-white text-teal-900 shadow-xs border border-slate-200 cursor-pointer"
         >
           <Stethoscope size={15} />
           <span>Buồng Khám Lâm Sàng</span>
-        </button>
+        </Link>
 
-        <button
-          type="button"
-          onClick={() => setMainTab('SCHEDULE')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-            mainTab === 'SCHEDULE'
-              ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
+        <Link
+          href="/doctor/schedule"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition text-slate-600 hover:text-slate-900 cursor-pointer"
         >
           <CalendarDays size={15} />
           <span>Quản Lý Lịch Trực &amp; Khung Giờ Khám</span>
-        </button>
+        </Link>
       </div>
 
       {mainTab === 'SCHEDULE' ? (
