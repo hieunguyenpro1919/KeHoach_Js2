@@ -23,15 +23,21 @@ import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 public class DoctorPrescriptionService {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final AppointmentJpaRepository appointmentRepository;
     private final MedicalRecordJpaRepository medicalRecordRepository;
@@ -42,6 +48,12 @@ public class DoctorPrescriptionService {
     private final PatientProfileJpaRepository patientProfileRepository;
     private final TimeSlotJpaRepository timeSlotRepository;
     private final AppointmentReconciliationService reconciliationService;
+
+    private Clock clock = Clock.system(VN_ZONE);
+
+    public void setClock(Clock clock) {
+        this.clock = clock;
+    }
 
     public DoctorPrescriptionService(AppointmentJpaRepository appointmentRepository,
                                    MedicalRecordJpaRepository medicalRecordRepository,
@@ -61,6 +73,70 @@ public class DoctorPrescriptionService {
         this.patientProfileRepository = patientProfileRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.reconciliationService = reconciliationService;
+    }
+
+    /**
+     * CLAB-124: Ràng buộc thời gian và điều kiện để Bác sĩ gọi bệnh nhân vào phòng khám:
+     * 1. Ca khám không được ở trạng thái CANCELLED hoặc COMPLETED.
+     * 2. Bệnh nhân PHẢI đã được tiếp đón tại sảnh chờ (status = CHECKED_IN hoặc WAITING_FOR_LAB_RESULTS).
+     *    Từ chối gọi ca còn ở trạng thái CONFIRMED hoặc PENDING (chưa đến phòng khám / chưa check-in).
+     * 3. Phải nằm trong khung giờ làm việc của phòng khám (Thứ Hai - Thứ Sáu, 08:00 - 12:00 và 13:30 - 17:00).
+     * 4. Nếu ca khám có slot hẹn trước: Phải đúng ngày hôm nay và không được gọi sớm hơn 30 phút trước giờ bắt đầu slot.
+     */
+    private void validateDoctorConsultationWindow(AppointmentEntity appointment) {
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Ca khám đã bị hủy, không thể gọi vào phòng khám.");
+        }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException("Ca khám đã hoàn tất trước đó, không thể gọi lại vào phòng.");
+        }
+        if (appointment.getStatus() == AppointmentStatus.CONFIRMED || appointment.getStatus() == AppointmentStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Bệnh nhân chưa làm thủ tục tiếp đón tại sảnh chờ (Trạng thái: " + appointment.getStatus()
+                    + "). Bệnh nhân phải hoàn thành check-in tại quầy hoặc kiosk trước khi Bác sĩ gọi vào phòng khám!");
+        }
+
+        ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+        DayOfWeek day = nowVn.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException(
+                    "Ngoài giờ làm việc của phòng khám (Phòng khám nghỉ Thứ Bảy và Chủ Nhật). Bác sĩ không thể gọi bệnh nhân vào phòng khám lúc này!");
+        }
+
+        LocalTime nowTime = nowVn.toLocalTime();
+        boolean morning = !nowTime.isBefore(LocalTime.of(8, 0)) && nowTime.isBefore(LocalTime.of(12, 0));
+        boolean afternoon = !nowTime.isBefore(LocalTime.of(13, 30)) && nowTime.isBefore(LocalTime.of(17, 0));
+
+        if (!morning && !afternoon) {
+            throw new IllegalArgumentException(
+                    "Ngoài giờ làm việc của phòng khám (Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00). Bác sĩ không thể gọi bệnh nhân vào khám lúc này!");
+        }
+
+        if (appointment.getSlotId() != null) {
+            TimeSlotEntity slot = timeSlotRepository.findById(appointment.getSlotId()).orElse(null);
+            if (slot != null && slot.getStartTime() != null) {
+                ZonedDateTime slotStart = slot.getStartTime().atZone(VN_ZONE);
+                LocalDate slotDate = slotStart.toLocalDate();
+                LocalDate todayVn = nowVn.toLocalDate();
+
+                if (!slotDate.isEqual(todayVn)) {
+                    throw new IllegalArgumentException(
+                            "Ca khám này được đặt vào ngày " 
+                            + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            + ", không phải ngày hôm nay. Bác sĩ không thể gọi vào phòng khám!");
+                }
+
+                // Không được gọi sớm hơn 30 phút trước giờ bắt đầu ca hẹn
+                ZonedDateTime earliestCallTime = slotStart.minusMinutes(30);
+                if (nowVn.isBefore(earliestCallTime)) {
+                    throw new IllegalArgumentException(
+                            "Chưa đến giờ khám của ca hẹn (Khung giờ bắt đầu lúc "
+                            + slotStart.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                            + "). Bác sĩ chỉ có thể gọi bệnh nhân trước giờ hẹn tối đa 30 phút (bắt đầu từ "
+                            + earliestCallTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")) + ")!");
+                }
+            }
+        }
     }
 
     /**
@@ -450,6 +526,9 @@ public class DoctorPrescriptionService {
         AppointmentEntity appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám: " + appointmentId));
 
+        // CLAB-124: Ràng buộc khung giờ & điều kiện để Bác sĩ gọi bệnh nhân vào phòng khám
+        validateDoctorConsultationWindow(appointment);
+
         // Tự động thu hồi các ca khám dở dang trước đó của bác sĩ này về trạng thái CHECKED_IN
         if (appointment.getDoctorId() != null) {
             List<AppointmentEntity> activeAppointments = appointmentRepository.findByDoctorIdAndStatus(
@@ -502,6 +581,41 @@ public class DoctorPrescriptionService {
     public void admitPatient(String appointmentId) {
         AppointmentEntity appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám: " + appointmentId));
+
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Ca khám đã bị hủy, không thể tiếp nhận.");
+        }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException("Ca khám đã hoàn tất trước đó.");
+        }
+
+        ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+        DayOfWeek day = nowVn.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException(
+                    "Phòng khám không tiếp nhận bệnh nhân vào cuối tuần (Thứ Bảy & Chủ Nhật).");
+        }
+
+        LocalTime nowTime = nowVn.toLocalTime();
+        boolean morning = !nowTime.isBefore(LocalTime.of(8, 0)) && nowTime.isBefore(LocalTime.of(12, 0));
+        boolean afternoon = !nowTime.isBefore(LocalTime.of(13, 30)) && nowTime.isBefore(LocalTime.of(17, 0));
+
+        if (!morning && !afternoon) {
+            throw new IllegalArgumentException(
+                    "Ngoài giờ làm việc của phòng khám (Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00).");
+        }
+
+        if (appointment.getSlotId() != null) {
+            TimeSlotEntity slot = timeSlotRepository.findById(appointment.getSlotId()).orElse(null);
+            if (slot != null && slot.getStartTime() != null) {
+                LocalDate slotDate = slot.getStartTime().atZone(VN_ZONE).toLocalDate();
+                if (!slotDate.isEqual(nowVn.toLocalDate())) {
+                    throw new IllegalArgumentException("Ca khám này không thuộc ngày hôm nay (Ngày hẹn: "
+                            + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ").");
+                }
+            }
+        }
+
         appointment.setStatus(AppointmentStatus.CHECKED_IN);
         if (appointment.getCheckInTime() == null) {
             appointment.setCheckInTime(Instant.now());

@@ -91,6 +91,14 @@ public class SecurityConfig {
                                 "/api/v1/appointments/booking-code/*"
                         ).permitAll()
 
+                        // 3.1 Kiosk / Bệnh nhân tự tiếp đón bằng mã QR tại quầy và sảnh chờ (CLAB-124)
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/reception/checkin/qr",
+                                "/api/v1/reception/checkin/qr",
+                                "/api/appointments/checkin/qr",
+                                "/api/v1/appointments/checkin/qr"
+                        ).permitAll()
+
                         // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook / Tra cứu thanh toán
                         .requestMatchers(
                                 "/api/ai/**",
