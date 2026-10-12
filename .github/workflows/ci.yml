@@ -91,7 +91,7 @@ jobs:
 
       - name: Biên Dịch Đóng Gói Bản Build Production
         env:
-          NEXT_PUBLIC_API_URL: https://medsched-api.onrender.com/api/v1
+          NEXT_PUBLIC_API_URL: https://medsched-zu15.onrender.com/api/v1
         run: pnpm build
 
   # -------------------------------------------------------------
