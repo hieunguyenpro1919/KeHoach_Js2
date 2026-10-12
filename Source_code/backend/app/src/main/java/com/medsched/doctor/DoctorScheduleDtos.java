@@ -48,4 +48,39 @@ public class DoctorScheduleDtos {
             String endTime,
             boolean isOccupied
     ) {}
+
+    public record EmergencyCancelScheduleRequest(
+            @jakarta.validation.constraints.NotBlank(message = "Lý do hủy ca trực không được để trống")
+            @jakarta.validation.constraints.Size(min = 5, message = "Lý do hủy phải có tối thiểu 5 ký tự")
+            String reason,
+            boolean autoReassign
+    ) {}
+
+    public record AffectedPatientInfoDto(
+            String appointmentId,
+            String bookingCode,
+            String patientName,
+            String patientPhone,
+            String slotTime,
+            String status,
+            String reassignedDoctorName
+    ) {}
+
+    public record EmergencyCancelResponse(
+            String scheduleId,
+            String workDate,
+            int affectedCount,
+            int reassignedCount,
+            List<AffectedPatientInfoDto> affectedPatients,
+            String message
+    ) {}
+
+    public record AutoScheduleResultDto(
+            LocalDate workDate,
+            int doctorsScheduledCount,
+            int totalShiftsCreated,
+            int totalSlotsCreated,
+            String message
+    ) {}
 }
+

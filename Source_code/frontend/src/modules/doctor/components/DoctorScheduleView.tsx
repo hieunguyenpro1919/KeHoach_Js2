@@ -89,6 +89,24 @@ export default function DoctorScheduleView() {
   // Action loading for toggle or delete
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
+  // Modal Hủy Ca Khẩn Cấp (Phương Án 2: Bất Khả Kháng)
+  const [emergencyCancelScheduleData, setEmergencyCancelScheduleData] = useState<DoctorScheduleDto | null>(null);
+  const [affectedPatients, setAffectedPatients] = useState<Array<{
+    appointmentId: string;
+    bookingCode: string;
+    patientName: string;
+    patientPhone: string;
+    slotTime: string;
+    status: string;
+  }>>([]);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [autoReassignPeer, setAutoReassignPeer] = useState<boolean>(true);
+  const [loadingAffected, setLoadingAffected] = useState<boolean>(false);
+  const [cancelSubmitting, setCancelSubmitting] = useState<boolean>(false);
+
+  // Kích hoạt thử nghiệm tác vụ Auto-Schedule 17h
+  const [triggeringAutoSchedule, setTriggeringAutoSchedule] = useState<boolean>(false);
+
   // Toggle hướng dẫn sử dụng nhanh
   const [showGuide, setShowGuide] = useState(true);
 
@@ -341,12 +359,26 @@ export default function DoctorScheduleView() {
     }
   };
 
-  // Hủy ca trực
+  // Hủy ca trực (Phương Án 2: Nếu có bệnh nhân thì mở Modal Hủy Khẩn Cấp)
   const handleDeleteSchedule = async (schedule: DoctorScheduleDto) => {
     if (schedule.bookedSlots > 0) {
-      alert(`⚠️ Không thể hủy ca trực ngày ${schedule.workDate} vì đã có ${schedule.bookedSlots} bệnh nhân đặt lịch hẹn.`);
+      // Mở Modal Hủy Ca Khẩn Cấp (Phương án 2)
+      setEmergencyCancelScheduleData(schedule);
+      setCancelReason('');
+      setAutoReassignPeer(true);
+      setLoadingAffected(true);
+      try {
+        const patients = await api.getScheduleAffectedPatients(schedule.id);
+        setAffectedPatients(patients || []);
+      } catch (e) {
+        console.warn('Lỗi lấy danh sách bệnh nhân bị ảnh hưởng:', e);
+        setAffectedPatients([]);
+      } finally {
+        setLoadingAffected(false);
+      }
       return;
     }
+
     const confirmDelete = window.confirm(
       `Xác nhận hủy ca trực ngày ${schedule.workDate} (${schedule.startTime} - ${schedule.endTime})?\nToàn bộ ${schedule.totalSlots} khung giờ khám trống của ca này sẽ được thu hồi.`
     );
@@ -361,6 +393,46 @@ export default function DoctorScheduleView() {
       alert(err?.message || 'Lỗi khi hủy ca trực.');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  // Xác nhận hủy ca trực khẩn cấp (Phương án 2)
+  const handleConfirmEmergencyCancel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emergencyCancelScheduleData) return;
+    if (!cancelReason.trim() || cancelReason.trim().length < 5) {
+      alert('Vui lòng nhập lý do bất khả kháng (tối thiểu 5 ký tự).');
+      return;
+    }
+
+    try {
+      setCancelSubmitting(true);
+      const res = await api.emergencyCancelDoctorSchedule(emergencyCancelScheduleData.id, {
+        reason: cancelReason.trim(),
+        autoReassign: autoReassignPeer,
+      });
+
+      setNotification(`⚠️ ${res.message}`);
+      setEmergencyCancelScheduleData(null);
+      await loadSchedules();
+    } catch (err: any) {
+      alert(err?.message || 'Lỗi khi hủy ca trực khẩn cấp.');
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
+
+  // Kích hoạt thủ công kiểm thử tự động xếp lịch ngày mai (Mô phỏng Job 17:00)
+  const handleTriggerAutoSchedule = async () => {
+    try {
+      setTriggeringAutoSchedule(true);
+      const res = await api.triggerAutoScheduleTomorrow();
+      setNotification(`⏰ [Mô Phỏng Cron 17:00]: ${res.message}`);
+      await loadSchedules();
+    } catch (err: any) {
+      alert(err?.message || 'Lỗi khi kích hoạt tự động xếp lịch.');
+    } finally {
+      setTriggeringAutoSchedule(false);
     }
   };
 
@@ -416,12 +488,41 @@ export default function DoctorScheduleView() {
 
           <button
             type="button"
+            onClick={handleTriggerAutoSchedule}
+            disabled={triggeringAutoSchedule}
+            className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+            title="Thử nghiệm tác vụ tự động xếp lịch ngày mai (Mô phỏng Cron 17:00)"
+          >
+            <RefreshCw size={14} className={triggeringAutoSchedule ? 'animate-spin text-amber-700' : 'text-amber-600'} />
+            <span>Mô Phỏng Auto 17:00 Ngày Mai</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenCreateModal}
             className="px-4 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-md shadow-teal-700/20 flex items-center gap-2 cursor-pointer"
           >
             <PlusCircle size={15} />
             <span>Đăng Ký Ca Trực Mới</span>
           </button>
+        </div>
+      </div>
+
+      {/* ── Banner Quy định 17h & Chỉnh sửa trước 24h & Hủy ca khẩn cấp (Phương Án 2) ── */}
+      <div className="p-4 bg-gradient-to-r from-amber-50/90 via-teal-50/40 to-slate-50 border border-amber-200/90 rounded-2xl text-xs text-slate-700 flex items-start gap-3 shadow-2xs">
+        <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <div className="font-extrabold text-slate-800 flex items-center gap-2 flex-wrap">
+            <span>Cơ Chế Xếp Lịch Tự Động 17:00 Hàng Ngày &amp; Thời Gian Ân Hạn</span>
+            <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
+              Quy tắc chuẩn phòng khám
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            • <strong>17:00 hằng ngày:</strong> Nếu Bác sĩ chưa đăng ký ca trực cho ngày mai, hệ thống sẽ <strong>tự động xếp lịch chuẩn</strong> (Ca sáng 8h-12h, Ca chiều 13h30-17h) để mở bán khung giờ cho người bệnh đặt lịch trực tuyến vào buổi tối.<br />
+            • <strong>Trước 00:00:00:</strong> Bác sĩ có toàn quyền vào khóa/mở slot, đổi buồng khám hoặc hủy ca.<br />
+            • <strong>Hủy ca khi đã có bệnh nhân (Phương Án 2):</strong> Bác sĩ được quyền hủy nếu có sự cố bất khả kháng, hệ thống yêu cầu nhập lý do và tự động điều phối bệnh nhân sang Bác sĩ cùng chuyên khoa hoặc chuyển Lễ tân ưu tiên hỗ trợ.
+          </p>
         </div>
       </div>
 
@@ -1245,6 +1346,146 @@ export default function DoctorScheduleView() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Hủy Ca Trực Khẩn Cấp (Phương Án 2: Bất Khả Kháng) ── */}
+      {emergencyCancelScheduleData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-rose-200 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-rose-600 via-rose-700 to-amber-700 text-white p-5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
+                  <AlertCircle size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Hủy Ca Trực Khẩn Cấp (Bất Khả Kháng)</h3>
+                  <p className="text-[11px] text-rose-100">
+                    Áp dụng Phương Án 2: Điều phối &amp; Chăm sóc người bệnh đã đặt hẹn
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmergencyCancelScheduleData(null)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form id="emergencyCancelForm" onSubmit={handleConfirmEmergencyCancel} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Cảnh báo nghiêm trọng */}
+              <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-rose-900">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                  <span>
+                    Ca trực ngày {emergencyCancelScheduleData.workDate} ({emergencyCancelScheduleData.startTime} - {emergencyCancelScheduleData.endTime}) hiện có:
+                  </span>
+                </div>
+                <div className="text-rose-800 font-extrabold text-sm pl-6">
+                  ⚠️ {emergencyCancelScheduleData.bookedSlots} bệnh nhân đã đặt lịch hẹn trước!
+                </div>
+                <p className="text-[11px] text-rose-700 pl-6 leading-relaxed">
+                  Để đảm bảo quyền lợi và sự chăm sóc chu đáo cho người bệnh, Bác sĩ bắt buộc phải nêu rõ lý do đột xuất để hệ thống lưu vào bệnh án và chuyển sang bộ phận Tiếp đón/Lễ tân.
+                </p>
+              </div>
+
+              {/* Danh sách bệnh nhân bị ảnh hưởng */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Danh sách người bệnh bị ảnh hưởng trong ca trực:
+                </label>
+                {loadingAffected ? (
+                  <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                    <RefreshCw size={14} className="animate-spin text-teal-600" />
+                    <span>Đang tải thông tin bệnh nhân...</span>
+                  </div>
+                ) : affectedPatients.length === 0 ? (
+                  <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-500 text-center">
+                    (Không có thông tin chi tiết)
+                  </div>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
+                    {affectedPatients.map((pt) => (
+                      <div key={pt.appointmentId} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                        <div>
+                          <div className="font-bold text-slate-800">{pt.patientName}</div>
+                          <div className="text-[11px] text-slate-500">Mã vé: {pt.bookingCode} • SĐT: {pt.patientPhone}</div>
+                        </div>
+                        <span className="px-2 py-1 bg-rose-100 text-rose-800 font-bold rounded-lg text-[10px]">
+                          {pt.slotTime}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Nhập lý do bắt buộc */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Lý do hủy ca khẩn cấp (Bắt buộc) <span className="text-rose-500">*</span>:
+                </label>
+                <textarea
+                  rows={3}
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Ví dụ: Bác sĩ có lịch mổ cấp cứu đột xuất / Sốt cao đột xuất / Họp khẩn cấp Sở Y tế..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                  required
+                />
+                <span className="text-[10px] text-slate-400">
+                  Tối thiểu 5 ký tự. Lý do này sẽ được ghi vào hồ sơ điều phối ca khám.
+                </span>
+              </div>
+
+              {/* Checkbox tự động chuyển bác sĩ khác */}
+              <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-2xl flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="autoReassignCheck"
+                  checked={autoReassignPeer}
+                  onChange={(e) => setAutoReassignPeer(e.target.checked)}
+                  className="mt-0.5 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                />
+                <label htmlFor="autoReassignCheck" className="text-xs text-teal-900 cursor-pointer">
+                  <strong className="block">Tự động điều phối sang Bác sĩ cùng chuyên khoa (Khuyên dùng)</strong>
+                  <span className="text-[11px] text-teal-700 leading-relaxed block mt-0.5">
+                    Hệ thống sẽ tự động tìm Bác sĩ khác có slot trống cùng khung giờ để gán bệnh nhân vào. Nếu không có, ca khám sẽ chuyển sang danh sách khẩn cấp để Lễ tân gọi điện hỗ trợ.
+                  </span>
+                </label>
+              </div>
+            </form>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEmergencyCancelScheduleData(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition cursor-pointer"
+              >
+                Giữ Lại Ca Trực
+              </button>
+              <button
+                type="submit"
+                form="emergencyCancelForm"
+                disabled={cancelSubmitting || !cancelReason.trim() || cancelReason.trim().length < 5}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {cancelSubmitting ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Đang Xử Lý Hủy &amp; Điều Phối...</span>
+                  </>
+                ) : (
+                  <span>Xác Nhận Hủy &amp; Điều Phối Bệnh Nhân</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
