@@ -31,12 +31,23 @@ public class CancelAppointmentService implements CancelAppointmentUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám: " + command.appointmentId()));
 
         String status = appointment.status();
-        if ("CHECKED_IN".equalsIgnoreCase(status) || "COMPLETED".equalsIgnoreCase(status)) {
+        if ("CANCELLED".equalsIgnoreCase(status)) {
+            return appointment;
+        }
+
+        // Chỉ cho phép hủy các ca khám chưa tiếp đón và chưa diễn ra (PENDING hoặc CONFIRMED)
+        // Chặn tuyệt đối ca CHECKED_IN, IN_PROGRESS, WAITING_FOR_LAB_RESULTS, COMPLETED, MISSED_NO_SHOW
+        if (!"PENDING".equalsIgnoreCase(status) && !"CONFIRMED".equalsIgnoreCase(status)) {
             throw new IllegalArgumentException("Ca khám đã tiếp đón tại quầy hoặc đã hoàn tất, không thể hủy.");
         }
 
-        if ("CANCELLED".equalsIgnoreCase(status)) {
-            return appointment;
+        // Không cho phép hủy ca khám đã trôi qua khung giờ hẹn trong quá khứ
+        if (appointment.slotId() != null && !appointment.slotId().isBlank()) {
+            timeSlotRepository.findById(appointment.slotId()).ifPresent(slot -> {
+                if (slot.startTime() != null && slot.startTime().isBefore(java.time.Instant.now())) {
+                    throw new IllegalArgumentException("Không thể hủy ca khám đã qua khung giờ hẹn trong quá khứ.");
+                }
+            });
         }
 
         // 1. Chuyển trạng thái ca khám sang CANCELLED

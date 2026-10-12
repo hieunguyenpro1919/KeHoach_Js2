@@ -439,5 +439,56 @@ class DoctorPrescriptionServiceTest {
                 doctorPrescriptionService.callPatientToRoom("ap000001-xxxx"));
         assertThat(ex.getMessage()).contains("không phải ngày hôm nay");
     }
+
+    @Test
+    @DisplayName("completeConsultation từ chối ca khám chưa check-in (CONFIRMED)")
+    void completeConsultation_throwsIllegalArg_whenNotCheckedIn() {
+        sampleAppointment.setStatus(AppointmentStatus.CONFIRMED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of()
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Bệnh nhân chưa làm thủ tục tiếp đón tại sảnh chờ");
+    }
+
+    @Test
+    @DisplayName("completeConsultation từ chối ca khám đã COMPLETED trước đó")
+    void completeConsultation_throwsIllegalArg_whenAlreadyCompleted() {
+        sampleAppointment.setStatus(AppointmentStatus.COMPLETED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of()
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Ca khám đã hoàn tất trước đó");
+    }
+
+    @Test
+    @DisplayName("completeConsultation từ chối khi số lượng thuốc <= 0")
+    void completeConsultation_throwsIllegalArg_whenMedicineQuantityInvalid() {
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(medicalRecordRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.empty());
+        when(medicalRecordRepository.save(any(MedicalRecordEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of(
+                        new DoctorPrescriptionDtos.PrescriptionItemRequest(
+                                "Paracetamol", "1 viên", BigDecimal.ZERO, "Viên", new BigDecimal("5000")
+                        )
+                )
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Số lượng thuốc kê đơn phải lớn hơn 0");
+    }
 }
 

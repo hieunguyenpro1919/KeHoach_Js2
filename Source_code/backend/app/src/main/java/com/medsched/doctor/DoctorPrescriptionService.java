@@ -156,6 +156,14 @@ public class DoctorPrescriptionService {
         if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
             throw new IllegalArgumentException("Ca khám đã bị hủy, không thể kê đơn thuốc.");
         }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException("Ca khám đã hoàn tất trước đó, không thể kê đơn lại.");
+        }
+        if (appointment.getStatus() == AppointmentStatus.CONFIRMED || appointment.getStatus() == AppointmentStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Bệnh nhân chưa làm thủ tục tiếp đón tại sảnh chờ (Trạng thái: " + appointment.getStatus()
+                    + "). Bác sĩ không thể hoàn tất ca khám khi bệnh nhân chưa có mặt!");
+        }
 
         // 1. Lưu hồ sơ bệnh án
         MedicalRecordEntity medicalRecord = medicalRecordRepository.findByAppointmentId(appointmentId)
@@ -177,7 +185,13 @@ public class DoctorPrescriptionService {
         if (request.items() != null && !request.items().isEmpty()) {
             for (DoctorPrescriptionDtos.PrescriptionItemRequest itemReq : request.items()) {
                 BigDecimal qty = itemReq.quantity() != null ? itemReq.quantity() : BigDecimal.ONE;
+                if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Số lượng thuốc kê đơn phải lớn hơn 0 (Thuốc: " + itemReq.medicineName() + ").");
+                }
                 BigDecimal price = itemReq.unitPrice() != null ? itemReq.unitPrice() : BigDecimal.ZERO;
+                if (price.compareTo(BigDecimal.ZERO) < 0) {
+                    throw new IllegalArgumentException("Đơn giá thuốc không được âm (Thuốc: " + itemReq.medicineName() + ").");
+                }
                 totalMedicineAmount = totalMedicineAmount.add(qty.multiply(price));
 
                 PrescriptionItemEntity item = new PrescriptionItemEntity(
@@ -250,6 +264,14 @@ public class DoctorPrescriptionService {
         if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
             throw new IllegalArgumentException("Ca khám đã bị hủy, không thể hoàn tất.");
         }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException("Ca khám đã hoàn tất trước đó.");
+        }
+        if (appointment.getStatus() == AppointmentStatus.CONFIRMED || appointment.getStatus() == AppointmentStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Bệnh nhân chưa làm thủ tục tiếp đón tại sảnh chờ (Trạng thái: " + appointment.getStatus()
+                    + "). Bác sĩ không thể hoàn tất ca khám khi bệnh nhân chưa có mặt!");
+        }
 
         // 1. Lưu hoặc cập nhật hồ sơ bệnh án
         MedicalRecordEntity medicalRecord = medicalRecordRepository.findByAppointmentId(appointmentId)
@@ -276,7 +298,13 @@ public class DoctorPrescriptionService {
             prescriptionId = "pr" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
             for (DoctorPrescriptionDtos.PrescriptionItemRequest itemReq : request.items()) {
                 BigDecimal qty = itemReq.quantity() != null ? itemReq.quantity() : BigDecimal.ONE;
+                if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Số lượng thuốc kê đơn phải lớn hơn 0 (Thuốc: " + itemReq.medicineName() + ").");
+                }
                 BigDecimal price = itemReq.unitPrice() != null ? itemReq.unitPrice() : BigDecimal.ZERO;
+                if (price.compareTo(BigDecimal.ZERO) < 0) {
+                    throw new IllegalArgumentException("Đơn giá thuốc không được âm (Thuốc: " + itemReq.medicineName() + ").");
+                }
                 totalMedicineAmount = totalMedicineAmount.add(qty.multiply(price));
 
                 PrescriptionItemEntity item = new PrescriptionItemEntity(

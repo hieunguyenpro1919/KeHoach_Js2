@@ -3,6 +3,7 @@ package com.medsched.app.adapter.in.web;
 import com.medsched.billing.BillingDtos;
 import com.medsched.billing.BillingService;
 import com.medsched.common.InputValidator;
+import com.medsched.core.domain.exception.ResourceNotFoundException;
 import com.medsched.core.domain.model.Appointment;
 import com.medsched.core.port.in.CheckinUseCase;
 import com.medsched.core.port.out.AppointmentRepositoryPort;
@@ -308,9 +309,29 @@ public class ReceptionController {
 
             for (PatientProfileEntity profile : profiles) {
                 List<AppointmentEntity> appointments = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(profile.getId());
+                ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+                LocalDate todayVn = nowVn.toLocalDate();
+
+                // Ưu tiên chọn ca khám đúng ngày hôm nay để làm thủ tục tiếp đón
                 Optional<AppointmentEntity> activeOpt = appointments.stream()
                         .filter(a -> a.getStatus() == AppointmentStatus.CONFIRMED || a.getStatus() == AppointmentStatus.PENDING)
+                        .filter(a -> {
+                            if (a.getSlotId() != null) {
+                                TimeSlotEntity s = timeSlotJpaRepository.findById(a.getSlotId()).orElse(null);
+                                if (s != null && s.getStartTime() != null) {
+                                    return s.getStartTime().atZone(VN_ZONE).toLocalDate().isEqual(todayVn);
+                                }
+                            }
+                            return a.getCreatedAt() != null && a.getCreatedAt().atZone(VN_ZONE).toLocalDate().isEqual(todayVn);
+                        })
                         .findFirst();
+
+                // Nếu không có ca đúng ngày hôm nay, lấy ca active gần nhất để validateCheckinTimeWindow thông báo lý do chính xác
+                if (activeOpt.isEmpty()) {
+                    activeOpt = appointments.stream()
+                            .filter(a -> a.getStatus() == AppointmentStatus.CONFIRMED || a.getStatus() == AppointmentStatus.PENDING)
+                            .findFirst();
+                }
 
                 if (activeOpt.isPresent()) {
                     AppointmentEntity app = activeOpt.get();
@@ -694,14 +715,18 @@ public class ReceptionController {
         String slotId = null;
         String slotTimeStr = req.slotTime() != null ? req.slotTime().trim() : "";
         if (req.slotId() != null && !req.slotId().isBlank()) {
-            Optional<TimeSlotEntity> slotOpt = timeSlotJpaRepository.findById(req.slotId());
-            if (slotOpt.isPresent()) {
-                TimeSlotEntity slot = slotOpt.get();
-                slot.setStatus(SlotStatus.BOOKED);
-                slot.setUpdatedAt(Instant.now());
-                timeSlotJpaRepository.save(slot);
-                slotId = slot.getId();
+            TimeSlotEntity slot = timeSlotJpaRepository.findById(req.slotId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Khung giờ khám không tồn tại: " + req.slotId()));
+            if (slot.getStatus() != SlotStatus.AVAILABLE) {
+                throw new IllegalArgumentException("Khung giờ này đã có người đặt hoặc tạm khóa. Vui lòng chọn khung giờ khác.");
             }
+            if (slot.getStartTime().isBefore(Instant.now())) {
+                throw new IllegalArgumentException("Không thể đặt khung giờ đã trôi qua trong quá khứ.");
+            }
+            slot.setStatus(SlotStatus.BOOKED);
+            slot.setUpdatedAt(Instant.now());
+            timeSlotJpaRepository.save(slot);
+            slotId = slot.getId();
         } else if (!slotTimeStr.isBlank() && req.appointmentDate() != null) {
             try {
                 LocalDate targetDate = LocalDate.parse(req.appointmentDate());
@@ -715,6 +740,12 @@ public class ReceptionController {
                     String sTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                             .withZone(vnZone).format(s.getStartTime());
                     if (sTime.equals(startPart)) {
+                        if (s.getStatus() != SlotStatus.AVAILABLE) {
+                            throw new IllegalArgumentException("Khung giờ khám (" + slotTimeStr + ") đã có người đặt trước.");
+                        }
+                        if (s.getStartTime().isBefore(Instant.now())) {
+                            throw new IllegalArgumentException("Không thể đặt khung giờ đã trôi qua trong quá khứ.");
+                        }
                         s.setStatus(SlotStatus.BOOKED);
                         s.setUpdatedAt(Instant.now());
                         timeSlotJpaRepository.save(s);
@@ -722,6 +753,8 @@ public class ReceptionController {
                         break;
                     }
                 }
+            } catch (IllegalArgumentException e) {
+                throw e;
             } catch (Exception ignored) {}
         }
 

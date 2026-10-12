@@ -180,6 +180,21 @@ public class DoctorScheduleService {
             throw new IllegalArgumentException("Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay được hệ thống tự động điều phối.");
         }
 
+        // Chặn đăng ký ca trực vào cuối tuần (Thứ Bảy & Chủ Nhật)
+        DayOfWeek dow = request.workDate().getDayOfWeek();
+        if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException("Phòng khám không làm việc vào cuối tuần (Thứ Bảy & Chủ Nhật). Bác sĩ không thể đăng ký ca trực vào ngày này.");
+        }
+
+        // Chặn đăng ký ca trực ngoài giờ hành chính (08:00 - 17:00) hoặc trùng giờ nghỉ trưa (12:00 - 13:30)
+        if (request.startTime().isBefore(LocalTime.of(8, 0)) || request.endTime().isAfter(LocalTime.of(17, 0))) {
+            throw new IllegalArgumentException("Ca trực phải nằm trong khung giờ làm việc của phòng khám (08:00 - 17:00).");
+        }
+        if ((request.startTime().isAfter(LocalTime.of(12, 0)) && request.startTime().isBefore(LocalTime.of(13, 30)))
+                || (request.endTime().isAfter(LocalTime.of(12, 0)) && request.endTime().isBefore(LocalTime.of(13, 30)))) {
+            throw new IllegalArgumentException("Không thể đăng ký ca trực trùng vào khung giờ nghỉ trưa của phòng khám (12:00 - 13:30).");
+        }
+
         DoctorEntity currentDoctor = doctorRepository.findById(targetDoctorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Bác sĩ trong hệ thống."));
 
@@ -316,9 +331,21 @@ public class DoctorScheduleService {
     }
 
     @Transactional
-    public void deleteSchedule(String scheduleId) {
+    public void deleteSchedule(String userId, String scheduleId) {
         DoctorScheduleEntity schedule = doctorScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca trực: " + scheduleId));
+
+        if (userId != null && !userId.isBlank()) {
+            String targetDoctorId = resolveDoctorId(userId, null);
+            if (!schedule.getDoctorId().equals(targetDoctorId)) {
+                throw new IllegalArgumentException("Bác sĩ không có quyền xóa ca trực của bác sĩ khác.");
+            }
+        }
+
+        LocalDate today = LocalDate.now(VN_ZONE);
+        if (schedule.getWorkDate().isBefore(today)) {
+            throw new IllegalArgumentException("Không thể xóa ca trực đã kết thúc trong quá khứ.");
+        }
 
         List<TimeSlotEntity> slots = timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(scheduleId);
         long bookedCount = slots.stream().filter(s -> s.getStatus() == SlotStatus.BOOKED).count();
@@ -328,6 +355,11 @@ public class DoctorScheduleService {
 
         timeSlotRepository.deleteAll(slots);
         doctorScheduleRepository.delete(schedule);
+    }
+
+    @Transactional
+    public void deleteSchedule(String scheduleId) {
+        deleteSchedule(null, scheduleId);
     }
 
     /**

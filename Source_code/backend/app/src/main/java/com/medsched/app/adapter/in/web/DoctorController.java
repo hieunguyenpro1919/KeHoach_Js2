@@ -225,8 +225,10 @@ public class DoctorController {
      */
     @DeleteMapping("/schedules/{scheduleId}")
     public ResponseEntity<Void> deleteSchedule(
+            @AuthenticationPrincipal AppUserDetails principal,
             @PathVariable String scheduleId) {
-        doctorScheduleService.deleteSchedule(scheduleId);
+        String userId = principal != null ? principal.getUserId() : null;
+        doctorScheduleService.deleteSchedule(userId, scheduleId);
         return ResponseEntity.noContent().build();
     }
 

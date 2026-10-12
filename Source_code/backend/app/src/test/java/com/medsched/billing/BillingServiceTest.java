@@ -220,6 +220,7 @@ class BillingServiceTest {
     @DisplayName("Thanh toán hóa đơn thành công: cập nhật status PAID và ghi nhận vào bảng payments")
     void payInvoice_success() {
         when(invoiceRepository.findById("inv-12345")).thenReturn(Optional.of(sampleInvoice));
+        when(appointmentRepository.findById(sampleInvoice.getAppointmentId())).thenReturn(Optional.of(sampleAppointment));
         when(paymentRepository.save(any(PaymentEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         BillingDtos.PayInvoiceRequest request = new BillingDtos.PayInvoiceRequest(
@@ -241,6 +242,39 @@ class BillingServiceTest {
         assertThat(sampleInvoice.getAmountPaid()).isEqualByComparingTo("335000");
         verify(invoiceRepository).save(sampleInvoice);
         verify(paymentRepository).save(any(PaymentEntity.class));
+    }
+
+    @Test
+    @DisplayName("Ném IllegalArgumentException nếu số tiền thanh toán không đủ tổng tiền viện phí")
+    void payInvoice_throwsIllegalArgumentException_whenAmountPaidInsufficient() {
+        when(invoiceRepository.findById("inv-12345")).thenReturn(Optional.of(sampleInvoice));
+        when(appointmentRepository.findById(sampleInvoice.getAppointmentId())).thenReturn(Optional.of(sampleAppointment));
+
+        BillingDtos.PayInvoiceRequest request = new BillingDtos.PayInvoiceRequest(
+                "CASH",
+                new BigDecimal("100000"), // Tổng tiền là 335000
+                "Thiếu tiền"
+        );
+
+        assertThrows(IllegalArgumentException.class, () ->
+                billingService.payInvoice("inv-12345", request));
+    }
+
+    @Test
+    @DisplayName("Ném IllegalArgumentException nếu ca khám đã bị hủy")
+    void payInvoice_throwsIllegalArgumentException_whenAppointmentCancelled() {
+        sampleAppointment.setStatus(AppointmentStatus.CANCELLED);
+        when(invoiceRepository.findById("inv-12345")).thenReturn(Optional.of(sampleInvoice));
+        when(appointmentRepository.findById(sampleInvoice.getAppointmentId())).thenReturn(Optional.of(sampleAppointment));
+
+        BillingDtos.PayInvoiceRequest request = new BillingDtos.PayInvoiceRequest(
+                "CASH",
+                new BigDecimal("335000"),
+                "Thanh toán ca hủy"
+        );
+
+        assertThrows(IllegalArgumentException.class, () ->
+                billingService.payInvoice("inv-12345", request));
     }
 
     @Test

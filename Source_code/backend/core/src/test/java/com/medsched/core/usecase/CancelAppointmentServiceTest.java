@@ -125,4 +125,43 @@ class CancelAppointmentServiceTest {
         verify(appointmentRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("CLAB-105: Ca khám đang diễn ra IN_PROGRESS -> Chặn không cho phép hủy")
+    void givenInProgressAppointment_whenCancel_thenThrowsIllegalArgumentException() {
+        Appointment appointment = new Appointment(
+                "app-1", "MED-748921", "center-1", "patient-1", "doc-1", "slot-100",
+                "APP-101", "ONLINE_BOOKED", "Sốt ho", null, "QR_CODE", "IN_PROGRESS",
+                false, 0, Instant.now(), Instant.now(), Instant.now()
+        );
+        given(appointmentRepository.findById("app-1")).willReturn(Optional.of(appointment));
+
+        assertThatThrownBy(() -> cancelService.cancel(new CancelAppointmentUseCase.Command("app-1", "Bận việc")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Ca khám đã tiếp đón tại quầy hoặc đã hoàn tất, không thể hủy.");
+
+        verify(timeSlotRepository, never()).releaseSlot(any());
+    }
+
+    @Test
+    @DisplayName("CLAB-105: Ca khám có slot ở quá khứ -> Chặn không cho phép hủy")
+    void givenPastSlotAppointment_whenCancel_thenThrowsIllegalArgumentException() {
+        Appointment appointment = new Appointment(
+                "app-1", "MED-748921", "center-1", "patient-1", "doc-1", "slot-past",
+                "APP-101", "ONLINE_BOOKED", "Sốt ho", null, null, "CONFIRMED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
+        com.medsched.core.domain.model.TimeSlot pastSlot = new com.medsched.core.domain.model.TimeSlot(
+                "slot-past", "sch-1", Instant.now().minusSeconds(3600), Instant.now().minusSeconds(1800),
+                "BOOKED", 1
+        );
+        given(appointmentRepository.findById("app-1")).willReturn(Optional.of(appointment));
+        given(timeSlotRepository.findById("slot-past")).willReturn(Optional.of(pastSlot));
+
+        assertThatThrownBy(() -> cancelService.cancel(new CancelAppointmentUseCase.Command("app-1", "Bận việc")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không thể hủy ca khám đã qua khung giờ hẹn trong quá khứ.");
+
+        verify(timeSlotRepository, never()).releaseSlot(any());
+    }
+
 }
