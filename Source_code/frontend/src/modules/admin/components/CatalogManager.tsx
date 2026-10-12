@@ -212,34 +212,34 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4 whitespace-nowrap">Mã CS</th>
-              <th className="py-3 px-4 min-w-[200px]">Tên Chi Nhánh</th>
-              <th className="py-3 px-4 min-w-[250px]">Địa Chỉ</th>
-              <th className="py-3 px-4 whitespace-nowrap">SĐT</th>
-              <th className="py-3 px-4 whitespace-nowrap min-w-[130px]">Trạng Thái</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[130px]">Thao Tác</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-24">Mã CS</th>
+              <th className="py-3 px-3.5 font-bold">Tên Chi Nhánh</th>
+              <th className="py-3 px-3.5">Địa Chỉ</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-32">SĐT</th>
+              <th className="py-3 px-3.5 whitespace-nowrap text-center w-36">Trạng Thái</th>
+              <th className="py-3 px-3.5 text-right whitespace-nowrap w-28">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {centers.map(c => (
               <tr key={c.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{c.code}</td>
-                <td className="py-3 px-4 font-semibold text-slate-800">{c.name}</td>
-                <td className="py-3 px-4 text-slate-600">{c.address}</td>
-                <td className="py-3 px-4 whitespace-nowrap text-slate-700">{c.phone || '—'}</td>
-                <td className="py-3 px-4 whitespace-nowrap">
+                <td className="py-3 px-3.5 font-mono font-medium whitespace-nowrap text-slate-700">{c.code}</td>
+                <td className="py-3 px-3.5 font-semibold text-slate-800">{c.name}</td>
+                <td className="py-3 px-3.5 text-slate-600 text-xs">{c.address}</td>
+                <td className="py-3 px-3.5 whitespace-nowrap text-slate-700 font-mono text-xs">{c.phone || '—'}</td>
+                <td className="py-3 px-3.5 whitespace-nowrap text-center">
                   {c.active ? (
-                    <span className="inline-flex items-center justify-center text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+                    <span className="inline-flex items-center justify-center text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
                       Hoạt động
                     </span>
                   ) : (
-                    <span className="inline-flex items-center justify-center text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full text-xs font-semibold border border-rose-200 shadow-sm animate-pulse whitespace-nowrap">
+                    <span className="inline-flex items-center justify-center text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full text-xs font-semibold border border-rose-200 shadow-sm animate-pulse whitespace-nowrap">
                       Phong Tỏa Khẩn Cấp
                     </span>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right whitespace-nowrap">
-                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                     <button 
                       onClick={() => openModal('edit', c)} 
                       className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
@@ -279,20 +279,27 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4 whitespace-nowrap">Mã Khoa</th>
-              <th className="py-3 px-4 min-w-[200px]">Tên Chuyên Khoa</th>
-              <th className="py-3 px-4 min-w-[250px]">Thuộc Chi Nhánh</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Thao Tác</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-24">Mã Khoa</th>
+              <th className="py-3 px-3.5 font-bold">Tên Chuyên Khoa</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-44">Thuộc Chi Nhánh</th>
+              <th className="py-3 px-3.5 text-right whitespace-nowrap w-24">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {specialties.map(s => (
               <tr key={s.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{s.code}</td>
-                <td className="py-3 px-4 font-semibold text-slate-800">{s.name}</td>
-                <td className="py-3 px-4 text-slate-600">{s.medicalCenterName}</td>
-                <td className="py-3 px-4 text-right whitespace-nowrap">
-                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                <td className="py-3 px-3.5 font-mono font-medium whitespace-nowrap text-slate-700">{s.code}</td>
+                <td className="py-3 px-3.5 font-semibold text-slate-800">{s.name}</td>
+                <td className="py-3 px-3.5 whitespace-nowrap">
+                  <span 
+                    className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100 max-w-[180px] truncate" 
+                    title={s.medicalCenterName}
+                  >
+                    {s.medicalCenterName?.includes('Quận 1') ? 'CN Quận 1' : s.medicalCenterName?.includes('Quận 7') ? 'CN Quận 7' : s.medicalCenterName?.replace('Phòng Khám Đa Khoa MedSched - ', '') || s.medicalCenterName}
+                  </span>
+                </td>
+                <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                     <button 
                       onClick={() => openModal('edit', s)} 
                       className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer"
@@ -321,24 +328,24 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4 whitespace-nowrap">Mã DV</th>
-              <th className="py-3 px-4 min-w-[200px]">Tên Dịch Vụ</th>
-              <th className="py-3 px-4 min-w-[180px]">Chuyên Khoa</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[120px]">Giá (VND)</th>
-              <th className="py-3 px-4 text-center whitespace-nowrap min-w-[100px]">Thời gian</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Thao Tác</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-24">Mã DV</th>
+              <th className="py-3 px-3.5 font-bold">Tên Dịch Vụ</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-40">Chuyên Khoa</th>
+              <th className="py-3 px-3.5 text-right whitespace-nowrap w-32">Giá (VND)</th>
+              <th className="py-3 px-3.5 text-center whitespace-nowrap w-24">Thời gian</th>
+              <th className="py-3 px-3.5 text-right whitespace-nowrap w-24">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {services.map(sv => (
               <tr key={sv.id} className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-mono font-medium whitespace-nowrap text-slate-700">{sv.code}</td>
-                <td className="py-3 px-4 font-semibold text-slate-800">{sv.name}</td>
-                <td className="py-3 px-4 text-slate-600">{sv.specialtyName}</td>
-                <td className="py-3 px-4 text-right font-mono font-medium text-emerald-600 whitespace-nowrap">{sv.price?.toLocaleString()} đ</td>
-                <td className="py-3 px-4 text-center whitespace-nowrap">{sv.estimatedDurationMinutes} phút</td>
-                <td className="py-3 px-4 text-right whitespace-nowrap">
-                  <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                <td className="py-3 px-3.5 font-mono font-medium whitespace-nowrap text-slate-700">{sv.code}</td>
+                <td className="py-3 px-3.5 font-semibold text-slate-800">{sv.name}</td>
+                <td className="py-3 px-3.5 text-slate-600 text-xs whitespace-nowrap">{sv.specialtyName}</td>
+                <td className="py-3 px-3.5 text-right font-mono font-medium text-emerald-600 whitespace-nowrap">{sv.price?.toLocaleString()} đ</td>
+                <td className="py-3 px-3.5 text-center whitespace-nowrap text-xs text-slate-600">{sv.estimatedDurationMinutes} phút</td>
+                <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                     <button 
                       onClick={() => openModal('edit', sv)} 
                       className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer"
@@ -367,13 +374,13 @@ export default function CatalogManager() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-4 whitespace-nowrap">Mã Phòng</th>
-              <th className="py-3 px-4 min-w-[180px]">Tên Phòng Khám</th>
-              <th className="py-3 px-4 whitespace-nowrap">Vị Trí / Tầng</th>
-              <th className="py-3 px-4 min-w-[200px]">Thuộc Chi Nhánh</th>
-              <th className="py-3 px-4 min-w-[180px]">Ghi Chú / Thiết Bị</th>
-              <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Trạng Thái</th>
-              <th className="py-3 px-4 text-right whitespace-nowrap min-w-[130px]">Thao Tác</th>
+              <th className="py-3 px-3.5 whitespace-nowrap w-20">Mã Phòng</th>
+              <th className="py-3 px-3.5 font-bold">Tên Phòng Khám</th>
+              <th className="py-3 px-2 whitespace-nowrap text-center w-20">Tầng</th>
+              <th className="py-3 px-3 whitespace-nowrap w-36">Chi Nhánh</th>
+              <th className="py-3 px-3 text-slate-600 max-w-[180px]">Ghi Chú / Thiết Bị</th>
+              <th className="py-3 px-3 whitespace-nowrap text-center w-36">Trạng Thái</th>
+              <th className="py-3 px-3.5 text-right whitespace-nowrap w-28">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
@@ -386,18 +393,25 @@ export default function CatalogManager() {
             ) : (
               rooms.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 transition">
-                  <td className="py-3 px-4 font-mono font-bold text-blue-700 whitespace-nowrap">{r.code}</td>
-                  <td className="py-3 px-4 font-semibold text-slate-800">{r.name}</td>
-                  <td className="py-3 px-4 whitespace-nowrap text-slate-600">
+                  <td className="py-3 px-3.5 font-mono font-bold text-blue-700 whitespace-nowrap">{r.code}</td>
+                  <td className="py-3 px-3.5 font-semibold text-slate-800 leading-snug">{r.name}</td>
+                  <td className="py-3 px-2 whitespace-nowrap text-center">
                     <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
                       {r.floor}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-600 text-xs">{r.medicalCenterName}</td>
-                  <td className="py-3 px-4 text-slate-500 text-xs max-w-xs truncate" title={r.note || ''}>
+                  <td className="py-3 px-3 whitespace-nowrap">
+                    <span 
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100" 
+                      title={r.medicalCenterName}
+                    >
+                      {r.medicalCenterName?.includes('Quận 1') ? 'CN Quận 1' : r.medicalCenterName?.includes('Quận 7') ? 'CN Quận 7' : r.medicalCenterName?.replace('Phòng Khám Đa Khoa MedSched - ', '') || r.medicalCenterName}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 text-slate-500 text-xs max-w-[180px] truncate" title={r.note || ''}>
                     {r.note || '—'}
                   </td>
-                  <td className="py-3 px-4 whitespace-nowrap">
+                  <td className="py-3 px-3 whitespace-nowrap text-center">
                     {r.status === 'active' ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
                         <CheckCircle2 size={12} />
@@ -410,8 +424,8 @@ export default function CatalogManager() {
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                       <button 
                         onClick={() => openModal('edit', r)} 
                         className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
