@@ -792,16 +792,6 @@ export default function ReceptionView() {
                       <span className="hidden sm:inline">Quét Camera</span>
                     </button>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>* Tương thích máy quét USB barcode 2D &amp; Webcam camera</span>
-                    <button
-                      type="button"
-                      onClick={() => setBookingCode(`MED-2026-${Math.floor(1000 + Math.random() * 9000)}`)}
-                      className="text-emerald-600 hover:underline font-medium cursor-pointer"
-                    >
-                      Tạo mã test
-                    </button>
-                  </div>
                 </div>
               )}
 
