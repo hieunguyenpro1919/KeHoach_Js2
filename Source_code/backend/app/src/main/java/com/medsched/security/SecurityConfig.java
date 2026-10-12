@@ -101,7 +101,7 @@ public class SecurityConfig {
 
                         // 5. Phân quyền theo vai trò cụ thể
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/doctor/schedules/**", "/api/doctor/schedules/**").hasAnyRole("STAFF", "DOCTOR", "ADMIN")
+                        .requestMatchers("/api/v1/doctor/schedules/**", "/api/doctor/schedules/**").hasAnyRole("STAFF", "DOCTOR", "ADMIN")
                         .requestMatchers("/api/v1/doctor/**", "/api/doctor/**").hasAnyRole("DOCTOR", "ADMIN")
                         .requestMatchers("/api/v1/reception/**", "/api/reception/**").hasAnyRole("STAFF", "ADMIN")
 
