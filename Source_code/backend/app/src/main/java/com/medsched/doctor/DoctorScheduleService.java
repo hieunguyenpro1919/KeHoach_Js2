@@ -46,6 +46,7 @@ public class DoctorScheduleService {
     private final AppointmentJpaRepository appointmentJpaRepository;
     private final PatientProfileJpaRepository patientProfileJpaRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public DoctorScheduleService(DoctorScheduleJpaRepository doctorScheduleRepository,
                                  TimeSlotJpaRepository timeSlotRepository,
                                  DoctorJpaRepository doctorRepository,

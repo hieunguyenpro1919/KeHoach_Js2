@@ -175,20 +175,96 @@ export default function ReceptionScheduleBoard({
     setBookingError(null);
   };
 
+  // Ràng buộc và kiểm tra từng ký tự hiển thị trực quan theo thời gian thực (CLAB-118)
+  const phoneValidation = useMemo(() => {
+    const p = bookingPhone.trim();
+    if (!p) return { isValid: false, message: 'Bắt buộc nhập số điện thoại người bệnh' };
+    for (let i = 0; i < p.length; i++) {
+      if (!/[0-9]/.test(p[i])) {
+        return { isValid: false, message: `Ký tự '${p[i]}' tại vị trí ${i + 1} không hợp lệ. Chỉ được nhập số 0-9.` };
+      }
+    }
+    if (p.length < 10) {
+      return { isValid: false, message: `Số điện thoại còn thiếu (${p.length}/10 số). Vui lòng nhập đủ 10 chữ số.` };
+    }
+    if (p.length > 10) {
+      return { isValid: false, message: `Số điện thoại vượt quá 10 chữ số (${p.length}/10 số).` };
+    }
+    if (!/^(0[3|5|7|8|9])/.test(p)) {
+      return { isValid: false, message: `Đầu số '${p.slice(0, 2)}' không hợp lệ (phải bắt đầu bằng 03, 05, 07, 08 hoặc 09).` };
+    }
+    return { isValid: true, message: 'Số điện thoại hợp lệ (10 số)' };
+  }, [bookingPhone]);
+
+  const nameValidation = useMemo(() => {
+    const n = bookingFullName.trim();
+    if (!n) return { isValid: false, message: 'Bắt buộc nhập họ và tên người bệnh' };
+    if (n.length < 2) return { isValid: false, message: `Họ và tên quá ngắn (${n.length}/2 ký tự tối thiểu).` };
+    if (n.length > 100) return { isValid: false, message: `Họ và tên quá dài (${n.length}/100 ký tự tối đa).` };
+    for (let i = 0; i < n.length; i++) {
+      const c = n[i];
+      if (/[0-9]/.test(c)) {
+        return { isValid: false, message: `Họ tên không được chứa chữ số ('${c}' tại vị trí ${i + 1}).` };
+      }
+      if (!/^[\p{L}\s]$/u.test(c)) {
+        return { isValid: false, message: `Ký tự đặc biệt '${c}' tại vị trí ${i + 1} không được phép. Chỉ dùng chữ cái tiếng Việt.` };
+      }
+    }
+    return { isValid: true, message: 'Họ và tên hợp lệ' };
+  }, [bookingFullName]);
+
+  const emailValidation = useMemo(() => {
+    const e = bookingEmail.trim();
+    if (!e) return { isValid: true, message: 'Tùy chọn (nhận thông báo lịch khám qua Gmail)' };
+    if (e.length > 255) return { isValid: false, message: 'Email không được vượt quá 255 ký tự.' };
+    for (let i = 0; i < e.length; i++) {
+      const c = e[i];
+      if (/\s/.test(c)) return { isValid: false, message: 'Email không được chứa khoảng trắng.' };
+      if (/[<>'";()\\{}]/.test(c)) return { isValid: false, message: `Ký tự '${c}' tại vị trí ${i + 1} không được phép trong email.` };
+    }
+    if (e.includes('..')) return { isValid: false, message: 'Email không được có hai dấu chấm liên tiếp (..).' };
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$/.test(e)) {
+      return { isValid: false, message: 'Định dạng email chưa đúng (VD: nguyenvana@gmail.com).' };
+    }
+    return { isValid: true, message: 'Gmail/Email hợp lệ' };
+  }, [bookingEmail]);
+
+  const symptomsValidation = useMemo(() => {
+    const s = bookingSymptoms.trim();
+    if (!s) return { isValid: true, message: 'Tối đa 500 ký tự' };
+    if (s.length > 500) return { isValid: false, message: `Triệu chứng quá dài (${s.length}/500 ký tự).` };
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (/[<>'`\\{}]/.test(c)) {
+        return { isValid: false, message: `Ký tự '${c}' tại vị trí ${i + 1} không an toàn. Vui lòng xóa đi.` };
+      }
+    }
+    return { isValid: true, message: `${s.length}/500 ký tự` };
+  }, [bookingSymptoms]);
+
   const handleConfirmQuickBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickBookingModal) return;
 
+    if (!phoneValidation.isValid) {
+      setBookingError(`Lỗi số điện thoại: ${phoneValidation.message}`);
+      return;
+    }
+    if (!nameValidation.isValid) {
+      setBookingError(`Lỗi họ và tên: ${nameValidation.message}`);
+      return;
+    }
+    if (!emailValidation.isValid) {
+      setBookingError(`Lỗi Gmail/Email: ${emailValidation.message}`);
+      return;
+    }
+    if (!symptomsValidation.isValid) {
+      setBookingError(`Lỗi triệu chứng: ${symptomsValidation.message}`);
+      return;
+    }
+
     const cleanPhone = bookingPhone.trim();
     const cleanName = bookingFullName.trim();
-    if (!cleanPhone) {
-      setBookingError('Vui lòng nhập số điện thoại người bệnh.');
-      return;
-    }
-    if (!cleanName) {
-      setBookingError('Vui lòng nhập họ và tên người bệnh.');
-      return;
-    }
 
     try {
       setBookingSubmitting(true);
@@ -1057,12 +1133,27 @@ export default function ReceptionScheduleBoard({
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
                       setBookingPhone(val);
+                      if (bookingError) setBookingError(null);
                     }}
                     placeholder="VD: 0912345678"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
+                      bookingPhone
+                        ? phoneValidation.isValid
+                          ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                          : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                        : 'border-slate-200 focus:border-teal-600 focus:ring-teal-100'
+                    }`}
                   />
                   <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
+                {bookingPhone && (
+                  <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+                    phoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {phoneValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+                    <span>{phoneValidation.message}</span>
+                  </p>
+                )}
               </div>
 
               {/* Email / Gmail người bệnh */}
@@ -1079,12 +1170,27 @@ export default function ReceptionScheduleBoard({
                     onChange={(e) => {
                       const val = e.target.value.replace(/[\s<>'";`\\]/g, '');
                       setBookingEmail(val);
+                      if (bookingError) setBookingError(null);
                     }}
                     placeholder="VD: nguyenvana@gmail.com"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
+                      bookingEmail
+                        ? emailValidation.isValid
+                          ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                          : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                        : 'border-slate-200 focus:border-teal-600 focus:ring-teal-100'
+                    }`}
                   />
                   <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
+                {bookingEmail && (
+                  <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+                    emailValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {emailValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+                    <span>{emailValidation.message}</span>
+                  </p>
+                )}
               </div>
 
               {/* Họ và tên */}
@@ -1102,19 +1208,38 @@ export default function ReceptionScheduleBoard({
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^a-zA-Z\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/g, '');
                       setBookingFullName(val);
+                      if (bookingError) setBookingError(null);
                     }}
                     placeholder="VD: Nguyễn Văn An"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 ${
+                      bookingFullName
+                        ? nameValidation.isValid
+                          ? 'border-emerald-300 focus:border-emerald-600 focus:ring-emerald-100'
+                          : 'border-rose-300 focus:border-rose-600 focus:ring-rose-100'
+                        : 'border-slate-200 focus:border-teal-600 focus:ring-teal-100'
+                    }`}
                   />
                   <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
+                {bookingFullName && (
+                  <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-semibold ${
+                    nameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {nameValidation.isValid ? <Check size={12} /> : <AlertCircle size={12} />}
+                    <span>{nameValidation.message}</span>
+                  </p>
+                )}
               </div>
 
               {/* Triệu chứng bệnh ngắn gọn */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Triệu chứng bệnh ngắn gọn / Lý do khám
-                  <span className="text-[10px] text-slate-400 font-normal ml-2">(Tối đa 500 ký tự)</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Triệu chứng bệnh ngắn gọn / Lý do khám</span>
+                  <span className={`text-[10px] font-semibold ${
+                    symptomsValidation.isValid ? 'text-slate-400' : 'text-rose-600'
+                  }`}>
+                    {symptomsValidation.message}
+                  </span>
                 </label>
                 <div className="relative">
                   <textarea
@@ -1124,6 +1249,7 @@ export default function ReceptionScheduleBoard({
                     onChange={(e) => {
                       const val = e.target.value.replace(/[<>'`\\{}]/g, '').slice(0, 500);
                       setBookingSymptoms(val);
+                      if (bookingError) setBookingError(null);
                     }}
                     placeholder="Mô tả ngắn gọn khách báo qua điện thoại (VD: Sốt 2 ngày, nổi mẩn ngứa da, đau họng, tái khám định kỳ...)"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 resize-none"

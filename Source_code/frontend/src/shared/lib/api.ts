@@ -123,9 +123,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         );
       }
     }
-    let message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
-    if (errorData.fields && typeof errorData.fields === "object") {
-      const fieldDetails = Object.values(errorData.fields).join(", ");
+    let message = errorData.message || errorData.detail || `Yêu cầu thất bại (${response.status})`;
+    const fieldMap = errorData.fieldErrors || errorData.fields;
+    if (fieldMap && typeof fieldMap === "object") {
+      const fieldDetails = Object.values(fieldMap).filter(Boolean).join(", ");
       if (fieldDetails) {
         message = `${message}: ${fieldDetails}`;
       }
