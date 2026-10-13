@@ -165,6 +165,7 @@ export default function HeaderNav() {
   } else if (isDoctor) {
     navLinks = [
       { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
+      { href: '/doctor/schedule', label: 'Lịch Trực Bác Sĩ', icon: Calendar },
       { href: '/doctor/history', label: 'Lịch Sử Khám & Đơn Thuốc', icon: FileText },
       { href: '/statistics', label: 'Thống Kê Khám Bệnh', icon: BarChart3 },
     ];
@@ -211,22 +212,8 @@ export default function HeaderNav() {
             </div>
           </Link>
 
-          {/* Desktop Right Side: Bệnh Án, Đặt Lịch, VIE (Không bị vỡ dòng) */}
-          <div className="hidden md:flex items-center gap-3 sm:gap-4 shrink-0">
-            <Link href="/my-appointments" className="hover:text-white text-amber-300 font-bold transition flex items-center gap-1 whitespace-nowrap">
-              <span>📋 Bệnh Án Điện Tử</span>
-            </Link>
-            <span className="text-slate-600">|</span>
-            <Link href="/booking" className="hover:text-emerald-300 text-teal-300 font-bold transition flex items-center gap-1 whitespace-nowrap">
-              <span>📅 Đặt Lịch Khám</span>
-            </Link>
-            <span className="text-slate-600">|</span>
-            <span className="text-slate-400 font-medium">VIE</span>
-          </div>
-
-          {/* Mobile Right Side: Nút Hamburger + VIE (Gọn gàng, thanh thoát trên điện thoại) */}
-          <div className="flex md:hidden items-center gap-2">
-            <span className="text-[10px] text-slate-300 font-bold px-1.5 py-0.5 rounded bg-white/10">VIE</span>
+          {/* Mobile Right Side: Nút Hamburger */}
+          <div className="flex md:hidden items-center">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-1.5 rounded-lg text-white hover:bg-white/15 transition cursor-pointer flex items-center justify-center"
@@ -336,23 +323,6 @@ export default function HeaderNav() {
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-b border-mint-light px-4 pt-3 pb-5 space-y-1 shadow-lg animate-fadeIn">
-          {/* Quick Actions cho Bệnh Nhân trên Mobile */}
-          <div className="grid grid-cols-2 gap-2 mb-2 pb-2.5 border-b border-mint-light">
-            <Link
-              href="/my-appointments"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition shadow-2xs"
-            >
-              <span>📋 Bệnh Án</span>
-            </Link>
-            <Link
-              href="/booking"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-pine-teal border border-teal-200/80 text-xs font-bold transition shadow-2xs"
-            >
-              <span>📅 Đặt Lịch</span>
-            </Link>
-          </div>
 
           {navLinks.map((link) => {
             const Icon = link.icon;

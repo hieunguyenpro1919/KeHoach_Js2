@@ -3,6 +3,7 @@ package com.medsched.app.adapter.in.web;
 import com.medsched.billing.BillingDtos;
 import com.medsched.billing.BillingService;
 import com.medsched.common.InputValidator;
+import com.medsched.core.domain.exception.ResourceNotFoundException;
 import com.medsched.core.domain.model.Appointment;
 import com.medsched.core.port.in.CheckinUseCase;
 import com.medsched.core.port.out.AppointmentRepositoryPort;
@@ -28,9 +29,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -42,6 +48,7 @@ import java.util.UUID;
 public class ReceptionController {
 
     public static final int MAX_DAILY_WALKIN_PER_DOCTOR = 30;
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final CheckinUseCase checkinUseCase;
     private final BillingService billingService;
@@ -53,6 +60,12 @@ public class ReceptionController {
     private final TimeSlotJpaRepository timeSlotJpaRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.medsched.reception.ReceptionHistoryService receptionHistoryService;
+
+    private Clock clock = Clock.system(VN_ZONE);
+
+    public void setClock(Clock clock) {
+        this.clock = clock;
+    }
 
     public ReceptionController(
             CheckinUseCase checkinUseCase,
@@ -75,6 +88,97 @@ public class ReceptionController {
         this.timeSlotJpaRepository = timeSlotJpaRepository;
         this.passwordEncoder = passwordEncoder;
         this.receptionHistoryService = receptionHistoryService;
+    }
+
+    /**
+     * CLAB-124: Ràng buộc khung giờ tiếp đón (Check-in Time Window):
+     * 1. Không tiếp đón ca khám đã CANCELLED hoặc COMPLETED.
+     * 2. Nếu ca khám có slot hẹn trước (slotId != null):
+     *    - Chỉ được check-in vào đúng ngày hẹn (từ chối nếu slot ở tương lai chưa tới ngày hoặc slot đã quá hạn).
+     *    - Đúng ngày hẹn: Cho phép check-in trước giờ khám tối đa 45 phút, và trễ tối đa 15 phút sau giờ bắt đầu slot.
+     * 3. Nếu ca khám vãng lai (không gắn slot): Phải nằm trong khung giờ làm việc phòng khám.
+     */
+    private void validateCheckinTimeWindow(AppointmentEntity app) {
+        if (app.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Lịch hẹn này đã bị hủy, không thể làm thủ tục tiếp đón!");
+        }
+        if (app.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException("Lịch hẹn này đã hoàn tất khám bệnh trước đó!");
+        }
+
+        ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+        LocalDate todayVn = nowVn.toLocalDate();
+
+        if (app.getSlotId() != null) {
+            TimeSlotEntity slot = timeSlotJpaRepository.findById(app.getSlotId()).orElse(null);
+            if (slot != null && slot.getStartTime() != null) {
+                ZonedDateTime slotStart = slot.getStartTime().atZone(VN_ZONE);
+                LocalDate slotDate = slotStart.toLocalDate();
+
+                if (slotDate.isAfter(todayVn)) {
+                    throw new IllegalArgumentException(
+                            "Lịch hẹn của quý khách vào ngày "
+                            + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            + ". Chưa đến ngày khám, vui lòng quay lại đúng ngày hẹn để làm thủ tục tiếp đón!");
+                }
+                if (slotDate.isBefore(todayVn)) {
+                    throw new IllegalArgumentException(
+                            "Lịch hẹn của quý khách vào ngày "
+                            + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            + " đã quá hạn từ trước. Vui lòng liên hệ nhân viên Lễ tân tại quầy để được hỗ trợ!");
+                }
+
+                // Cùng ngày hôm nay: Kiểm tra khung giờ cho phép check-in [-45 phút, +15 phút]
+                ZonedDateTime earliestCheckin = slotStart.minusMinutes(45);
+                ZonedDateTime latestCheckin = slotStart.plusMinutes(15);
+
+                if (nowVn.isBefore(earliestCheckin)) {
+                    throw new IllegalArgumentException(
+                            "Chưa đến giờ tiếp đón cho ca hẹn lúc "
+                            + slotStart.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                            + "! Quý khách chỉ có thể check-in trước giờ khám tối đa 45 phút (bắt đầu từ "
+                            + earliestCheckin.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")) + ").");
+                }
+                if (nowVn.isAfter(latestCheckin)) {
+                    throw new IllegalArgumentException(
+                            "Đã quá thời gian tiếp đón cho ca hẹn lúc "
+                            + slotStart.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                            + " (quá hạn 15 phút sau giờ bắt đầu khám). Vui lòng gặp nhân viên Lễ tân tại quầy để được chuyển sang diện khám vãng lai!");
+                }
+            } else {
+                validateWalkinBusinessHours();
+            }
+        } else {
+            // Ca khám không có slot (vãng lai) -> Ràng buộc giờ làm việc hành chính
+            validateWalkinBusinessHours();
+        }
+    }
+
+    /**
+     * CLAB-124: Ràng buộc khung giờ tiếp nhận vãng lai tại quầy:
+     * - Chỉ tiếp nhận từ Thứ Hai đến Thứ Sáu (nghỉ Thứ Bảy, Chủ Nhật)
+     * - Ca sáng: 08:00 - 12:00
+     * - Ca chiều: 13:30 - 17:00
+     * - Ngoài các khung giờ trên (nghỉ trưa 12:00-13:30, sau 17:00, cuối tuần) đều bị từ chối.
+     */
+    private void validateWalkinBusinessHours() {
+        ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+        DayOfWeek day = nowVn.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException(
+                    "Phòng khám không tiếp nhận bệnh nhân vào cuối tuần (Thứ Bảy & Chủ Nhật). "
+                    + "Giờ làm việc: Thứ Hai - Thứ Sáu (08:00 - 12:00, 13:30 - 17:00).");
+        }
+
+        LocalTime nowTime = nowVn.toLocalTime();
+        boolean morningShift = !nowTime.isBefore(LocalTime.of(8, 0)) && nowTime.isBefore(LocalTime.of(12, 0));
+        boolean afternoonShift = !nowTime.isBefore(LocalTime.of(13, 30)) && nowTime.isBefore(LocalTime.of(17, 0));
+
+        if (!morningShift && !afternoonShift) {
+            throw new IllegalArgumentException(
+                    "Hiện tại ngoài giờ làm việc của phòng khám. "
+                    + "Quầy tiếp đón chỉ tiếp nhận bệnh nhân trong khung giờ 08:00 - 12:00 và 13:30 - 17:00 (Thứ Hai - Thứ Sáu).");
+        }
     }
 
     public record QrCheckinRequest(String bookingCode) {}
@@ -133,7 +237,7 @@ public class ReceptionController {
     ) {}
 
     @PostMapping("/checkin/qr")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PreAuthorize("permitAll()")
     @Transactional
     public ResponseEntity<CheckinUseCase.CheckinResult> checkinByQr(@RequestBody QrCheckinRequest req) {
         String rawCode = req.bookingCode() != null ? req.bookingCode().trim() : "";
@@ -145,6 +249,22 @@ public class ReceptionController {
 
         if (appOpt.isPresent()) {
             AppointmentEntity app = appOpt.get();
+
+            // Nếu bệnh nhân đã tiếp đón trước đó rồi -> Trả về kết quả mà không báo lỗi
+            if (app.getStatus() == AppointmentStatus.CHECKED_IN
+                    || app.getStatus() == AppointmentStatus.IN_PROGRESS
+                    || app.getStatus() == AppointmentStatus.WAITING_FOR_LAB_RESULTS) {
+                Appointment domain = appointmentRepositoryPort.findById(app.getId()).orElse(null);
+                return ResponseEntity.ok(new CheckinUseCase.CheckinResult(
+                        domain,
+                        app.getQueueNumber(),
+                        "Lịch hẹn này đã được tiếp đón trước đó! Bệnh nhân đang trong hàng đợi."
+                ));
+            }
+
+            // Kiểm tra ràng buộc khung giờ tiếp đón (CLAB-124)
+            validateCheckinTimeWindow(app);
+
             app.setStatus(AppointmentStatus.CHECKED_IN);
             app.setCheckInTime(Instant.now());
             app.setCheckinMethod(CheckinMethod.QR_CODE);
@@ -189,12 +309,35 @@ public class ReceptionController {
 
             for (PatientProfileEntity profile : profiles) {
                 List<AppointmentEntity> appointments = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(profile.getId());
+                ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+                LocalDate todayVn = nowVn.toLocalDate();
+
+                // Ưu tiên chọn ca khám đúng ngày hôm nay để làm thủ tục tiếp đón
                 Optional<AppointmentEntity> activeOpt = appointments.stream()
                         .filter(a -> a.getStatus() == AppointmentStatus.CONFIRMED || a.getStatus() == AppointmentStatus.PENDING)
+                        .filter(a -> {
+                            if (a.getSlotId() != null) {
+                                TimeSlotEntity s = timeSlotJpaRepository.findById(a.getSlotId()).orElse(null);
+                                if (s != null && s.getStartTime() != null) {
+                                    return s.getStartTime().atZone(VN_ZONE).toLocalDate().isEqual(todayVn);
+                                }
+                            }
+                            return a.getCreatedAt() != null && a.getCreatedAt().atZone(VN_ZONE).toLocalDate().isEqual(todayVn);
+                        })
                         .findFirst();
+
+                // Nếu không có ca đúng ngày hôm nay, lấy ca active gần nhất để validateCheckinTimeWindow thông báo lý do chính xác
+                if (activeOpt.isEmpty()) {
+                    activeOpt = appointments.stream()
+                            .filter(a -> a.getStatus() == AppointmentStatus.CONFIRMED || a.getStatus() == AppointmentStatus.PENDING)
+                            .findFirst();
+                }
 
                 if (activeOpt.isPresent()) {
                     AppointmentEntity app = activeOpt.get();
+                    // Kiểm tra ràng buộc khung giờ tiếp đón (CLAB-124)
+                    validateCheckinTimeWindow(app);
+
                     app.setStatus(AppointmentStatus.CHECKED_IN);
                     app.setCheckInTime(Instant.now());
                     app.setCheckinMethod(CheckinMethod.CCCD_QR);
@@ -219,7 +362,9 @@ public class ReceptionController {
                 }
             }
 
-            // Trường hợp khách chưa có lịch hẹn đặt trước: Tự động tạo ca khám vãng lai tiếp nhận vào MySQL
+            // Trường hợp khách chưa có lịch hẹn đặt trước: Tự động tạo ca khám vãng lai tiếp nhận vào MySQL (CLAB-124: Ràng buộc giờ hành chính)
+            validateWalkinBusinessHours();
+
             PatientProfileEntity profile = profiles.isEmpty() ? null : profiles.get(0);
             if (profile == null) {
                 String genEmail = "cccd" + cccd + "@medsched.vn";
@@ -323,6 +468,9 @@ public class ReceptionController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
     public ResponseEntity<WalkinResponse> registerWalkinPatient(@RequestBody WalkinRequest req) {
+        // CLAB-124: Ràng buộc khung giờ tiếp nhận vãng lai tại quầy
+        validateWalkinBusinessHours();
+
         String cleanPhone = InputValidator.validatePhone(req.phone());
         String cleanName = InputValidator.validateFullName(req.fullName());
         String cccdNumber = req.cccdNumber() != null && !req.cccdNumber().isBlank()
@@ -474,6 +622,9 @@ public class ReceptionController {
         String rawEmail = InputValidator.validateEmail(req.email());
         String symptoms = InputValidator.validateSymptoms(req.symptoms());
         String bookingType = req.bookingType() != null && req.bookingType().equalsIgnoreCase("WALKIN") ? "WALKIN" : "PHONE";
+        if ("WALKIN".equals(bookingType)) {
+            validateWalkinBusinessHours();
+        }
 
         if (req.appointmentDate() != null && !req.appointmentDate().isBlank()) {
             InputValidator.validateIsoDate(req.appointmentDate());
@@ -564,14 +715,18 @@ public class ReceptionController {
         String slotId = null;
         String slotTimeStr = req.slotTime() != null ? req.slotTime().trim() : "";
         if (req.slotId() != null && !req.slotId().isBlank()) {
-            Optional<TimeSlotEntity> slotOpt = timeSlotJpaRepository.findById(req.slotId());
-            if (slotOpt.isPresent()) {
-                TimeSlotEntity slot = slotOpt.get();
-                slot.setStatus(SlotStatus.BOOKED);
-                slot.setUpdatedAt(Instant.now());
-                timeSlotJpaRepository.save(slot);
-                slotId = slot.getId();
+            TimeSlotEntity slot = timeSlotJpaRepository.findById(req.slotId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Khung giờ khám không tồn tại: " + req.slotId()));
+            if (slot.getStatus() != SlotStatus.AVAILABLE) {
+                throw new IllegalArgumentException("Khung giờ này đã có người đặt hoặc tạm khóa. Vui lòng chọn khung giờ khác.");
             }
+            if (slot.getStartTime().isBefore(Instant.now())) {
+                throw new IllegalArgumentException("Không thể đặt khung giờ đã trôi qua trong quá khứ.");
+            }
+            slot.setStatus(SlotStatus.BOOKED);
+            slot.setUpdatedAt(Instant.now());
+            timeSlotJpaRepository.save(slot);
+            slotId = slot.getId();
         } else if (!slotTimeStr.isBlank() && req.appointmentDate() != null) {
             try {
                 LocalDate targetDate = LocalDate.parse(req.appointmentDate());
@@ -585,6 +740,12 @@ public class ReceptionController {
                     String sTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                             .withZone(vnZone).format(s.getStartTime());
                     if (sTime.equals(startPart)) {
+                        if (s.getStatus() != SlotStatus.AVAILABLE) {
+                            throw new IllegalArgumentException("Khung giờ khám (" + slotTimeStr + ") đã có người đặt trước.");
+                        }
+                        if (s.getStartTime().isBefore(Instant.now())) {
+                            throw new IllegalArgumentException("Không thể đặt khung giờ đã trôi qua trong quá khứ.");
+                        }
                         s.setStatus(SlotStatus.BOOKED);
                         s.setUpdatedAt(Instant.now());
                         timeSlotJpaRepository.save(s);
@@ -592,6 +753,8 @@ public class ReceptionController {
                         break;
                     }
                 }
+            } catch (IllegalArgumentException e) {
+                throw e;
             } catch (Exception ignored) {}
         }
 

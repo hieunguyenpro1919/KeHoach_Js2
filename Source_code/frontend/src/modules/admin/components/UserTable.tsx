@@ -7,7 +7,6 @@ import {
   Users, 
   UserPlus, 
   Search, 
-  Shield, 
   CheckCircle2, 
   XCircle, 
   RefreshCw, 
@@ -61,6 +60,8 @@ export default function UserTable() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export default function UserTable() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // 1. Kiểm tra quyền Admin khi mount trang
   useEffect(() => {
     const token = getAuthToken();
     const user = getAuthUser();
@@ -91,7 +93,6 @@ export default function UserTable() {
     setCurrentUser(user);
     setIsAuthenticated(true);
     setAuthChecked(true);
-    loadUsers();
 
     const handleKickout = () => {
       setIsAuthenticated(false);
@@ -101,16 +102,48 @@ export default function UserTable() {
     return () => {
       window.removeEventListener("medsched:concurrent_kickout", handleKickout);
     };
-  }, [selectedRole, currentPage]);
+  }, []);
 
-  const loadUsers = async () => {
-    setLoading(true);
-    setMessage(null);
+  // 2. Tự động tìm kiếm theo từng ký tự người dùng nhập vào (debounce 250ms)
+  useEffect(() => {
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setIsSearching(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 3. Tự động nạp dữ liệu khi từ khóa (debounced), vai trò hoặc số trang thay đổi
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    loadUsers(debouncedQuery, currentPage, selectedRole);
+  }, [debouncedQuery, selectedRole, currentPage, isAuthenticated]);
+
+  // 4. Cơ chế tự động làm mới ngầm định kỳ (Background Auto-refresh mỗi 30 giây)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      // Chỉ làm mới ngầm khi tab đang mở, không mở Modal và không đang gõ tìm kiếm
+      if (document.visibilityState === 'visible' && !detailUser && !resetModalUser && !isSearching) {
+        loadUsers(debouncedQuery, currentPage, selectedRole, true);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, debouncedQuery, currentPage, selectedRole, detailUser, resetModalUser, isSearching]);
+
+  const loadUsers = async (query = debouncedQuery, page = currentPage, role = selectedRole, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setMessage(null);
+    }
     try {
       const res = await api.getAdminUsers({
-        role: (selectedRole === 'ALL' || selectedRole === 'LOCKED') ? undefined : selectedRole,
-        q: searchQuery.trim() || undefined,
-        page: currentPage,
+        role: (role === 'ALL' || role === 'LOCKED') ? undefined : role,
+        q: query.trim() || undefined,
+        page: page,
         size: pageSize,
       });
 
@@ -137,45 +170,69 @@ export default function UserTable() {
           };
         });
 
-      if (selectedRole === 'ROLE_ADMIN') {
-        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_ADMIN'));
-      } else if (selectedRole === 'ROLE_DOCTOR') {
+      // Lọc bỏ tài khoản Quản trị viên (Admin) khỏi bảng quản trị nhân sự & bệnh nhân
+      normalizedUsers = normalizedUsers.filter((u) => !u.roles.includes('ROLE_ADMIN'));
+
+      if (role === 'ROLE_DOCTOR') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
-      } else if (selectedRole === 'ROLE_STAFF') {
+      } else if (role === 'ROLE_STAFF') {
         normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
-      } else if (selectedRole === 'CUSTOMER') {
+      } else if (role === 'CUSTOMER') {
         normalizedUsers = normalizedUsers.filter(
-          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_ADMIN') && !u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
+          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
         );
-      } else if (selectedRole === 'LOCKED') {
+      } else if (role === 'LOCKED') {
         normalizedUsers = normalizedUsers.filter((u) => !u.active);
       }
 
       setUsers(normalizedUsers);
-      setTotalElements(normalizedUsers.length);
+      setTotalElements(res?.totalElements !== undefined ? res.totalElements : normalizedUsers.length);
       setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
-      const isAuthErr = err.message && (
-        err.message.includes('đăng nhập') || 
-        err.message.includes('hết hạn') || 
-        err.message.includes('401')
-      );
-      if (isAuthErr) {
-        setIsAuthenticated(false);
-        setCurrentUser(null);
-      } else {
-        setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+      if (!silent) {
+        const isAuthErr = err.message && (
+          err.message.includes('đăng nhập') || 
+          err.message.includes('hết hạn') || 
+          err.message.includes('401')
+        );
+        if (isAuthErr) {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        } else {
+          setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+        }
       }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setDebouncedQuery('');
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+    loadUsers('', 0, selectedRole);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(0);
-    loadUsers();
+    if (currentPage !== 0) {
+      setCurrentPage(0);
+    }
+    setDebouncedQuery(searchQuery);
+    loadUsers(searchQuery, 0, selectedRole);
   };
 
   const handleToggleStatus = async (user: UserItem) => {
@@ -268,51 +325,18 @@ export default function UserTable() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-mint-light flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-pine-teal mb-1 text-sm font-semibold">
-            <Shield size={18} />
-            <span>Hệ thống Quản trị MedSched</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Quản Lý Người Dùng & Nhân Sự</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Theo dõi, phân quyền và kích hoạt tài khoản Bác sĩ, Lễ tân và Bệnh nhân.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/admin/create-user"
-            className="flex items-center gap-2 bg-pine-teal hover:bg-pine-teal-hover text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
-          >
-            <UserPlus size={18} />
-            <span>Tạo Tài Khoản Mới</span>
-          </Link>
-          <button
-            onClick={() => loadUsers()}
-            disabled={loading}
-            className="p-2.5 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer"
-            title="Tải lại danh sách"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Alert message */}
       {message && (
         <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
-      {/* Filter & Search Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      {/* Filter & Actions Toolbar */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         {/* Role Tabs */}
-        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap">
+        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
           {[
             { id: 'ALL', label: 'Tất cả' },
-            { id: 'ROLE_ADMIN', label: 'Quản trị viên' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
             { id: 'ROLE_STAFF', label: 'Lễ tân' },
             { id: 'CUSTOMER', label: 'Bệnh nhân' },
@@ -337,25 +361,43 @@ export default function UserTable() {
           ))}
         </div>
 
-        {/* Search form */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:flex-initial w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        {/* Right Actions: Search + Tạo Tài Khoản Mới + Tải lại */}
+        <div className="flex flex-wrap items-center gap-2.5 justify-start xl:justify-end">
+          {/* Search input (tìm kiếm trực tiếp theo từng ký tự) */}
+          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Tìm theo tên, email, SĐT..."
-              className="pl-9 pr-3 py-2 text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full text-xs sm:text-sm"
+              className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
             />
-          </div>
-          <button
-            type="submit"
-            className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer shrink-0"
+            {isSearching ? (
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                <RefreshCw size={13} className="animate-spin text-pine-teal" />
+              </div>
+            ) : searchQuery ? (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 rounded-full cursor-pointer"
+                title="Xóa tìm kiếm"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
+          </form>
+
+          {/* Nút Tạo Tài Khoản Mới */}
+          <Link
+            href="/admin/create-user"
+            className="flex items-center gap-1.5 bg-pine-teal hover:bg-pine-teal-hover text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition shrink-0 whitespace-nowrap"
           >
-            Tìm
-          </button>
-        </form>
+            <UserPlus size={16} />
+            <span>Tạo Tài Khoản Mới</span>
+          </Link>
+        </div>
       </div>
 
       {/* Table Data */}
@@ -368,27 +410,29 @@ export default function UserTable() {
             description={
               selectedRole === 'LOCKED'
                 ? 'Tất cả tài khoản Bác sĩ, Lễ tân và Bệnh nhân hiện đều đang hoạt động bình thường.'
-                : `Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}" hoặc từ khóa tìm kiếm.`
+                : searchQuery
+                ? `Không có người dùng nào phù hợp với từ khóa "${searchQuery}".`
+                : `Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}".`
             }
-            onRetry={() => { setSelectedRole('ALL'); setSearchQuery(''); loadUsers(); }}
+            onRetry={() => { setSelectedRole('ALL'); handleClearSearch(); }}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-mint-soft border-b border-mint-light text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[210px]">Họ và Tên</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[190px]">Email & SĐT</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[110px]">Vai Trò</th>
-                  <th className="py-3.5 px-4 min-w-[240px]">Chi Nhánh Phòng Khám</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[130px]">Trạng Thái</th>
-                  <th className="py-3.5 px-4 text-right whitespace-nowrap min-w-[220px]">Thao Tác</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Họ và Tên</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Email & SĐT</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Vai Trò</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Chi Nhánh</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Trạng Thái</th>
+                  <th className="py-3.5 px-3.5 text-right whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-mint-soft/50 transition">
-                    <td className="py-3.5 px-4 font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-3.5 px-3.5 font-medium text-slate-800 whitespace-nowrap">
                       <div 
                         onClick={() => { setDetailUser(user); setCopied(false); }}
                         className="flex items-center gap-2.5 cursor-pointer group"
@@ -405,72 +449,83 @@ export default function UserTable() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="text-slate-700 font-medium">{user.email}</div>
-                      <div className="text-xs text-slate-400">{user.phone || 'Chưa có SĐT'}</div>
+                    <td className="py-3.5 px-3.5 whitespace-nowrap">
+                      <div className="text-slate-700 font-medium text-xs sm:text-sm">{user.email}</div>
+                      <div className="text-xs text-slate-400 font-mono">{user.phone || 'Chưa có SĐT'}</div>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
                       {roleBadge(user.roles)}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 text-xs font-medium">
-                      {user.medicalCenterName || '—'}
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      {user.medicalCenterName ? (
+                        <span 
+                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100 max-w-[150px] truncate" 
+                          title={user.medicalCenterName}
+                        >
+                          {user.medicalCenterName.includes('Quận 1') ? 'CN Quận 1' : user.medicalCenterName.includes('Quận 7') ? 'CN Quận 7' : user.medicalCenterName.replace('Phòng Khám Đa Khoa MedSched - ', '')}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
                       {user.active ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
-                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
                           <span>Hoạt động</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2.5 py-1 rounded-full border border-red-200 shadow-xs">
-                          <XCircle size={13} className="text-red-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 shadow-xs">
+                          <XCircle size={12} className="text-red-600 shrink-0" />
                           <span>Đã khóa</span>
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={() => { setDetailUser(user); setCopied(false); }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
-                        title="Xem đầy đủ chi tiết người dùng này"
-                      >
-                        <Eye size={13} />
-                        <span>Chi tiết</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setResetModalUser(user);
-                          setNewPassword('Medsched@123');
-                          setShowPassword(false);
-                        }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
-                        title="Đặt lại mật khẩu cho tài khoản này"
-                      >
-                        <KeyRound size={13} />
-                        <span>Đặt lại MK</span>
-                      </button>
-
-                      {user.id === currentUser?.id || user.email === currentUser?.email ? (
-                        <span
-                          className="inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                          title="Không thể tự khóa tài khoản quản trị viên của chính mình"
-                        >
-                          Chính bạn
-                        </span>
-                      ) : (
+                    <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
-                          onClick={() => handleToggleStatus(user)}
-                          disabled={actionLoadingId === user.id}
-                          className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
-                            user.active
-                              ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                          }`}
+                          onClick={() => { setDetailUser(user); setCopied(false); }}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
+                          title="Xem đầy đủ chi tiết người dùng này"
                         >
-                          {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
+                          <Eye size={13} />
+                          <span>Chi tiết</span>
                         </button>
-                      )}
+
+                        <button
+                          onClick={() => {
+                            setResetModalUser(user);
+                            setNewPassword('Medsched@123');
+                            setShowPassword(false);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
+                          title="Đặt lại mật khẩu cho tài khoản này"
+                        >
+                          <KeyRound size={13} />
+                          <span>Đặt lại MK</span>
+                        </button>
+
+                        {user.id === currentUser?.id || user.email === currentUser?.email ? (
+                          <span
+                            className="inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                            title="Không thể tự khóa tài khoản quản trị viên của chính mình"
+                          >
+                            Chính bạn
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleStatus(user)}
+                            disabled={actionLoadingId === user.id}
+                            className={`inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
+                              user.active
+                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                            }`}
+                          >
+                            {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

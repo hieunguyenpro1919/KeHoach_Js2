@@ -9,6 +9,7 @@ import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.PaymentEntity;
 import com.medsched.persistence.entity.PrescriptionItemEntity;
 import com.medsched.persistence.entity.UserEntity;
+import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.PaymentMethod;
 import com.medsched.persistence.enums.PaymentStatus;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
@@ -122,6 +123,18 @@ public class BillingService {
 
         // 4. Tìm hoặc khởi tạo InvoiceEntity
         InvoiceEntity invoice = invoiceRepository.findByAppointmentId(appointmentId)
+                .map(existingInv -> {
+                    // Nếu hóa đơn chưa thanh toán, cập nhật lại số tiền theo đơn thuốc và phí khám mới nhất
+                    if (!"PAID".equalsIgnoreCase(existingInv.getStatus())) {
+                        existingInv.setConsultationFee(finalConsultationFee);
+                        existingInv.setMedicineAmount(finalMedicineAmount);
+                        existingInv.setTotalAmount(finalTotalAmount);
+                        existingInv.setUpdatedAt(Instant.now());
+                        InvoiceEntity saved = invoiceRepository.save(existingInv);
+                        return saved != null ? saved : existingInv;
+                    }
+                    return existingInv;
+                })
                 .orElseGet(() -> {
                     String invId = "inv" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
                     String invNum = "HD-" + (int) (Math.random() * 900000 + 100000);
@@ -168,6 +181,23 @@ public class BillingService {
             throw new IllegalArgumentException("Hóa đơn này đã được thanh toán trước đó.");
         }
 
+        // 1. Kiểm tra trạng thái ca khám liên kết
+        AppointmentEntity appointment = appointmentRepository.findById(invoice.getAppointmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám liên kết với hóa đơn: " + invoice.getAppointmentId()));
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Ca khám đã bị hủy, không thể thực hiện thanh toán hóa đơn.");
+        }
+
+        // 2. Ràng buộc số tiền thanh toán (amountPaid)
+        if (request.amountPaid() == null || request.amountPaid().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Số tiền thanh toán phải lớn hơn 0.");
+        }
+        if (request.amountPaid().compareTo(invoice.getTotalAmount()) < 0) {
+            throw new IllegalArgumentException(String.format(
+                    "Số tiền thanh toán (%s VNĐ) không đủ để thanh toán tổng tiền viện phí (%s VNĐ).",
+                    request.amountPaid(), invoice.getTotalAmount()));
+        }
+
         PaymentMethod method;
         try {
             method = (request.paymentMethod() != null && !request.paymentMethod().isBlank())
@@ -179,7 +209,7 @@ public class BillingService {
 
         String transactionRef = "TX-" + System.currentTimeMillis() + "-" + (int) (Math.random() * 9000 + 1000);
 
-        // 1. Ghi nhận giao dịch vào bảng payments
+        // 3. Ghi nhận giao dịch vào bảng payments
         PaymentEntity payment = new PaymentEntity(
                 UUID.randomUUID().toString(),
                 invoice.getAppointmentId(),
@@ -196,7 +226,7 @@ public class BillingService {
         }
         paymentRepository.save(payment);
 
-        // 2. Chuyển trạng thái hóa đơn sang PAID
+        // 4. Chuyển trạng thái hóa đơn sang PAID
         invoice.setStatus("PAID");
         invoice.setPaymentMethod(method.name());
         invoice.setAmountPaid(request.amountPaid());

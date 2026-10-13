@@ -25,8 +25,18 @@ export default function FloatingWidgets() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Không hiển thị nút nổi trên các trang xác thực để tránh che lấp form nhập liệu và nút Đăng ký/Đăng nhập
-  if (pathname === '/login' || pathname === '/register' || pathname === '/forgot-password') {
+  // Không hiển thị nút nổi trên các trang xác thực và các phân hệ tác vụ nội bộ (Bác sĩ, Admin, Tiếp đón...)
+  const isExcluded = 
+    pathname === '/login' || 
+    pathname === '/register' || 
+    pathname === '/forgot-password' ||
+    pathname.startsWith('/doctor') || 
+    pathname.startsWith('/admin') || 
+    pathname.startsWith('/reception') || 
+    pathname.startsWith('/statistics') ||
+    pathname.startsWith('/checkin');
+
+  if (isExcluded) {
     return null;
   }
 

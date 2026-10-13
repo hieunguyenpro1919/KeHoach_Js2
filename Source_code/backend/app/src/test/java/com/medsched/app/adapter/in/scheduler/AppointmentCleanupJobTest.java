@@ -63,4 +63,60 @@ class AppointmentCleanupJobTest {
         verify(appointmentJpaRepository).save(any());
         verify(timeSlotJpaRepository).save(any());
     }
+
+    @Test
+    @DisplayName("Tự động chuyển ca CONFIRMED trễ hơn 15 phút sang MISSED_NO_SHOW và KHÔNG giải phóng slot quá khứ")
+    void givenExpiredConfirmedAppointment_whenCleanup_thenMarkMissedNoShowWithoutReleasingSlot() {
+        Instant thirtyMinsAgo = Instant.now().minus(30, ChronoUnit.MINUTES);
+
+        AppointmentEntity appt = new AppointmentEntity(
+                "app-confirmed", "MED-CONF", "c-1", "p-1", "doc-1", "slot-past",
+                "02", QueueType.ONLINE_BOOKED, "Đã thanh toán", AppointmentStatus.CONFIRMED,
+                thirtyMinsAgo.minusSeconds(3600), thirtyMinsAgo.minusSeconds(3600)
+        );
+
+        TimeSlotEntity slot = new TimeSlotEntity(
+                "slot-past", "sch-1", "doc-1",
+                thirtyMinsAgo, thirtyMinsAgo.plusSeconds(1800),
+                SlotStatus.BOOKED, thirtyMinsAgo, thirtyMinsAgo
+        );
+
+        given(appointmentJpaRepository.findAll()).willReturn(List.of(appt));
+        given(timeSlotJpaRepository.findById("slot-past")).willReturn(Optional.of(slot));
+
+        job.cleanupExpiredAppointments();
+
+        verify(appointmentJpaRepository).save(org.mockito.ArgumentMatchers.argThat(savedAppt ->
+                savedAppt.getId().equals("app-confirmed") &&
+                savedAppt.getStatus() == AppointmentStatus.MISSED_NO_SHOW
+        ));
+        // Slot trong quá khứ KHÔNG được lưu đè lại thành AVAILABLE
+        verify(timeSlotJpaRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Ca CONFIRMED mới bắt đầu 5 phút trước thì KHÔNG bị đánh dấu vắng mặt")
+    void givenRecentConfirmedAppointment_whenCleanup_thenDoNotMarkNoShow() {
+        Instant fiveMinsAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
+
+        AppointmentEntity appt = new AppointmentEntity(
+                "app-recent", "MED-REC", "c-1", "p-1", "doc-1", "slot-recent",
+                "03", QueueType.ONLINE_BOOKED, "Đã thanh toán", AppointmentStatus.CONFIRMED,
+                fiveMinsAgo.minusSeconds(1000), fiveMinsAgo.minusSeconds(1000)
+        );
+
+        TimeSlotEntity slot = new TimeSlotEntity(
+                "slot-recent", "sch-1", "doc-1",
+                fiveMinsAgo, fiveMinsAgo.plusSeconds(1800),
+                SlotStatus.BOOKED, fiveMinsAgo, fiveMinsAgo
+        );
+
+        given(appointmentJpaRepository.findAll()).willReturn(List.of(appt));
+        given(timeSlotJpaRepository.findById("slot-recent")).willReturn(Optional.of(slot));
+
+        job.cleanupExpiredAppointments();
+
+        verify(appointmentJpaRepository, org.mockito.Mockito.never()).save(any());
+        verify(timeSlotJpaRepository, org.mockito.Mockito.never()).save(any());
+    }
 }

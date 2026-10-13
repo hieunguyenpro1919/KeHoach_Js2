@@ -16,6 +16,7 @@ import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.PrescriptionItemJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
+import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.repository.UserJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,9 +27,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import com.medsched.persistence.enums.SlotStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -342,6 +347,148 @@ class DoctorPrescriptionServiceTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 doctorPrescriptionService.completeVisit("ap000001-xxxx", request));
+    }
+
+    @Test
+    @DisplayName("CLAB-124: callPatientToRoom thành công khi bệnh nhân CHECKED_IN, trong giờ khám và đúng slot")
+    void callPatientToRoom_success_whenCheckedIn_andWithinWindow() {
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZonedDateTime nowTime = ZonedDateTime.of(2026, 10, 14, 9, 15, 0, 0, vnZone); // Thứ Tư lúc 09:15
+        Clock fixedClock = Clock.fixed(nowTime.toInstant(), vnZone);
+        doctorPrescriptionService.setClock(fixedClock);
+
+        Instant slotStart = ZonedDateTime.of(2026, 10, 14, 9, 30, 0, 0, vnZone).toInstant();
+        Instant slotEnd = ZonedDateTime.of(2026, 10, 14, 10, 0, 0, 0, vnZone).toInstant();
+        TimeSlotEntity slot = new TimeSlotEntity("slot-1", "sch-1", "doc-1", slotStart, slotEnd, SlotStatus.BOOKED, slotStart, slotStart);
+
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(timeSlotRepository.findById("slot-1")).thenReturn(Optional.of(slot));
+        when(appointmentRepository.findByDoctorIdAndStatus("doc-1", AppointmentStatus.IN_PROGRESS)).thenReturn(List.of());
+
+        doctorPrescriptionService.callPatientToRoom("ap000001-xxxx");
+
+        assertThat(sampleAppointment.getStatus()).isEqualTo(AppointmentStatus.IN_PROGRESS);
+        verify(appointmentRepository).save(sampleAppointment);
+    }
+
+    @Test
+    @DisplayName("CLAB-124: callPatientToRoom từ chối gọi bệnh nhân chưa check-in (CONFIRMED)")
+    void callPatientToRoom_throwsIllegalArg_whenNotCheckedIn() {
+        sampleAppointment.setStatus(AppointmentStatus.CONFIRMED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.callPatientToRoom("ap000001-xxxx"));
+        assertThat(ex.getMessage()).contains("chưa làm thủ tục tiếp đón");
+    }
+
+    @Test
+    @DisplayName("CLAB-124: callPatientToRoom từ chối gọi vào giờ nghỉ trưa (12:30)")
+    void callPatientToRoom_throwsIllegalArg_duringLunchBreak() {
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZonedDateTime lunchTime = ZonedDateTime.of(2026, 10, 14, 12, 30, 0, 0, vnZone);
+        doctorPrescriptionService.setClock(Clock.fixed(lunchTime.toInstant(), vnZone));
+
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.callPatientToRoom("ap000001-xxxx"));
+        assertThat(ex.getMessage()).contains("Ngoài giờ làm việc");
+    }
+
+    @Test
+    @DisplayName("CLAB-124: callPatientToRoom từ chối gọi sớm hơn 30 phút trước giờ bắt đầu slot")
+    void callPatientToRoom_throwsIllegalArg_whenTooEarly() {
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZonedDateTime earlyTime = ZonedDateTime.of(2026, 10, 14, 8, 30, 0, 0, vnZone); // 08:30
+        doctorPrescriptionService.setClock(Clock.fixed(earlyTime.toInstant(), vnZone));
+
+        // Slot bắt đầu lúc 09:30 (sớm hơn 60 phút)
+        Instant slotStart = ZonedDateTime.of(2026, 10, 14, 9, 30, 0, 0, vnZone).toInstant();
+        Instant slotEnd = ZonedDateTime.of(2026, 10, 14, 10, 0, 0, 0, vnZone).toInstant();
+        TimeSlotEntity slot = new TimeSlotEntity("slot-1", "sch-1", "doc-1", slotStart, slotEnd, SlotStatus.BOOKED, slotStart, slotStart);
+
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(timeSlotRepository.findById("slot-1")).thenReturn(Optional.of(slot));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.callPatientToRoom("ap000001-xxxx"));
+        assertThat(ex.getMessage()).contains("tối đa 30 phút");
+    }
+
+    @Test
+    @DisplayName("CLAB-124: callPatientToRoom từ chối gọi ca khám không thuộc ngày hôm nay")
+    void callPatientToRoom_throwsIllegalArg_whenWrongDate() {
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        ZonedDateTime todayTime = ZonedDateTime.of(2026, 10, 14, 9, 0, 0, 0, vnZone); // Thứ Tư
+        doctorPrescriptionService.setClock(Clock.fixed(todayTime.toInstant(), vnZone));
+
+        // Slot vào ngày mai (2026-10-15)
+        Instant slotStart = ZonedDateTime.of(2026, 10, 15, 9, 0, 0, 0, vnZone).toInstant();
+        Instant slotEnd = ZonedDateTime.of(2026, 10, 15, 9, 30, 0, 0, vnZone).toInstant();
+        TimeSlotEntity slot = new TimeSlotEntity("slot-1", "sch-1", "doc-1", slotStart, slotEnd, SlotStatus.BOOKED, slotStart, slotStart);
+
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(timeSlotRepository.findById("slot-1")).thenReturn(Optional.of(slot));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.callPatientToRoom("ap000001-xxxx"));
+        assertThat(ex.getMessage()).contains("không phải ngày hôm nay");
+    }
+
+    @Test
+    @DisplayName("completeConsultation từ chối ca khám chưa check-in (CONFIRMED)")
+    void completeConsultation_throwsIllegalArg_whenNotCheckedIn() {
+        sampleAppointment.setStatus(AppointmentStatus.CONFIRMED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of()
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Bệnh nhân chưa làm thủ tục tiếp đón tại sảnh chờ");
+    }
+
+    @Test
+    @DisplayName("completeConsultation từ chối ca khám đã COMPLETED trước đó")
+    void completeConsultation_throwsIllegalArg_whenAlreadyCompleted() {
+        sampleAppointment.setStatus(AppointmentStatus.COMPLETED);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of()
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Ca khám đã hoàn tất trước đó");
+    }
+
+    @Test
+    @DisplayName("completeConsultation từ chối khi số lượng thuốc <= 0")
+    void completeConsultation_throwsIllegalArg_whenMedicineQuantityInvalid() {
+        sampleAppointment.setStatus(AppointmentStatus.CHECKED_IN);
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+        when(medicalRecordRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.empty());
+        when(medicalRecordRepository.save(any(MedicalRecordEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoctorPrescriptionDtos.CreatePrescriptionRequest request = new DoctorPrescriptionDtos.CreatePrescriptionRequest(
+                "Chẩn đoán", "Lời dặn", List.of(
+                        new DoctorPrescriptionDtos.PrescriptionItemRequest(
+                                "Paracetamol", "1 viên", BigDecimal.ZERO, "Viên", new BigDecimal("5000")
+                        )
+                )
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+        assertThat(ex.getMessage()).contains("Số lượng thuốc kê đơn phải lớn hơn 0");
     }
 }
 

@@ -405,7 +405,9 @@ public class AppointmentController {
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<CancelResponse> cancelAppointment(
             @PathVariable String id,
+            @AuthenticationPrincipal AppUserDetails principal,
             @RequestBody(required = false) CancelRequest request) {
+        validateAppointmentOwnership(id, principal);
         String reason = request != null ? request.reason() : null;
         Appointment appointment = cancelAppointmentUseCase.cancel(new CancelAppointmentUseCase.Command(id, reason));
         return ResponseEntity.ok(new CancelResponse(
@@ -437,13 +439,26 @@ public class AppointmentController {
     @Transactional
     public ResponseEntity<RescheduleResponse> rescheduleAppointment(
             @PathVariable String id,
+            @AuthenticationPrincipal AppUserDetails principal,
             @Valid @RequestBody RescheduleRequest request) {
 
         AppointmentEntity appointment = appointmentJpaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca khám: " + id));
 
+        // Kiểm tra quyền sở hữu ca khám
+        validateAppointmentOwnership(id, principal);
+
         if (appointment.getStatus() != AppointmentStatus.CONFIRMED && appointment.getStatus() != AppointmentStatus.PENDING) {
             throw new IllegalArgumentException("Chỉ có thể đổi lịch cho ca khám chưa đến viện (CONFIRMED/PENDING). Ca hiện tại là: " + appointment.getStatus());
+        }
+
+        // Không cho phép dời lịch ca khám cũ đã trôi qua khung giờ hẹn trong quá khứ
+        if (appointment.getSlotId() != null) {
+            timeSlotJpaRepository.findById(appointment.getSlotId()).ifPresent(oldSlot -> {
+                if (oldSlot.getStartTime() != null && oldSlot.getStartTime().isBefore(Instant.now())) {
+                    throw new IllegalArgumentException("Ca khám cũ đã qua khung giờ hẹn trong quá khứ, không thể đổi lịch.");
+                }
+            });
         }
 
         TimeSlotEntity newSlot = timeSlotJpaRepository.findById(request.newSlotId())
@@ -456,6 +471,9 @@ public class AppointmentController {
         if (newSlot.getStartTime().isBefore(Instant.now())) {
             throw new IllegalArgumentException("Không thể chọn khung giờ đã trôi qua trong quá khứ.");
         }
+
+        // Kiểm tra bệnh nhân không bị trùng lịch khám khác cùng khung giờ (Double-booking)
+        validatePatientNotDoubleBookedForReschedule(appointment.getPatientProfileId(), appointment.getId(), newSlot);
 
         // 1. Giải phóng slot cũ
         if (appointment.getSlotId() != null && !appointment.getSlotId().isBlank()) {
@@ -490,6 +508,52 @@ public class AppointmentController {
                 appointment.getDoctorId(),
                 "Đổi lịch khám thành công sang khung giờ mới."
         ));
+    }
+
+    private void validateAppointmentOwnership(String appointmentId, AppUserDetails principal) {
+        if (principal == null) {
+            return;
+        }
+        boolean isStaffOrAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().contains("STAFF") || a.getAuthority().contains("ADMIN"));
+        if (isStaffOrAdmin) {
+            return;
+        }
+        appointmentJpaRepository.findById(appointmentId).ifPresent(app -> {
+            if (app.getPatientProfileId() != null) {
+                boolean ownsProfile = patientProfiles.findByUserId(principal.getUserId()).stream()
+                        .anyMatch(p -> p.getId().equals(app.getPatientProfileId()));
+                if (!ownsProfile) {
+                    throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền thao tác trên ca khám này.");
+                }
+            }
+        });
+    }
+
+    private void validatePatientNotDoubleBookedForReschedule(String patientProfileId, String currentAppId, TimeSlotEntity newSlot) {
+        if (patientProfileId == null || newSlot.getStartTime() == null || newSlot.getEndTime() == null) {
+            return;
+        }
+        List<AppointmentEntity> patientApps = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(patientProfileId);
+        for (AppointmentEntity app : patientApps) {
+            if (app.getId().equals(currentAppId)) continue;
+            boolean isActive = app.getStatus() == AppointmentStatus.PENDING
+                    || app.getStatus() == AppointmentStatus.CONFIRMED
+                    || app.getStatus() == AppointmentStatus.CHECKED_IN;
+            if (!isActive || app.getSlotId() == null) continue;
+
+            if (app.getSlotId().equals(newSlot.getId())) {
+                throw new IllegalArgumentException("Bệnh nhân đã có ca khám khác trong cùng khung giờ này.");
+            }
+            timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(s -> {
+                if (s.getStartTime() != null && s.getEndTime() != null) {
+                    boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
+                    if (overlap) {
+                        throw new IllegalArgumentException("Bệnh nhân đã có một ca khám khác trùng khung giờ khám này.");
+                    }
+                }
+            });
+        }
     }
 
     /**

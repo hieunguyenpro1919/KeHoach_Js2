@@ -612,7 +612,14 @@ public class StatisticsService {
             DoctorEntity doc = entry.getKey();
             long count = entry.getValue();
 
-            String userName = userRepo.findById(doc.getUserId()).map(UserEntity::getFullName).orElse("Bác Sĩ");
+            String rawName = userRepo.findById(doc.getUserId()).map(UserEntity::getFullName).orElse("Bác Sĩ");
+            String doctorDisplayName = rawName;
+            if (doc.getAcademicTitle() != null && !doc.getAcademicTitle().isBlank()) {
+                String title = doc.getAcademicTitle().trim();
+                if (!doctorDisplayName.startsWith(title)) {
+                    doctorDisplayName = title + " " + doctorDisplayName;
+                }
+            }
             String specName = specialtyRepo.findById(doc.getSpecialtyId()).map(SpecialtyEntity::getName).orElse("Khoa Khám Bệnh");
             String room = (doc.getRoomNumber() != null && !doc.getRoomNumber().isBlank()) ? ("Phòng " + doc.getRoomNumber()) : "Phòng Khám";
 
@@ -622,7 +629,7 @@ public class StatisticsService {
             items.add(new StatisticsDtos.BreakdownItem(
                     doc.getId(),
                     rank,
-                    (doc.getAcademicTitle() != null ? doc.getAcademicTitle() + " " : "") + userName,
+                    doctorDisplayName,
                     specName + " (" + room + ")",
                     count + " ca",
                     count > 0 ? "14.0 phút/ca" : "Chưa khám",
