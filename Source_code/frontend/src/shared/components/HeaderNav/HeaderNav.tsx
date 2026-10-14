@@ -190,10 +190,10 @@ export default function HeaderNav() {
     <header className="bg-white border-b border-mint-light text-slate-800 sticky top-0 z-50 shadow-xs">
       {/* Top Bar Tiện Ích Chuẩn Phòng Khám Quốc Tế */}
       <div className="bg-[#0a1e36] text-slate-300 text-[11px] border-b border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-11 sm:h-10 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-12 sm:h-11 flex items-center justify-between">
           {/* Logo MedSched */}
-          <Link href={logoHref} className="flex items-center gap-2 sm:gap-2.5 group shrink-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-white/20 group-hover:scale-105 transition overflow-hidden">
+          <Link href={logoHref} className="flex items-center gap-2 sm:gap-2.5 group shrink-0 py-0.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-white/20 group-hover:scale-105 transition overflow-hidden shrink-0">
               <img
                 src="/logo.png"
                 alt="MedSched Online Medical Services Logo"
@@ -202,11 +202,16 @@ export default function HeaderNav() {
                 className="w-full h-full object-contain"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm sm:text-base font-black tracking-tight text-white group-hover:text-mint-light transition-colors">
-                MedSched
-              </span>
-              <span className="text-[9px] text-teal-300 font-extrabold tracking-wider uppercase px-2 py-0.5 rounded-md bg-white/10 hidden sm:inline">
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="flex flex-col justify-center leading-none">
+                <span className="text-sm sm:text-base font-black tracking-tight text-white group-hover:text-mint-light transition-colors leading-tight">
+                  MedSched
+                </span>
+                <span className="text-[9px] sm:text-[10px] text-teal-300/80 font-medium tracking-tight mt-0.5">
+                  Phiên bản v1.0.0
+                </span>
+              </div>
+              <span className="text-[9px] text-teal-300 font-extrabold tracking-wider uppercase px-2 py-0.5 rounded-md bg-white/10 hidden sm:inline self-center">
                 {portalSubtitle}
               </span>
             </div>
