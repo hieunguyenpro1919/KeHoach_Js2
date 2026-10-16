@@ -163,7 +163,7 @@ export const api = {
     });
   },
 
-  // --- 1.1. XÁC THỰC OTP 4 CHỮ SỐ (ZALO & EMAIL) ---
+  // --- 1.1. XÁC THỰC OTP 4 CHỮ SỐ (EMAIL BREVO & GMAIL) ---
   async requestOtp(payload: { fullName: string; email: string; phone: string; password: string }) {
     return request<{
       sessionToken: string;
@@ -326,6 +326,22 @@ export const api = {
     });
   },
 
+  async updateAdminDoctorProfile(
+    userId: string,
+    payload: {
+      roomNumber?: string;
+      specialtyId?: string;
+      academicTitle?: string;
+      consultationFee?: number;
+      bio?: string;
+    }
+  ) {
+    return request<any>(`/admin/users/${userId}/doctor-profile`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // --- 4. DANH MỤC KHÁM (PUBLIC & ADMIN) ---
   async getMedicalCenters() {
     return request<any[]>("/medical-centers");
@@ -472,6 +488,7 @@ export const api = {
     transactionRef?: string;
     amount?: number;
     paymentType?: 'DEPOSIT' | 'FULL' | string;
+    promoCode?: string;
   }) {
     return request<{
       success: boolean;
@@ -480,6 +497,7 @@ export const api = {
       bookingCode: string;
       amountPaid: number;
       paymentType: string;
+      promoCode?: string;
     }>('/payments/confirm', {
       method: 'POST',
       body: JSON.stringify(payload),

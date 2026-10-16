@@ -47,7 +47,6 @@ public class DoctorPrescriptionService {
     private final UserJpaRepository userRepository;
     private final PatientProfileJpaRepository patientProfileRepository;
     private final TimeSlotJpaRepository timeSlotRepository;
-    private final AppointmentReconciliationService reconciliationService;
 
     private Clock clock = Clock.system(VN_ZONE);
 
@@ -62,8 +61,7 @@ public class DoctorPrescriptionService {
                                    DoctorJpaRepository doctorRepository,
                                    UserJpaRepository userRepository,
                                    PatientProfileJpaRepository patientProfileRepository,
-                                   TimeSlotJpaRepository timeSlotRepository,
-                                   AppointmentReconciliationService reconciliationService) {
+                                   TimeSlotJpaRepository timeSlotRepository) {
         this.appointmentRepository = appointmentRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionItemRepository = prescriptionItemRepository;
@@ -72,7 +70,6 @@ public class DoctorPrescriptionService {
         this.userRepository = userRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.timeSlotRepository = timeSlotRepository;
-        this.reconciliationService = reconciliationService;
     }
 
     /**
@@ -389,11 +386,8 @@ public class DoctorPrescriptionService {
         return getDoctorQueue(userId, queryDoctorId, null);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<DoctorPrescriptionDtos.QueuePatientDto> getDoctorQueue(String userId, String queryDoctorId, LocalDate queryDate) {
-        // Tự động kết toán các ca của ngày cũ trước khi lấy hàng đợi hôm nay
-        reconciliationService.reconcileStaleAppointments();
-
         String targetDoctorId = queryDoctorId;
         boolean isAllDoctors = false;
         if (targetDoctorId == null || targetDoctorId.isBlank()) {

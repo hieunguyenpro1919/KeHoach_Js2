@@ -14,6 +14,13 @@ spring:
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 25
+      minimum-idle: 5
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 5000
 
   # Chỉ định rõ ràng MySQLDialect để Hibernate không cần thăm dò JDBC metadata khi start
   # Tránh lỗi: Unable to determine Dialect without JDBC metadata
@@ -68,3 +75,9 @@ app:
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 86400
+
+payos:
+  client-id: ${PAYOS_CLIENT_ID:1b71d68a-2a61-483e-ba37-37796a1d7c15}
+  api-key: ${PAYOS_API_KEY:bdab1958-4c37-4e90-be31-12e023420b9e}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:7fa7c5162474d08eac1c0d100d5d95ebd3fbc1182be5b8ad5dff80e601170199}
+

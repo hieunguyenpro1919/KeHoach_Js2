@@ -105,7 +105,7 @@ export default function MyAppointmentsView() {
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchedAppointment, setSearchedAppointment] = useState<AppointmentResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED'>('ALL');
   
   // QR Modal state
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
@@ -386,6 +386,13 @@ export default function MyAppointmentsView() {
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
+      case 'PENDING':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Chờ Đặt Cọc (2.000đ)
+          </span>
+        );
       case 'CONFIRMED':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -412,6 +419,13 @@ export default function MyAppointmentsView() {
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
             <X size={13} className="text-rose-600" />
             Đã Hủy Lịch
+          </span>
+        );
+      case 'MISSED_NO_SHOW':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+            <AlertCircle size={13} className="text-amber-600" />
+            Quá Hạn / Vắng Mặt
           </span>
         );
       default:
@@ -528,23 +542,47 @@ export default function MyAppointmentsView() {
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {[
               { key: 'ALL', label: 'Tất Cả Phiếu Khám' },
+              { key: 'PENDING', label: 'Chờ Chuyển Cọc' },
               { key: 'CONFIRMED', label: 'Sắp Tới (Đã Xác Nhận)' },
               { key: 'CHECKED_IN', label: 'Đã Tiếp Nhận Quầy' },
               { key: 'COMPLETED', label: 'Đã Hoàn Tất' },
               { key: 'CANCELLED', label: 'Đã Hủy Lịch' },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  activeTab === tab.key
-                    ? 'bg-pine-teal text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:text-pine-teal hover:bg-mint-soft border border-mint-light'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              const count = tab.key === 'ALL'
+                ? appointments.length
+                : appointments.filter((a) => a.status === tab.key).length;
+
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as any)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === tab.key
+                      ? tab.key === 'PENDING'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-pine-teal text-white shadow-xs'
+                      : tab.key === 'PENDING' && count > 0
+                      ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300'
+                      : 'bg-white text-slate-600 hover:text-pine-teal hover:bg-mint-soft border border-mint-light'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                        activeTab === tab.key
+                          ? 'bg-white/20 text-white'
+                          : tab.key === 'PENDING'
+                          ? 'bg-amber-200 text-amber-900 font-bold'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -611,7 +649,7 @@ export default function MyAppointmentsView() {
         {!loading && displayList.length > 0 && (
           <div className="space-y-4">
             {displayList.map((apt) => {
-              const doctorTitle = apt.doctorName || 'Bác sĩ chuyên khoa';
+              const doctorTitle = cleanDoctorFullName(apt.doctorName) || 'Bác sĩ chuyên khoa';
               const specialty = apt.specialtyName || 'Chuyên khoa';
               const room = apt.roomNumber || 'Phòng khám chuyên khoa';
               const center = apt.medicalCenterName || 'Phòng khám MedSched';
@@ -726,8 +764,16 @@ export default function MyAppointmentsView() {
 
                     {/* Right Actions & QR Voucher Button (1 Col) */}
                     <div className="flex flex-col gap-2 p-3 sm:p-4 bg-mint-soft/50 rounded-2xl border border-mint-light w-full">
-                      {/* Interactive Button: Nếu COMPLETED -> Xem Đơn Thuốc, nếu chưa -> Mã QR Check-in Quầy */}
-                      {apt.status === 'COMPLETED' ? (
+                      {/* Interactive Button: Nếu PENDING -> Nút Chuyển Cọc, nếu COMPLETED -> Xem Đơn Thuốc, nếu MISSED/CANCELLED -> Đặt Lại Lịch Mới, nếu chưa -> Mã QR Check-in Quầy */}
+                      {apt.status === 'PENDING' ? (
+                        <button
+                          onClick={() => setPayingApt(apt)}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-700 hover:from-amber-600 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition group cursor-pointer animate-pulse"
+                        >
+                          <CreditCard size={16} className="text-white group-hover:scale-110 transition" />
+                          <span>Chuyển Tiền Cọc Ngay (2.000 đ)</span>
+                        </button>
+                      ) : apt.status === 'COMPLETED' ? (
                         <button
                           onClick={() => handleOpenPrescription(apt)}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition group cursor-pointer"
@@ -735,6 +781,14 @@ export default function MyAppointmentsView() {
                           <Pill size={16} className="text-white group-hover:scale-110 transition" />
                           <span>Xem Đơn Thuốc &amp; Kết Quả</span>
                         </button>
+                      ) : apt.status === 'MISSED_NO_SHOW' || apt.status === 'CANCELLED' ? (
+                        <Link
+                          href="/booking"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition group cursor-pointer"
+                        >
+                          <Calendar size={16} className="text-slate-500 group-hover:scale-110 transition" />
+                          <span>Đặt Ca Khám Mới</span>
+                        </Link>
                       ) : (
                         <button
                           onClick={() => setSelectedAppointment(apt)}
@@ -746,7 +800,7 @@ export default function MyAppointmentsView() {
                       )}
 
                       {/* Secondary Action Buttons Grid */}
-                      <div className={`grid ${apt.status === 'CONFIRMED' ? 'grid-cols-3' : 'grid-cols-1'} gap-1.5 w-full`}>
+                      <div className={`grid ${apt.status === 'CONFIRMED' ? 'grid-cols-3' : apt.status === 'PENDING' ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5 w-full`}>
                         <button
                           onClick={() => handlePrint(apt)}
                           className="flex items-center justify-center gap-1 px-2 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs shadow-2xs transition cursor-pointer"
@@ -755,6 +809,17 @@ export default function MyAppointmentsView() {
                           <Printer size={13} />
                           <span>In Phiếu</span>
                         </button>
+
+                        {apt.status === 'PENDING' && (
+                          <button
+                            onClick={() => setCancelingAppointment(apt)}
+                            className="flex items-center justify-center gap-1 px-2 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                            title="Hủy phiếu hẹn chưa cọc này"
+                          >
+                            <X size={13} />
+                            <span>Hủy Lịch</span>
+                          </button>
+                        )}
 
                         {apt.status === 'CONFIRMED' && (
                           <>
@@ -779,7 +844,9 @@ export default function MyAppointmentsView() {
                       </div>
 
                       <div className="text-[10px] sm:text-[11px] text-center text-slate-400 pt-0.5 leading-tight">
-                        Quét mã QR tại Quầy Tiếp Đón để vào khám không cần bốc số
+                        {apt.status === 'PENDING'
+                          ? 'Vui lòng hoàn tất đặt cọc 2.000đ để giữ chắc chắn khung giờ khám'
+                          : 'Quét mã QR tại Quầy Tiếp Đón để vào khám không cần bốc số'}
                       </div>
                     </div>
                   </div>
@@ -847,20 +914,9 @@ export default function MyAppointmentsView() {
                   size={192}
                   className="mx-auto rounded-lg shadow-xs"
                 />
-                <span className="text-[10px] text-emerald-600 font-bold block">
-                  ✓ Mã QR chuẩn thông minh (quét bằng camera điện thoại để check-in tức thì)
+                <span className="text-[11px] text-slate-500 font-medium block">
+                  Xuất trình mã QR này tại quầy tiếp đón phòng khám
                 </span>
-                <div className="pt-1 flex items-center justify-center gap-2">
-                  <a
-                    href={`/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-200 transition"
-                  >
-                    <ExternalLink size={12} />
-                    <span>Mở trang Tiếp Đón (Test ngay)</span>
-                  </a>
-                </div>
               </div>
 
               {/* VietQR Payment Button */}
@@ -1300,8 +1356,10 @@ export default function MyAppointmentsView() {
           patientName={payingApt.patientName || 'Bệnh nhân'}
           description={`Thanh toán viện phí phiếu hẹn ${payingApt.bookingCode}`}
           onConfirmSuccess={() => {
+            const confirmedCode = payingApt.bookingCode;
             setPayingApt(null);
             fetchAppointments();
+            setRescheduleSuccessMsg(`✅ Đã xác nhận chuyển tiền đặt cọc thành công cho phiếu "${confirmedCode}"! Ca khám của bạn đã được chuyển sang trạng thái "Đã Xác Nhận".`);
           }}
         />
       )}

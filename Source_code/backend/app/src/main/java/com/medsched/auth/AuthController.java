@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final ZaloOtpService zaloOtpService;
+    private final RegistrationOtpService registrationOtpService;
 
-    public AuthController(AuthService authService, ZaloOtpService zaloOtpService) {
+    public AuthController(AuthService authService, RegistrationOtpService registrationOtpService) {
         this.authService = authService;
-        this.zaloOtpService = zaloOtpService;
+        this.registrationOtpService = registrationOtpService;
     }
 
     /** Customer - Register trực tiếp không qua OTP (Legacy/Internal API). */
@@ -27,22 +27,22 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
-    /** BƯỚC 1: Yêu cầu gửi mã OTP 4 số qua Zalo/Email để đăng ký. */
+    /** BƯỚC 1: Yêu cầu gửi mã OTP 4 số qua Email để đăng ký. */
     @PostMapping("/request-otp")
-    public ResponseEntity<ZaloOtpDtos.RequestOtpResponse> requestOtp(@Valid @RequestBody ZaloOtpDtos.RequestOtpRequest request) {
-        return ResponseEntity.ok(zaloOtpService.requestOtp(request));
+    public ResponseEntity<RegistrationOtpDtos.RequestOtpResponse> requestOtp(@Valid @RequestBody RegistrationOtpDtos.RequestOtpRequest request) {
+        return ResponseEntity.ok(registrationOtpService.requestOtp(request));
     }
 
     /** BƯỚC 2: Xác thực mã OTP 4 số và tạo tài khoản chính thức. */
     @PostMapping("/verify-otp")
-    public ResponseEntity<AuthDtos.AuthResponse> verifyOtp(@Valid @RequestBody ZaloOtpDtos.VerifyOtpRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(zaloOtpService.verifyOtp(request));
+    public ResponseEntity<AuthDtos.AuthResponse> verifyOtp(@Valid @RequestBody RegistrationOtpDtos.VerifyOtpRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(registrationOtpService.verifyOtp(request));
     }
 
-    /** BƯỚC 3: Gửi lại mã OTP qua Zalo/Email. */
+    /** BƯỚC 3: Gửi lại mã OTP qua Email. */
     @PostMapping("/resend-otp")
-    public ResponseEntity<ZaloOtpDtos.ResendOtpResponse> resendOtp(@Valid @RequestBody ZaloOtpDtos.ResendOtpRequest request) {
-        return ResponseEntity.ok(zaloOtpService.resendOtp(request));
+    public ResponseEntity<RegistrationOtpDtos.ResendOtpResponse> resendOtp(@Valid @RequestBody RegistrationOtpDtos.ResendOtpRequest request) {
+        return ResponseEntity.ok(registrationOtpService.resendOtp(request));
     }
 
     /** One login endpoint shared by Customer / Doctor / Staff / Admin. */

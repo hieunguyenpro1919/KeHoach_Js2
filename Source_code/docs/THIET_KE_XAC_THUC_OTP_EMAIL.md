@@ -1,9 +1,9 @@
 # TÀI LIỆU THIẾT KẾ KIẾN TRÚC & ĐẶC TẢ TÍNH NĂNG
-# XÁC THỰC MÃ OTP 4 CHỮ SỐ QUA ZALO KHI ĐĂNG KÝ TÀI KHOẢN
+# XÁC THỰC MÃ OTP 4 CHỮ SỐ QUA EMAIL KHI ĐĂNG KÝ TÀI KHOẢN
 
 **Hệ Thống Đặt Lịch Khám Bệnh MedSched**  
-*Mã tài liệu: MEDSCHED-DESIGN-ZALO-OTP-v1.0*  
-*Trạng thái: Đặc tả kiến trúc kỹ thuật & Sơ đồ luồng (Architecture Specification & Sequence Diagram)*
+*Mã tài liệu: MEDSCHED-DESIGN-EMAIL-OTP-v1.0*  
+*Trạng thái: Đã triển khai chính thức qua Brevo HTTP API & Gmail SMTP*
 
 ---
 

@@ -174,6 +174,38 @@ public class AdminUserService {
         return toSummary(user);
     }
 
+    /** Cập nhật thông tin chuyên môn / phân buồng khám cho tài khoản Bác sĩ. */
+    @Transactional
+    public AdminDtos.UserSummary updateDoctorProfile(String userId, AdminDtos.UpdateDoctorProfileRequest req, String actorId) {
+        UserEntity user = requireUser(userId);
+        List<DoctorEntity> docList = doctors.findByUserId(userId);
+        if (docList.isEmpty()) {
+            throw new AppExceptions.NotFoundException("Tài khoản này chưa có hồ sơ Bác sĩ");
+        }
+        DoctorEntity doc = docList.get(0);
+        if (req.roomNumber() != null) {
+            doc.setRoomNumber(blankToNull(req.roomNumber().trim().toUpperCase()));
+        }
+        if (req.specialtyId() != null && !req.specialtyId().isBlank()) {
+            specialties.findById(req.specialtyId())
+                    .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy chuyên khoa"));
+            doc.setSpecialtyId(req.specialtyId());
+        }
+        if (req.academicTitle() != null) {
+            doc.setAcademicTitle(blankToNull(req.academicTitle()));
+        }
+        if (req.consultationFee() != null) {
+            doc.setConsultationFee(req.consultationFee());
+        }
+        if (req.bio() != null) {
+            doc.setBio(blankToNull(req.bio()));
+        }
+        doc.setUpdatedAt(Instant.now());
+        doc.setUpdatedBy(actorId);
+        doctors.save(doc);
+        return toSummary(user);
+    }
+
     private UserEntity createUser(String email, String rawPassword, String fullName, String phone, String actorId) {
         String normalized = email.trim().toLowerCase();
         if (users.existsByEmail(normalized)) {

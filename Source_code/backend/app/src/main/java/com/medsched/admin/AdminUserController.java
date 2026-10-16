@@ -95,4 +95,12 @@ public class AdminUserController {
         return adminUserService.revokeRole(userId, assignmentId, principal.getUserId());
     }
 
+    /** Cập nhật buồng khám và thông tin chuyên môn của bác sĩ. */
+    @PatchMapping("/{userId}/doctor-profile")
+    public AdminDtos.UserSummary updateDoctorProfile(@AuthenticationPrincipal AppUserDetails principal,
+                                                     @PathVariable String userId,
+                                                     @Valid @RequestBody AdminDtos.UpdateDoctorProfileRequest request) {
+        return adminUserService.updateDoctorProfile(userId, request, principal.getUserId());
+    }
+
 }

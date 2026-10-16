@@ -47,3 +47,11 @@ dependencies {
 tasks.named('bootJar') {
     archiveFileName = 'medsched-app.jar'
 }
+
+tasks.named('bootRun') {
+    jvmArgs = [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8"
+    ]
+}

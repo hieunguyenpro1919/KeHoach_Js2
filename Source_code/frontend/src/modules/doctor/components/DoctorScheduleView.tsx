@@ -9,28 +9,20 @@ import {
   Trash2, 
   Lock, 
   Unlock, 
-  Stethoscope, 
   CheckCircle2, 
   AlertCircle, 
   RefreshCw, 
   CalendarDays,
   UserCheck,
-  Building2,
   Sparkles,
   ChevronRight,
   ChevronLeft,
-  Lightbulb,
-  HelpCircle,
   Info,
-  MousePointerClick,
-  ArrowRight,
   X,
   DoorOpen,
-  LayoutGrid,
-  ListFilter
+  LayoutGrid
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
-import { formatDoctorFullName } from '@/shared/lib/formatters';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
 
 interface TimeSlotDto {
@@ -57,6 +49,16 @@ interface DoctorScheduleDto {
   slots: TimeSlotDto[];
 }
 
+// Tìm ngày làm việc hợp lệ tiếp theo (bắt đầu từ ngày mai trở đi, tự động bỏ qua T7 & CN)
+const getNextValidWorkingDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+};
+
 export default function DoctorScheduleView() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [schedules, setSchedules] = useState<DoctorScheduleDto[]>([]);
@@ -64,14 +66,17 @@ export default function DoctorScheduleView() {
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Modal tạo ca trực mới
+  // Modal tạo ca trực mới (mặc định chọn ngày làm việc hợp lệ tiếp theo từ ngày mai)
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [workDate, setWorkDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [workDate, setWorkDate] = useState<string>(() => getNextValidWorkingDate());
   const [startTime, setStartTime] = useState<string>('08:00');
   const [endTime, setEndTime] = useState<string>('12:00');
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [submitting, setSubmitting] = useState(false);
   const [activePreset, setActivePreset] = useState<'MORNING' | 'AFTERNOON' | 'FULL_DAY' | null>('MORNING');
+
+  // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
+  const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
 
   // Danh mục phòng trực do Admin phê duyệt và phòng được chọn
   const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
@@ -115,14 +120,11 @@ export default function DoctorScheduleView() {
   // Kích hoạt thử nghiệm tác vụ Auto-Schedule 17h
   const [triggeringAutoSchedule, setTriggeringAutoSchedule] = useState<boolean>(false);
 
-  // Toggle hướng dẫn sử dụng nhanh
-  const [showGuide, setShowGuide] = useState(true);
 
-  // Chế độ xem: Ma Trận Tuần (Weekly Matrix) vs Danh Sách Chi Tiết (List)
-  const [viewMode, setViewMode] = useState<'matrix' | 'list'>('matrix');
+  // Điều hướng tuần ma trận lịch trực
   const [currentWeekOffset, setCurrentWeekOffset] = useState<number>(0);
 
-  // Tính toán 7 ngày trong tuần theo offset
+  // Tính toán 5 ngày làm việc trong tuần (Thứ 2 đến Thứ 6) theo offset
   const getWeekDays = (offsetWeeks: number = 0) => {
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday...
@@ -130,11 +132,11 @@ export default function DoctorScheduleView() {
     const monday = new Date(now);
     monday.setDate(now.getDate() + distanceToMonday + offsetWeeks * 7);
 
-    const days: Array<{ dateStr: string; displayDay: string; displayDate: string; isToday: boolean; isWeekend: boolean }> = [];
-    const dayNames = ['Thứ 2 (T2)', 'Thứ 3 (T3)', 'Thứ 4 (T4)', 'Thứ 5 (T5)', 'Thứ 6 (T6)', 'Thứ 7 (T7)', 'Chủ Nhật (CN)'];
+    const days: Array<{ dateStr: string; displayDay: string; displayDate: string; isToday: boolean }> = [];
+    const dayNames = ['Thứ 2 (T2)', 'Thứ 3 (T3)', 'Thứ 4 (T4)', 'Thứ 5 (T5)', 'Thứ 6 (T6)'];
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       const dateStr = d.toISOString().slice(0, 10);
@@ -145,7 +147,6 @@ export default function DoctorScheduleView() {
         displayDay: dayNames[i],
         displayDate: `${day}/${month}`,
         isToday: dateStr === todayStr,
-        isWeekend: i === 5 || i === 6,
       });
     }
     return days;
@@ -176,6 +177,11 @@ export default function DoctorScheduleView() {
       availableSlots: totalSlots - totalBooked,
     };
   }, [weekSchedules]);
+
+  const activeScheduleForSlots = useMemo(() => {
+    if (!selectedScheduleForSlots) return null;
+    return schedules.find((s) => s.id === selectedScheduleForSlots.id) || selectedScheduleForSlots;
+  }, [selectedScheduleForSlots, schedules]);
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -255,10 +261,8 @@ export default function DoctorScheduleView() {
   }, [showCreateModal, workDate, startTime, endTime, checkOccupancy]);
 
   const handleOpenCreateModal = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-    setWorkDate(tomorrowStr);
+    const nextDate = getNextValidWorkingDate();
+    setWorkDate(nextDate);
     setStartTime('08:00');
     setEndTime('12:00');
     setActivePreset('MORNING');
@@ -309,6 +313,13 @@ export default function DoctorScheduleView() {
     // Quy định giáo viên: Chỉ được đăng ký trước tối thiểu 1 ngày
     if (workDate <= todayStr) {
       setError('Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay được hệ thống tự động xếp lịch.');
+      return;
+    }
+
+    const selDate = new Date(workDate + 'T00:00:00');
+    const dow = selDate.getDay();
+    if (dow === 0 || dow === 6) {
+      setError('Phòng khám chỉ tiếp nhận khám từ Thứ 2 đến Thứ 6. Không thể đăng ký ca trực vào Thứ 7 hoặc Chủ Nhật.');
       return;
     }
 
@@ -506,90 +517,7 @@ export default function DoctorScheduleView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* ── Sub Navigation: Buồng Khám vs Lịch Trực ── */}
-      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200 w-fit shadow-2xs">
-        <Link
-          href="/doctor"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition text-slate-600 hover:text-slate-900 cursor-pointer"
-        >
-          <Stethoscope size={15} />
-          <span>Buồng Khám Lâm Sàng</span>
-        </Link>
 
-        <Link
-          href="/doctor/schedule"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition bg-white text-teal-900 shadow-xs border border-slate-200 cursor-pointer"
-        >
-          <CalendarDays size={15} />
-          <span>Quản Lý Lịch Trực &amp; Khung Giờ Khám</span>
-        </Link>
-      </div>
-
-      {/* ── Banner Quản Lý Lịch Trực ── */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-teal-700 text-xs font-bold uppercase tracking-wider">
-            <CalendarDays size={16} />
-            <span>Phân Hệ Quản Lý Lịch Trực &amp; Khung Giờ Khám</span>
-          </div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-            {formatDoctorFullName(currentUser?.academicTitle || 'BS.CKII', currentUser?.fullName || 'Nguyễn Minh Anh')}
-          </h1>
-          <p className="text-xs text-slate-500">
-            Bác sĩ chủ động đăng ký ca trực tuần, mở/khóa các khung giờ khám và theo dõi mật độ đặt lịch của người bệnh.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={loadSchedules}
-            disabled={loading}
-            className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            title="Làm mới lịch trực"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleTriggerAutoSchedule}
-            disabled={triggeringAutoSchedule}
-            className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
-            title="Thử nghiệm tác vụ tự động xếp lịch ngày mai (Mô phỏng Cron 17:00)"
-          >
-            <RefreshCw size={14} className={triggeringAutoSchedule ? 'animate-spin text-amber-700' : 'text-amber-600'} />
-            <span>Mô Phỏng Auto 17:00 Ngày Mai</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="px-4 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-md shadow-teal-700/20 flex items-center gap-2 cursor-pointer"
-          >
-            <PlusCircle size={15} />
-            <span>Đăng Ký Ca Trực Mới</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Banner Quy định 17h & Chỉnh sửa trước 24h & Hủy ca khẩn cấp (Phương Án 2) ── */}
-      <div className="p-4 bg-gradient-to-r from-amber-50/90 via-teal-50/40 to-slate-50 border border-amber-200/90 rounded-2xl text-xs text-slate-700 flex items-start gap-3 shadow-2xs">
-        <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="font-extrabold text-slate-800 flex items-center gap-2 flex-wrap">
-            <span>Cơ Chế Xếp Lịch Tự Động 17:00 Hàng Ngày &amp; Thời Gian Ân Hạn</span>
-            <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
-              Quy tắc chuẩn phòng khám
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            • <strong>17:00 hằng ngày:</strong> Nếu Bác sĩ chưa đăng ký ca trực cho ngày mai, hệ thống sẽ <strong>tự động xếp lịch chuẩn</strong> (Ca sáng 8h-12h, Ca chiều 13h30-17h) để mở bán khung giờ cho người bệnh đặt lịch trực tuyến vào buổi tối.<br />
-            • <strong>Trước 00:00:00:</strong> Bác sĩ có toàn quyền vào khóa/mở slot, đổi buồng khám hoặc hủy ca.<br />
-            • <strong>Hủy ca khi đã có bệnh nhân (Phương Án 2):</strong> Bác sĩ được quyền hủy nếu có sự cố bất khả kháng, hệ thống yêu cầu nhập lý do và tự động điều phối bệnh nhân sang Bác sĩ cùng chuyên khoa hoặc chuyển Lễ tân ưu tiên hỗ trợ.
-          </p>
-        </div>
-      </div>
 
       {/* ── Thông báo ── */}
       {notification && (
@@ -636,160 +564,76 @@ export default function DoctorScheduleView() {
         </div>
       </div>
 
-      {/* ── Bảng Hướng Dẫn & Chú Thích Trạng Thái Dành Cho Người Dùng ── */}
-      <div className="bg-gradient-to-r from-teal-50/90 via-emerald-50/60 to-sky-50/90 border border-teal-200/90 rounded-2xl p-5 shadow-xs space-y-3.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs">
-              <Lightbulb size={18} />
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold text-teal-950 flex items-center gap-2">
-                Ý Nghĩa &amp; Cách Vận Hành Của Phân Hệ Lịch Trực Bác Sĩ
-              </h2>
-              <p className="text-xs text-teal-800/80">
-                Bác sĩ chủ động điều phối ca làm việc và mở/khóa các khung giờ khám trực tuyến mà không cần qua quản trị viên.
-              </p>
-            </div>
+
+      {/* ── Thanh Điều Hướng Tuần & Đăng Ký Ca Trực ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
+            <LayoutGrid size={16} />
           </div>
-          <button
-            type="button"
-            onClick={() => setShowGuide(!showGuide)}
-            className="text-xs font-bold text-teal-800 hover:text-teal-950 px-3 py-1.5 rounded-xl border border-teal-300 bg-white/90 hover:bg-white transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
-          >
-            <HelpCircle size={14} className="text-teal-600" />
-            <span>{showGuide ? 'Thu gọn hướng dẫn' : 'Xem hướng dẫn'}</span>
-          </button>
+          <div>
+            <span className="text-xs font-extrabold text-slate-800 block">Ma Trận Ca Trực Theo Tuần</span>
+            <span className="text-[11px] text-slate-500">Thứ 2 đến Thứ 6 • Quản lý trực tiếp trên giao diện</span>
+          </div>
         </div>
 
-        {showGuide && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-teal-200/60 animate-in fade-in duration-200 text-xs">
-            <div className="bg-white/95 p-3.5 rounded-xl border border-teal-100 shadow-2xs space-y-1">
-              <div className="font-bold text-teal-900 flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-black flex items-center justify-center shrink-0">1</span>
-                <span>Bác sĩ đăng ký ca trực</span>
-              </div>
-              <p className="text-slate-600 text-[11px] leading-relaxed">
-                Bấm nút <strong>&ldquo;Đăng Ký Ca Trực Mới&rdquo;</strong>, chọn ngày và khoảng giờ làm việc. Hệ thống tự động băm nhỏ thành các slot khám (mặc định 30 phút/slot).
-              </p>
-            </div>
+        {/* Bộ điều hướng tuần & Nút Đăng ký ca */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={loadSchedules}
+            disabled={loading}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            title="Làm mới lịch trực"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin text-teal-700' : ''} />
+          </button>
 
-            <div className="bg-white/95 p-3.5 rounded-xl border border-teal-100 shadow-2xs space-y-1">
-              <div className="font-bold text-teal-900 flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-black flex items-center justify-center shrink-0">2</span>
-                <span>Chủ động Khóa / Mở giờ</span>
-              </div>
-              <p className="text-slate-600 text-[11px] leading-relaxed">
-                Khung giờ màu xanh lá đang mở cho người bệnh đặt. Nếu bận đột xuất (hội chẩn, giao ban, nghỉ giải lao), Bác sĩ chỉ cần <strong>click vào khung giờ</strong> để <strong>TẠM KHÓA</strong> lại.
-              </p>
-            </div>
+          <button
+            type="button"
+            onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            title="Tuần trước"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          <span className="text-xs font-bold text-slate-800 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+            Tuần: {weekDays[0]?.displayDate} - {weekDays[weekDays.length - 1]?.displayDate}
+          </span>
 
-            <div className="bg-white/95 p-3.5 rounded-xl border border-teal-100 shadow-2xs space-y-1">
-              <div className="font-bold text-teal-900 flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-black flex items-center justify-center shrink-0">3</span>
-                <span>Tiếp nhận &amp; Khám bệnh</span>
-              </div>
-              <p className="text-slate-600 text-[11px] leading-relaxed">
-                Khung giờ có người bệnh đặt sẽ chuyển sang màu xanh dương. Bác sĩ bấm vào tab <strong>&ldquo;Buồng Khám Bác Sĩ&rdquo;</strong> ở trên để gọi bệnh nhân theo STT và kê đơn thuốc.
-              </p>
-            </div>
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            title="Tuần kế tiếp"
+          >
+            <ChevronRight size={16} />
+          </button>
 
-        {/* Chú thích màu sắc (Status Legend) */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-1 text-[11px]">
-          <span className="font-bold text-slate-800 flex items-center gap-1 shrink-0">
-            <Info size={14} className="text-teal-700" />
-            <span>Chú thích các màu sắc:</span>
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold">
-            <Unlock size={12} className="text-emerald-600" />
-            <span>Xanh lá: Còn trống (Người bệnh đang thấy &amp; đặt được)</span>
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 font-bold">
-            <Lock size={12} className="text-amber-600" />
-            <span>Vàng: Tạm khóa (Bác sĩ bận / Nghỉ giữa giờ)</span>
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-300 text-blue-800 font-bold">
-            <UserCheck size={12} className="text-blue-600" />
-            <span>Xanh dương: Đã có bệnh nhân đặt lịch</span>
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 font-bold">
-            <Clock size={12} className="text-slate-400" />
-            <span>Xám: Đã qua giờ khám trong ngày</span>
-          </span>
+          {currentWeekOffset !== 0 && (
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset(0)}
+              className="text-[11px] font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
+            >
+              Hôm nay
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="ml-1 sm:ml-2 px-3.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-sm shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98"
+            title="Mở cửa sổ tiện ích đăng ký ca trực"
+          >
+            <PlusCircle size={14} />
+            <span>Đăng Ký Ca Mới</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Thanh Điều Hướng Chế Độ Xem: Ma Trận Tuần vs Danh Sách Chi Tiết ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-        {/* Segmented Control */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-          <button
-            type="button"
-            onClick={() => setViewMode('matrix')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              viewMode === 'matrix'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <LayoutGrid size={14} />
-            <span>Ma Trận Ca Trực Theo Tuần</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('list')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              viewMode === 'list'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ListFilter size={14} />
-            <span>Danh Sách Chi Tiết ({schedules.length} ca)</span>
-          </button>
-        </div>
-
-        {/* Tuần điều hướng khi ở chế độ Ma Trận */}
-        {viewMode === 'matrix' && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              title="Tuần trước"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <span className="text-xs font-bold text-slate-800 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
-              Tuần: {weekDays[0].displayDate} - {weekDays[6].displayDate}
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              title="Tuần kế tiếp"
-            >
-              <ChevronRight size={16} />
-            </button>
-
-            {currentWeekOffset !== 0 && (
-              <button
-                type="button"
-                onClick={() => setCurrentWeekOffset(0)}
-                className="text-[11px] font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
-              >
-                Hôm nay
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Khối Nội Dung Chính (Loading / Empty / Matrix / List) ── */}
+      {/* ── Khối Nội Dung Chính (Loading / Empty / Ma Trận Tuần) ── */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
@@ -801,11 +645,11 @@ export default function DoctorScheduleView() {
             <Calendar size={36} className="mx-auto text-slate-300" />
             <h3 className="font-bold text-slate-700 text-sm">Chưa có ca trực nào được đăng ký</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Bác sĩ bấm vào nút <strong>&ldquo;Đăng Ký Ca Trực Mới&rdquo;</strong> ở trên để mở lịch khám cho bệnh nhân.
+              Bác sĩ bấm vào nút <strong>&ldquo;Đăng Ký Ca Mới&rdquo;</strong> ở trên để mở lịch khám cho bệnh nhân.
             </p>
           </div>
-        ) : viewMode === 'matrix' ? (
-          /* ── Chế độ 1: Ma Trận Ca Trực Theo Tuần (Chuẩn Ảnh 4) ── */
+        ) : (
+          /* ── Ma Trận Ca Trực Theo Tuần ── */
           <div className="space-y-4">
             {/* Header tóm tắt chỉ số tuần */}
             <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
@@ -818,7 +662,7 @@ export default function DoctorScheduleView() {
                     Tổng Quan Ca Trực Tuần Này
                   </span>
                   <div className="text-sm sm:text-base font-extrabold text-white">
-                    Từ {weekDays[0].displayDay} ({weekDays[0].displayDate}) đến {weekDays[6].displayDay} ({weekDays[6].displayDate})
+                    Từ {weekDays[0]?.displayDay} ({weekDays[0]?.displayDate}) đến {weekDays[weekDays.length - 1]?.displayDay} ({weekDays[weekDays.length - 1]?.displayDate})
                   </div>
                 </div>
               </div>
@@ -843,9 +687,10 @@ export default function DoctorScheduleView() {
               </div>
             </div>
 
-            {/* Lưới 7 Cột Ma Trận Tuần (Thứ 2 - Chủ Nhật) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 items-stretch">
+            {/* Lưới 5 Cột Ma Trận Tuần (Thứ 2 - Thứ 6) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 items-stretch">
               {weekDays.map((day) => {
+                const todayStr = new Date().toISOString().slice(0, 10);
                 const daySchedules = schedules.filter((s) => s.workDate === day.dateStr);
 
                 return (
@@ -858,23 +703,40 @@ export default function DoctorScheduleView() {
                     }`}
                   >
                     {/* Header Cột Ngày */}
-                    <div className={`p-2.5 text-center border-b ${
+                    <div className={`p-2.5 border-b ${
                       day.isToday
                         ? 'bg-teal-700 text-white font-extrabold'
-                        : day.isWeekend
-                        ? 'bg-slate-100/90 text-slate-500 font-semibold'
                         : 'bg-slate-50 text-slate-700 font-bold'
                     }`}>
-                      <div className="text-xs">{day.displayDay}</div>
-                      <div className="text-sm font-black mt-0.5">{day.displayDate}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <div className="text-xs">{day.displayDay}</div>
+                          <div className="text-sm font-black mt-0.5">{day.displayDate}</div>
+                        </div>
+
+                        {/* Nút + thêm ca trực tiếp tại cột ngày làm việc tương lai */}
+                        {day.dateStr > todayStr && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWorkDate(day.dateStr);
+                              setStartTime('08:00');
+                              setEndTime('12:00');
+                              setActivePreset('MORNING');
+                              setSelectedRoom(currentUser?.roomNumber || 'P.208');
+                              setShowCreateModal(true);
+                            }}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition flex items-center gap-1 cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                            title={`Đăng ký ca trực cho ngày ${day.displayDay} (${day.displayDate})`}
+                          >
+                            <PlusCircle size={11} className="text-teal-700" />
+                            <span>Thêm ca</span>
+                          </button>
+                        )}
+                      </div>
                       {day.isToday && (
                         <span className="text-[9px] uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full mt-1 inline-block">
                           Hôm nay
-                        </span>
-                      )}
-                      {day.isWeekend && !day.isToday && (
-                        <span className="text-[9px] uppercase tracking-wider bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full mt-1 inline-block font-bold">
-                          Nghỉ
                         </span>
                       )}
                     </div>
@@ -882,30 +744,49 @@ export default function DoctorScheduleView() {
                     {/* Danh sách ca trực trong ngày */}
                     <div className="p-2.5 flex-1 flex flex-col gap-2.5">
                       {daySchedules.length === 0 ? (
-                        day.isWeekend ? (
-                          <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/70 text-slate-400 space-y-1">
-                            <span className="text-xs font-bold text-slate-400">Nghỉ cuối tuần</span>
-                            <span className="text-[10px] text-slate-400 leading-tight">Phòng khám không hoạt động T7 &amp; CN</span>
-                          </div>
-                        ) : (
-                          <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 space-y-2">
-                            <span className="text-[11px] font-medium">Trống ca trực</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setWorkDate(day.dateStr);
-                                setStartTime('08:00');
-                                setEndTime('12:00');
-                                setActivePreset('MORNING');
-                                setSelectedRoom(currentUser?.roomNumber || 'P.208');
-                                setShowCreateModal(true);
-                              }}
-                              className="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                            >
-                              + Mở ca ngày này
-                            </button>
-                          </div>
-                        )
+                        (() => {
+                          const todayStr = new Date().toISOString().slice(0, 10);
+                          const isPast = day.dateStr < todayStr;
+                          const isToday = day.dateStr === todayStr;
+
+                          if (isPast) {
+                            return (
+                              <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 space-y-1 bg-slate-50/50">
+                                <span className="text-[11px] font-medium text-slate-400">Trống ca trực</span>
+                                <span className="text-[10px] text-slate-400 italic">Đã qua</span>
+                              </div>
+                            );
+                          }
+
+                          if (isToday) {
+                            return (
+                              <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-teal-200 rounded-xl text-teal-700/70 space-y-1 bg-teal-50/20">
+                                <span className="text-[11px] font-semibold text-teal-800">Trống ca trực</span>
+                                <span className="text-[10px] text-slate-500 italic">Đã chốt lịch hôm nay</span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex-1 flex flex-col items-center justify-center p-3 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 space-y-2">
+                              <span className="text-[11px] font-medium">Trống ca trực</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setWorkDate(day.dateStr);
+                                  setStartTime('08:00');
+                                  setEndTime('12:00');
+                                  setActivePreset('MORNING');
+                                  setSelectedRoom(currentUser?.roomNumber || 'P.208');
+                                  setShowCreateModal(true);
+                                }}
+                                className="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                              >
+                                + Mở ca ngày này
+                              </button>
+                            </div>
+                          );
+                        })()
                       ) : (
                         daySchedules.map((sch) => {
                           const isMorning = sch.startTime < '12:00' && sch.endTime <= '13:00';
@@ -972,6 +853,7 @@ export default function DoctorScheduleView() {
                               {(() => {
                                 const todayStr = new Date().toISOString().slice(0, 10);
                                 const isToday = sch.workDate === todayStr;
+                                const isPast = sch.workDate < todayStr;
                                 const displayStart = sch.slots && sch.slots.length > 0 ? sch.slots[0].startTime : sch.startTime;
                                 const displayEnd = sch.slots && sch.slots.length > 0 ? sch.slots[sch.slots.length - 1].endTime : sch.endTime;
                                 const isDiscrepancy = sch.startTime === '08:00' && sch.endTime === '17:00' && sch.totalSlots < 18;
@@ -1013,18 +895,21 @@ export default function DoctorScheduleView() {
                                     <div className="pt-1 flex items-center justify-between border-t border-black/5 text-[10px]">
                                       <button
                                         type="button"
-                                        onClick={() => setViewMode('list')}
-                                        className="font-bold text-teal-800 hover:underline cursor-pointer"
+                                        onClick={() => setSelectedScheduleForSlots(sch)}
+                                        className="font-bold text-teal-800 hover:text-teal-950 hover:underline cursor-pointer flex items-center gap-0.5"
+                                        title="Xem và quản lý các khung giờ của ca trực này"
                                       >
-                                        Xem {sch.slots.length} slots &gt;
+                                        <span>Xem {sch.slots.length} slots &gt;</span>
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteSchedule(sch)}
-                                        disabled={actionLoadingId === sch.id || sch.bookedSlots > 0 || isToday}
+                                        disabled={actionLoadingId === sch.id || sch.bookedSlots > 0 || isToday || isPast}
                                         className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5"
                                         title={
-                                          isToday
+                                          isPast
+                                            ? 'Ca trực trong quá khứ đã kết thúc'
+                                            : isToday
                                             ? 'Ca trực hôm nay đã chốt cố định, không thể xóa tùy tiện'
                                             : sch.bookedSlots > 0
                                             ? 'Đã có người đặt, không thể hủy'
@@ -1047,277 +932,246 @@ export default function DoctorScheduleView() {
               })}
             </div>
           </div>
-        ) : (
-          /* ── Chế độ 2: Danh Sách Chi Tiết Ca Trực & Khóa/Mở Từng Slot ── */
-          schedules.map((schedule) => (
-            <div key={schedule.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              {/* Header ca trực */}
-              <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0">
-                    <Calendar size={18} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-slate-800 text-sm">Ngày: {schedule.workDate}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                        {schedule.status}
-                      </span>
-                      {(() => {
-                        const todayStr = new Date().toISOString().slice(0, 10);
-                        const isToday = schedule.workDate === todayStr;
-                        const isFuture = schedule.workDate > todayStr;
-                        const roomLabel = schedule.roomNumber || currentUser?.roomNumber || 'P.208';
-
-                        if (isToday) {
-                          return (
-                            <span 
-                              className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs"
-                              title="Theo quy định bệnh viện: Buồng khám hôm nay đã được niêm yết trên phiếu hẹn và hệ thống gọi số tiếp đón. Bác sĩ chỉ được đổi phòng trước 1 ngày (trước 00:00:00)."
-                            >
-                              <Lock size={12} className="text-amber-700" />
-                              <span>Phòng {roomLabel}</span>
-                              <span className="text-[9px] bg-amber-200/90 text-amber-900 px-1.5 py-0.2 rounded font-extrabold uppercase">
-                                Đã chốt hôm nay
-                              </span>
-                            </span>
-                          );
-                        }
-
-                        if (isFuture) {
-                          return (
-                            <div className="flex items-center gap-1.5">
-                              <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
-                                <DoorOpen size={12} className="text-blue-600" />
-                                <span>Phòng {roomLabel}</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenChangeRoomModal(schedule)}
-                                className="text-[10px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
-                                title="Đổi buồng khám trước 1 ngày (trước 00:00:00)"
-                              >
-                                <RefreshCw size={10} />
-                                <span>Đổi buồng</span>
-                              </button>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <span className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
-                            <DoorOpen size={12} className="text-slate-400" />
-                            <span>Phòng {roomLabel} (Đã qua)</span>
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 font-medium">
-                      <span className="flex items-center gap-1 text-slate-700">
-                        <Clock size={12} className="text-teal-700" />
-                        Ca trực: {schedule.startTime} - {schedule.endTime}
-                      </span>
-                      <span>•</span>
-                      <span>{schedule.slotDurationMinutes} phút / slot</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 self-end sm:self-center">
-                  <div className="text-right text-xs">
-                    <span className="text-slate-500">Đã đặt: </span>
-                    <span className="font-bold text-blue-700">{schedule.bookedSlots}</span>
-                    <span className="text-slate-400"> / {schedule.totalSlots}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSchedule(schedule)}
-                    disabled={actionLoadingId === schedule.id || schedule.bookedSlots > 0}
-                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={schedule.bookedSlots > 0 ? 'Đã có bệnh nhân đặt lịch, không thể hủy' : 'Hủy ca trực này'}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Lưới các Time-slots con */}
-              <div className="p-4 sm:p-5">
-                <div className="text-xs font-bold text-slate-700 mb-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <span>Khung giờ tiếp nhận bệnh nhân ({schedule.slots.length} slots):</span>
-                  <span className="text-[11px] text-teal-800 font-semibold bg-teal-50/80 px-2.5 py-1 rounded-lg border border-teal-200 flex items-center gap-1.5 shadow-2xs">
-                    <MousePointerClick size={13} className="text-teal-600" />
-                    <span>Click vào ô giờ để <strong>Khóa (Nghỉ giữa giờ)</strong> hoặc <strong>Mở lại</strong></span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                  {schedule.slots.map((slot) => {
-                    const isBooked = slot.status === 'BOOKED';
-                    const isLocked = slot.status === 'LOCKED';
-                    const isPast = isSlotPast(schedule.workDate, slot.startTime, schedule.slotDurationMinutes);
-
-                    return (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        onClick={() => handleToggleSlot(slot)}
-                        disabled={isBooked || isPast || actionLoadingId === slot.id}
-                        className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
-                          isBooked
-                            ? 'bg-blue-50 border-blue-300 text-blue-800 cursor-not-allowed'
-                            : isPast
-                            ? 'bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                            : isLocked
-                            ? 'bg-amber-50/80 border-amber-200 text-amber-800 hover:bg-amber-100 cursor-pointer shadow-2xs'
-                            : 'bg-emerald-50/70 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs cursor-pointer'
-                        }`}
-                        title={
-                          isBooked
-                            ? 'Đã có người đặt lịch'
-                            : isPast
-                            ? 'Khung giờ này đã trôi qua trong quá khứ'
-                            : isLocked
-                            ? 'Bác sĩ tạm khóa (Bấm để mở lại)'
-                            : 'Đang mở (Bấm để khóa nghỉ)'
-                        }
-                      >
-                        <div className="flex items-center gap-1 text-[11px]">
-                          {isBooked ? (
-                            <UserCheck size={12} className="text-blue-600" />
-                          ) : isPast ? (
-                            <Clock size={12} className="text-slate-400" />
-                          ) : isLocked ? (
-                            <Lock size={12} className="text-amber-600" />
-                          ) : (
-                            <Unlock size={12} className="text-emerald-600" />
-                          )}
-                          <span className={isPast ? 'line-through opacity-80' : ''}>{slot.startTime}</span>
-                        </div>
-                        <span className="text-[9px] font-semibold opacity-80">
-                          {isBooked ? 'ĐÃ ĐẶT' : isPast ? 'ĐÃ QUA GIỜ' : isLocked ? 'TẠM KHÓA' : 'CÒN TRỐNG'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ))
         )}
       </div>
 
-      {/* ── Modal Đăng Ký Ca Trực Mới (Create) ── */}
+      {/* ── Cửa Sổ Tiện Ích Đăng Ký Ca Trực (In-Place Shift Registration Modal) ── */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
-            {/* Header cố định trên cùng */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2 text-teal-800 font-bold text-sm">
-                <PlusCircle size={20} className="text-teal-700" />
-                <span>Đăng Ký Ca Trực Mới</span>
+            {/* Header tiện ích */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-gradient-to-r from-teal-50/70 via-emerald-50/40 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs">
+                  <PlusCircle size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-800 text-sm">Cửa Sổ Tiện Ích • Đăng Ký Ca Trực</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                      Tại Chỗ
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Chọn thời gian ca trực nhanh hoặc tùy chỉnh trực tiếp trên giao diện
+                  </p>
+                </div>
               </div>
               <button 
                 type="button"
                 onClick={() => setShowCreateModal(false)} 
                 className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-xl transition cursor-pointer"
-                title="Đóng modal"
+                title="Đóng tiện ích"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Nội dung form có thanh cuộn riêng biệt */}
+            {/* Nội dung form tiện ích */}
             <form id="createScheduleForm" onSubmit={handleCreateSchedule} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-              {/* Banner quy định đăng ký ca trực */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <Info size={14} className="text-blue-600 shrink-0" />
-                  <span>Quy định đăng ký ca trực phòng khám:</span>
-                </div>
-                <p className="text-[11px] text-blue-700 leading-relaxed">
-                  Bác sĩ chỉ được chủ động đăng ký ca trực <strong>trước tối thiểu 1 ngày</strong> (từ ngày mai trở đi). Nếu bác sĩ không đăng ký trước, hệ thống sẽ <strong>tự động xếp lịch trực mặc định</strong> vào ngày hôm đó để phục vụ tiếp đón người bệnh.
-                </p>
-              </div>
-
-              {/* Banner lỗi xung đột buồng khám hoặc thời gian */}
+              {/* Banner lỗi nếu có */}
               {error && (
-                <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-900 font-semibold flex items-start gap-2 shadow-2xs animate-in fade-in duration-150">
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-900 font-semibold flex items-start gap-2 shadow-2xs animate-in fade-in duration-150">
                   <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{error}</span>
                 </div>
               )}
 
-              {/* Chọn nhanh mẫu ca trực (có hiệu ứng phát sáng khi bấm chọn) */}
-              <div className="space-y-1.5">
+              {/* 1. Chọn nhanh ca làm việc chuẩn */}
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700">Mẫu ca trực nhanh:</label>
+                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-teal-700" />
+                    <span>1. Chọn nhanh ca làm việc chuẩn:</span>
+                  </label>
                   {activePreset && (
-                    <span className="text-[11px] font-bold text-teal-700 flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <span className="text-[11px] font-bold text-teal-700 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
                       <span>Đang chọn: {activePreset === 'MORNING' ? 'Ca Sáng' : activePreset === 'AFTERNOON' ? 'Ca Chiều' : 'Cả Ngày'}</span>
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+
+                <div className="grid grid-cols-3 gap-2.5">
                   <button
                     type="button"
                     onClick={() => applyPresetShift('MORNING')}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                    className={`p-3 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-left flex flex-col justify-between gap-1 border ${
                       activePreset === 'MORNING'
-                        ? 'border-2 border-teal-500 bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/35 ring-4 ring-teal-400/30 scale-[1.03]'
-                        : 'border border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/50 text-slate-700 hover:scale-[1.01]'
+                        ? 'border-teal-500 bg-gradient-to-br from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/30 scale-[1.02]'
+                        : 'border-slate-200 bg-slate-50/70 hover:border-teal-300 hover:bg-teal-50/50 text-slate-700'
                     }`}
                   >
-                    {activePreset === 'MORNING' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-ping"></span>}
-                    <span>Ca Sáng (8h - 12h)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black">Ca Sáng</span>
+                      <span className="text-sm">☀️</span>
+                    </div>
+                    <div className="text-[11px] opacity-90 font-semibold">08:00 - 12:00</div>
+                    <div className="text-[10px] opacity-75">4 tiếng • 8 slots</div>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => applyPresetShift('AFTERNOON')}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                    className={`p-3 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-left flex flex-col justify-between gap-1 border ${
                       activePreset === 'AFTERNOON'
-                        ? 'border-2 border-teal-500 bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/35 ring-4 ring-teal-400/30 scale-[1.03]'
-                        : 'border border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/50 text-slate-700 hover:scale-[1.01]'
+                        ? 'border-teal-500 bg-gradient-to-br from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/30 scale-[1.02]'
+                        : 'border-slate-200 bg-slate-50/70 hover:border-teal-300 hover:bg-teal-50/50 text-slate-700'
                     }`}
                   >
-                    {activePreset === 'AFTERNOON' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-ping"></span>}
-                    <span>Ca Chiều (13h30 - 17h)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black">Ca Chiều</span>
+                      <span className="text-sm">🌤️</span>
+                    </div>
+                    <div className="text-[11px] opacity-90 font-semibold">13:30 - 17:00</div>
+                    <div className="text-[10px] opacity-75">3.5 tiếng • 7 slots</div>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => applyPresetShift('FULL_DAY')}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                    className={`p-3 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-left flex flex-col justify-between gap-1 border ${
                       activePreset === 'FULL_DAY'
-                        ? 'border-2 border-teal-500 bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/35 ring-4 ring-teal-400/30 scale-[1.03]'
-                        : 'border border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/50 text-slate-700 hover:scale-[1.01]'
+                        ? 'border-teal-500 bg-gradient-to-br from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/30 scale-[1.02]'
+                        : 'border-slate-200 bg-slate-50/70 hover:border-teal-300 hover:bg-teal-50/50 text-slate-700'
                     }`}
                   >
-                    {activePreset === 'FULL_DAY' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-ping"></span>}
-                    <span>Cả Ngày (8h - 17h)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black">Cả Ngày</span>
+                      <span className="text-sm">🌕</span>
+                    </div>
+                    <div className="text-[11px] opacity-90 font-semibold">08:00 - 17:00</div>
+                    <div className="text-[10px] opacity-75">Nghỉ trưa • 15 slots</div>
                   </button>
                 </div>
               </div>
 
-              {/* Ngày trực */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Ngày làm việc (Từ ngày mai trở đi):</label>
-                <input
-                  type="date"
-                  min={(() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + 1);
-                    return d.toISOString().slice(0, 10);
-                  })()}
-                  required
-                  value={workDate}
-                  onChange={(e) => setWorkDate(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-semibold"
-                />
+              {/* 2. Tùy chỉnh chi tiết thời gian ca */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock size={14} className="text-teal-700" />
+                  <span>2. Tùy chỉnh chi tiết thời gian từng ca:</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
+                    <input
+                      type="time"
+                      required
+                      value={startTime}
+                      onChange={(e) => handleStartTimeChange(e.target.value)}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
+                    <input
+                      type="time"
+                      required
+                      value={endTime}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600">Thời lượng khám:</span>
+                    <select
+                      value={slotDuration}
+                      onChange={(e) => setSlotDuration(Number(e.target.value))}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold cursor-pointer"
+                    >
+                      <option value={20}>20 phút / slot</option>
+                      <option value={30}>30 phút (Chuẩn)</option>
+                      <option value={45}>45 phút / slot</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              {/* Cảnh báo nếu chính Bác sĩ đã có ca trực trùng giờ trong ngày */}
+              {/* 3. Ngày làm việc & Buồng khám */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-teal-700" />
+                  <span>3. Ngày làm việc &amp; Buồng khám phân công:</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Ngày làm việc */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600">Ngày làm việc (T2 - T6):</span>
+                    <input
+                      type="date"
+                      min={getNextValidWorkingDate()}
+                      required
+                      value={workDate}
+                      onChange={(e) => setWorkDate(e.target.value)}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
+                    />
+                  </div>
+
+                  {/* Buồng khám */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-600">Buồng khám:</span>
+                      {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
+                    </div>
+                    <select
+                      value={selectedRoom}
+                      onChange={(e) => setSelectedRoom(e.target.value)}
+                      className={`w-full p-2.5 border rounded-xl text-xs outline-none focus:ring-2 font-bold cursor-pointer transition ${
+                        occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
+                          ? 'border-rose-300 bg-rose-50/50 text-rose-900 focus:ring-rose-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-800 focus:ring-teal-700/20'
+                      }`}
+                    >
+                      {availableRooms.map((room) => {
+                        const occ = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === room.code.toUpperCase());
+                        return (
+                          <option 
+                            key={room.code} 
+                            value={room.code}
+                            disabled={!!occ}
+                            className={occ ? 'text-slate-400 bg-slate-100 italic' : 'text-slate-800 font-bold'}
+                          >
+                            {occ 
+                              ? `🚫 ${room.code} - [ĐÃ KÍN] ${occ.doctorName}` 
+                              : `✅ ${room.code} - ${room.name} (${room.floor})`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông báo kiểm tra tính hợp lệ */}
+              {(() => {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                if (workDate) {
+                  if (workDate <= todayStr) {
+                    return (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                        <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                        <span>Chỉ được đăng ký từ ngày mai trở đi ({getNextValidWorkingDate()}). Ca trực hôm nay được hệ thống tự động chốt.</span>
+                      </div>
+                    );
+                  }
+                  const selD = new Date(workDate + 'T00:00:00');
+                  const dow = selD.getDay();
+                  if (dow === 0 || dow === 6) {
+                    return (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                        <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                        <span>Phòng khám chỉ hoạt động từ Thứ 2 đến Thứ 6. Không thể đăng ký vào cuối tuần ({dow === 6 ? 'Thứ 7' : 'Chủ Nhật'}).</span>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
+
+              {/* Cảnh báo nếu chính Bác sĩ đã có ca trực trùng giờ */}
               {(() => {
                 const myConflictSchedule = schedules.find((s) => {
                   if (s.workDate !== workDate || s.status !== 'ACTIVE') return false;
@@ -1325,218 +1179,236 @@ export default function DoctorScheduleView() {
                 });
                 if (!myConflictSchedule) return null;
                 return (
-                  <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-900 shadow-2xs animate-in fade-in duration-150 flex items-start gap-2">
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2">
                     <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-extrabold text-amber-900">Bác sĩ đã có ca trực trong khung giờ này!</span>
-                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                        Bạn đã có ca trực (<strong>{myConflictSchedule.startTime} - {myConflictSchedule.endTime}</strong>) ngày {workDate}. Vui lòng chọn khung giờ khác hoặc ngày khác.
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Bạn đã có ca ({myConflictSchedule.startTime} - {myConflictSchedule.endTime}) ngày {workDate}. Vui lòng chọn giờ khác.
                       </p>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* Phòng trực khám bệnh (Tự động phát hiện buồng khám đã kín & làm mờ) */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <DoorOpen size={14} className="text-teal-700" />
-                    <span>Buồng Khám Phân Công:</span>
-                    {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
-                  </label>
-                  <span className="text-[11px] font-normal text-slate-500">
-                    Phòng chuyên môn mặc định: <strong className="text-teal-800">{currentUser?.roomNumber || 'P.208'}</strong>
-                  </span>
-                </div>
-
-                {/* Thông báo quy định chốt buồng khám */}
-                <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
-                  <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                  <p className="leading-relaxed">
-                    <strong>Quy định đổi buồng khám:</strong> Bác sĩ chỉ được phép chọn hoặc đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). Khi bước sang ngày mới, buồng khám sẽ được <strong>khóa cố định 🔒</strong> nhằm đồng bộ với màn hình gọi số LCD và phiếu số thứ tự tiếp đón của người bệnh.
-                  </p>
-                </div>
-                
-                <select
-                  value={selectedRoom}
-                  onChange={(e) => setSelectedRoom(e.target.value)}
-                  className={`w-full p-2.5 border rounded-xl text-xs outline-none focus:ring-2 font-semibold cursor-pointer transition ${
-                    occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
-                      ? 'border-rose-300 bg-rose-50/50 text-rose-900 focus:ring-rose-500/20'
-                      : 'border-slate-200 bg-slate-50 text-slate-800 focus:ring-teal-700/20'
-                  }`}
-                >
-                  {availableRooms.map((room) => {
-                    const occ = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === room.code.toUpperCase());
-                    return (
-                      <option 
-                        key={room.code} 
-                        value={room.code}
-                        disabled={!!occ}
-                        className={occ ? 'text-slate-400 bg-slate-100 italic' : 'text-slate-800 font-semibold'}
-                      >
-                        {occ 
-                          ? `🚫 ${room.code} - [ĐÃ KÍN] ${occ.doctorName} (${occ.startTime} - ${occ.endTime})` 
-                          : `✅ ${room.code} - ${room.name} (${room.floor}) • Còn trống`}
-                      </option>
-                    );
-                  })}
-                </select>
-
-                {/* Cảnh báo tức thì nếu buồng khám đang chọn đã có Bác sĩ khác trực */}
-                {(() => {
-                  const currentOcc = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase());
-                  if (currentOcc) {
-                    const freeRooms = availableRooms.filter(r => !occupiedRooms.some(o => o.roomNumber.toUpperCase() === r.code.toUpperCase()));
-                    return (
-                      <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-xs text-rose-900 shadow-xs animate-in fade-in duration-200 space-y-2.5">
-                        <div className="flex items-start gap-2.5">
-                          <AlertCircle size={18} className="text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-extrabold text-rose-800 text-xs">
-                              Buồng khám [{selectedRoom}] đã có Bác sĩ khác đăng ký trực!
-                            </p>
-                            <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
-                              Bác sĩ <strong>{currentOcc.doctorName}</strong> đã đăng ký trực khung giờ (<strong>{currentOcc.startTime} - {currentOcc.endTime}</strong>) ngày {workDate}. Vui lòng chọn buồng khám khác!
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Gợi ý chọn nhanh buồng khám còn trống */}
-                        {freeRooms.length > 0 && (
-                          <div className="pt-2 border-t border-rose-200/80 flex flex-wrap items-center gap-1.5 text-[11px]">
-                            <span className="font-bold text-rose-800 shrink-0">Gợi ý buồng khám còn trống:</span>
-                            {freeRooms.map(r => (
-                              <button
-                                key={r.code}
-                                type="button"
-                                onClick={() => setSelectedRoom(r.code)}
-                                className="px-2.5 py-1 bg-white border border-rose-300 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-800 font-bold rounded-lg transition cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
-                              >
-                                👉 Chọn {r.code}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+              {/* Cảnh báo buồng khám đã có người đăng ký */}
+              {(() => {
+                const currentOcc = occupiedRooms.find((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase());
+                if (!currentOcc) return null;
+                const freeRooms = availableRooms.filter(r => !occupiedRooms.some(o => o.roomNumber.toUpperCase() === r.code.toUpperCase()));
+                return (
+                  <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-extrabold text-rose-800 text-xs">
+                          Buồng khám [{selectedRoom}] đã có Bác sĩ khác đăng ký!
+                        </p>
+                        <p className="text-[11px] text-rose-700 mt-0.5">
+                          Bác sĩ <strong>{currentOcc.doctorName}</strong> ({currentOcc.startTime} - {currentOcc.endTime}).
+                        </p>
                       </div>
-                    );
-                  }
-
-                  return (
-                    <div className="flex items-center justify-between px-3 py-2 bg-emerald-50/70 border border-emerald-200/70 rounded-xl text-[11px] text-emerald-900 font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                        <span>Vị trí: <strong>{availableRooms.find(r => r.code === selectedRoom)?.floor || 'Tầng 2'}</strong> • {availableRooms.find(r => r.code === selectedRoom)?.name || 'Khu Khám Bệnh'}</span>
-                      </span>
-                      <span className="text-xs text-emerald-800 font-extrabold flex items-center gap-1">
-                        <CheckCircle2 size={13} className="text-emerald-600" />
-                        <span>{selectedRoom} (Sẵn sàng)</span>
-                      </span>
                     </div>
-                  );
-                })()}
-
-                <p className="text-[11px] text-slate-400 italic">
-                  * Hệ thống tự động kiểm tra thời gian thực. Các buồng khám đã có bác sĩ khác trực trùng giờ sẽ tự động bị làm mờ và khóa chọn.
-                </p>
-              </div>
-
-              {/* Giờ bắt đầu & kết thúc */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Giờ bắt đầu:</label>
-                  <input
-                    type="time"
-                    required
-                    value={startTime}
-                    onChange={(e) => handleStartTimeChange(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-semibold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Giờ kết thúc:</label>
-                  <input
-                    type="time"
-                    required
-                    value={endTime}
-                    onChange={(e) => handleEndTimeChange(e.target.value)}
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Thời lượng slot */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Thời lượng mỗi ca khám:</label>
-                <select
-                  value={slotDuration}
-                  onChange={(e) => setSlotDuration(Number(e.target.value))}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-semibold"
-                >
-                  <option value={20}>20 phút / bệnh nhân</option>
-                  <option value={30}>30 phút / bệnh nhân (Tiêu chuẩn)</option>
-                  <option value={45}>45 phút / bệnh nhân</option>
-                </select>
-                <p className="text-[11px] text-slate-400 italic">
-                  Hệ thống sẽ tự động phân chia ca trực thành các khung giờ khám nhỏ để bệnh nhân đặt trực tuyến.
-                </p>
-              </div>
+                    {freeRooms.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] pt-1 border-t border-rose-200">
+                        <span className="font-bold text-rose-800">Chọn phòng trống:</span>
+                        {freeRooms.slice(0, 4).map(r => (
+                          <button
+                            key={r.code}
+                            type="button"
+                            onClick={() => setSelectedRoom(r.code)}
+                            className="px-2 py-0.5 bg-white border border-rose-300 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-800 font-bold rounded text-[11px] transition cursor-pointer"
+                          >
+                            {r.code}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </form>
 
-            {/* Footer cố định ở đáy modal */}
+            {/* Footer cố định */}
             {(() => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isPastOrToday = Boolean(workDate && workDate <= todayStr);
+              const isWeekendDay = Boolean(workDate && [0, 6].includes(new Date(workDate + 'T00:00:00').getDay()));
               const hasMyConflict = schedules.some((s) => s.workDate === workDate && s.status === 'ACTIVE' && startTime < s.endTime && endTime > s.startTime);
               const hasRoomConflict = occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase());
 
               return (
-                <div className="px-6 py-4 bg-slate-50/90 backdrop-blur-xs border-t border-slate-200 flex items-center justify-between shrink-0">
+                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
                   <div className="text-[11px] text-slate-500">
-                    {hasMyConflict ? (
-                      <span className="text-amber-600 font-bold flex items-center gap-1">
-                        <AlertCircle size={13} />
-                        <span>Trùng ca trực của chính bạn</span>
-                      </span>
+                    {isPastOrToday ? (
+                      <span className="text-rose-600 font-bold">Chỉ đăng ký từ ngày mai trở đi</span>
+                    ) : isWeekendDay ? (
+                      <span className="text-rose-600 font-bold">Phòng khám nghỉ T7 &amp; CN</span>
+                    ) : hasMyConflict ? (
+                      <span className="text-amber-600 font-bold">Trùng ca trực của bạn</span>
                     ) : hasRoomConflict ? (
-                      <span className="text-rose-600 font-bold flex items-center gap-1">
-                        <AlertCircle size={13} />
-                        <span>Buồng khám bị trùng lịch trực</span>
-                      </span>
-                    ) : null}
+                      <span className="text-rose-600 font-bold">Buồng khám đã kín</span>
+                    ) : (
+                      <span className="text-teal-700 font-bold">Ca: {startTime} - {endTime} ({workDate})</span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setShowCreateModal(false)}
                       disabled={submitting}
-                      className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition cursor-pointer"
                     >
                       Hủy Bỏ
                     </button>
                     <button
                       type="submit"
                       form="createScheduleForm"
-                      disabled={submitting || hasMyConflict || hasRoomConflict}
-                      className={`px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md ${
-                        hasMyConflict
-                          ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-not-allowed shadow-none'
-                          : hasRoomConflict
-                            ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-not-allowed shadow-none'
+                      disabled={submitting || isPastOrToday || isWeekendDay || hasMyConflict || hasRoomConflict}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md ${
+                        isPastOrToday || isWeekendDay || hasRoomConflict
+                          ? 'bg-rose-600 text-white cursor-not-allowed shadow-none'
+                          : hasMyConflict
+                            ? 'bg-amber-600 text-white cursor-not-allowed shadow-none'
                             : 'bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white shadow-teal-700/20'
                       }`}
                     >
-                      {submitting
-                        ? 'Đang Khởi Tạo...'
-                        : hasMyConflict
-                          ? '⚠️ Trùng Ca Trực Của Bạn'
-                          : hasRoomConflict
-                            ? '⛔ Buồng Khám Đã Kín Chỗ'
-                            : 'Xác Nhận Đăng Ký'}
+                      {submitting ? 'Đang Tạo Ca...' : `Xác Nhận Đăng Ký (${startTime} - ${endTime})`}
                     </button>
                   </div>
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Cửa Sổ Tiện Ích Quản Lý Khung Giờ Ca Trực (In-Place Slots Modal) ── */}
+      {activeScheduleForSlots && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs">
+                  <Clock size={19} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-800 text-sm">
+                      Cửa Sổ Tiện Ích • Khung Giờ Khám
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      {activeScheduleForSlots.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Ngày <strong>{activeScheduleForSlots.workDate}</strong> • Ca <strong>{activeScheduleForSlots.startTime} - {activeScheduleForSlots.endTime}</strong> • Buồng <strong>{activeScheduleForSlots.roomNumber || 'P.208'}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleForSlots(null)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-xl transition cursor-pointer"
+                title="Đóng tiện ích"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Thống kê nhanh các slot */}
+            <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+                  <Unlock size={12} />
+                  <span>Trống: {activeScheduleForSlots.slots.filter(s => s.status === 'AVAILABLE').length}</span>
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1">
+                  <Lock size={12} />
+                  <span>Tạm khóa: {activeScheduleForSlots.slots.filter(s => s.status === 'LOCKED').length}</span>
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1">
+                  <UserCheck size={12} />
+                  <span>Đã đặt: {activeScheduleForSlots.slots.filter(s => s.status === 'BOOKED').length}</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 italic">
+                * Nhấp vào slot trống/khóa để đóng hoặc mở
+              </span>
+            </div>
+
+            {/* Danh sách lưới các slot */}
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {activeScheduleForSlots.slots.map((slot) => {
+                  const isLocked = slot.status === 'LOCKED';
+                  const isBooked = slot.status === 'BOOKED';
+
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      disabled={isBooked || actionLoadingId === slot.id}
+                      onClick={() => handleToggleSlot(slot)}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative ${
+                        isBooked
+                          ? 'bg-blue-50 border-blue-200 text-blue-900 cursor-not-allowed'
+                          : isLocked
+                          ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shadow-2xs'
+                          : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100 cursor-pointer shadow-2xs'
+                      }`}
+                      title={
+                        isBooked
+                          ? 'Đã có người bệnh đặt hẹn'
+                          : isLocked
+                          ? 'Nhấp để mở lại khung giờ cho bệnh nhân đặt'
+                          : 'Nhấp để tạm khóa khung giờ (nghỉ giữa giờ / hội chẩn)'
+                      }
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-xs">
+                          {slot.startTime} - {slot.endTime}
+                        </span>
+                        {actionLoadingId === slot.id ? (
+                          <RefreshCw size={13} className="animate-spin text-slate-500" />
+                        ) : isBooked ? (
+                          <UserCheck size={13} className="text-blue-600" />
+                        ) : isLocked ? (
+                          <Lock size={13} className="text-amber-700" />
+                        ) : (
+                          <Unlock size={13} className="text-emerald-700" />
+                        )}
+                      </div>
+                      <div className="text-[10px] font-bold flex items-center justify-between">
+                        <span>
+                          {isBooked ? 'Đã đặt' : isLocked ? 'Tạm khóa' : 'Sẵn sàng'}
+                        </span>
+                        {!isBooked && (
+                          <span className="text-[9px] underline opacity-70">
+                            {isLocked ? 'Mở lại' : 'Khóa slot'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500">
+                Thao tác trực tiếp trên giao diện ma trận tuần
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleForSlots(null)}
+                className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+              >
+                Đóng Tiện Ích
+              </button>
+            </div>
           </div>
         </div>
       )}

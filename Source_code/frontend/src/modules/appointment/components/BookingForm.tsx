@@ -8,6 +8,7 @@ import {
   Stethoscope, 
   Sparkles, 
   CheckCircle2, 
+  Check,
   Building2, 
   User, 
   ArrowRight, 
@@ -29,7 +30,8 @@ import {
   BadgeCheck,
   Phone,
   Info,
-  CalendarDays
+  CalendarDays,
+  Gift
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -57,6 +59,10 @@ export default function BookingForm() {
   const [loadingData, setLoadingData] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [isPaidOnline, setIsPaidOnline] = useState<boolean>(false);
+  const [promoInput, setPromoInput] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [paidPromoCode, setPaidPromoCode] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   // Authentication & Role Check
   useEffect(() => {
@@ -166,7 +172,6 @@ export default function BookingForm() {
         }
         if (s && s.length > 0) {
           setSpecialties(s);
-          setSelectedSpecialty(s[0].id);
         }
         if (docList && docList.length > 0) {
           const mapped = docList.map((d: any) => ({
@@ -182,7 +187,6 @@ export default function BookingForm() {
             centerId: d.medicalCenterId,
           }));
           setDoctors(mapped);
-          setSelectedDoctor(mapped[0]);
         }
       } finally {
         setLoadingData(false);
@@ -190,6 +194,49 @@ export default function BookingForm() {
     }
     loadCategories();
   }, []);
+
+  // Lọc chuyên khoa theo chi nhánh đã chọn
+  const filteredSpecialties = useMemo(() => {
+    if (!selectedCenter) return specialties;
+    return specialties.filter((s) => !s.medicalCenterId || s.medicalCenterId === selectedCenter);
+  }, [specialties, selectedCenter]);
+
+  // Tự động đồng bộ chuyên khoa khi thay đổi chi nhánh hoặc danh sách chuyên khoa
+  useEffect(() => {
+    if (filteredSpecialties.length > 0) {
+      const exists = filteredSpecialties.some((s) => s.id === selectedSpecialty);
+      if (!exists) {
+        // Ưu tiên chọn chuyên khoa có bác sĩ khả dụng trước
+        const firstWithDoc = filteredSpecialties.find((s) =>
+          doctors.some((d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === s.id)
+        );
+        setSelectedSpecialty(firstWithDoc?.id || filteredSpecialties[0].id);
+      }
+    } else {
+      setSelectedSpecialty('');
+    }
+  }, [filteredSpecialties, selectedSpecialty, doctors, selectedCenter]);
+
+  // Lọc bác sĩ theo chi nhánh và chuyên khoa đã chọn
+  const filteredDoctors = useMemo(() => {
+    return doctors.filter((doc) => {
+      const matchCenter = !selectedCenter || !doc.centerId || doc.centerId === selectedCenter;
+      const matchSpec = !selectedSpecialty || !doc.specialtyId || doc.specialtyId === selectedSpecialty;
+      return matchCenter && matchSpec;
+    });
+  }, [doctors, selectedCenter, selectedSpecialty]);
+
+  // Tự động chọn bác sĩ đầu tiên của chuyên khoa đã chọn
+  useEffect(() => {
+    if (filteredDoctors.length > 0) {
+      const exists = filteredDoctors.some((d) => d.id === selectedDoctor?.id);
+      if (!exists) {
+        setSelectedDoctor(filteredDoctors[0]);
+      }
+    } else {
+      setSelectedDoctor(null);
+    }
+  }, [filteredDoctors, selectedDoctor?.id]);
 
   const handleAnalyzeSymptoms = async () => {
     if (!symptoms.trim()) return;
@@ -220,6 +267,28 @@ export default function BookingForm() {
 
   const handleRemoveAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleApplyPromo = () => {
+    setPromoError(null);
+    const cleaned = promoInput.trim().toUpperCase();
+    if (!cleaned) {
+      setPromoError('Vui lòng nhập mã khuyến mãi');
+      return;
+    }
+    const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
+    if (validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
+      setAppliedPromo(cleaned);
+      setPromoError(null);
+    } else {
+      setPromoError('Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError(null);
   };
 
   const handleBook = async (e: React.FormEvent) => {
@@ -261,7 +330,27 @@ export default function BookingForm() {
       });
       setResult(res);
       setStep(4);
-      setShowPaymentModal(true);
+
+      if (appliedPromo) {
+        // Tự động xác nhận cọc 0 đ cho Giảng viên / Tester
+        try {
+          await api.confirmRealPayment({
+            appointmentId: res.id,
+            bookingCode: res.bookingCode,
+            paymentType: 'PROMO_FREE',
+            amount: 0,
+            promoCode: appliedPromo,
+          });
+          setIsPaidOnline(true);
+          setPaidPromoCode(appliedPromo);
+          setShowPaymentModal(false);
+        } catch (autoErr) {
+          console.warn('Auto confirm promo payment warning:', autoErr);
+          setShowPaymentModal(true);
+        }
+      } else {
+        setShowPaymentModal(true);
+      }
     } catch (err: any) {
       setError(err.message || 'Đặt lịch thất bại. Vui lòng thử lại.');
     } finally {
@@ -295,17 +384,28 @@ export default function BookingForm() {
 
   useEffect(() => {
     const docId = selectedDoctor?.id;
-    if (!docId) return;
+    if (!docId) {
+      setDynamicSlots([]);
+      setSelectedSlot({
+        id: '',
+        time: 'Chưa chọn',
+        date: formatISODateToVN(bookingDate),
+      });
+      return;
+    }
     let isCancelled = false;
     setLoadingSlots(true);
     api.getDoctorAvailableSlots(docId, bookingDate)
       .then((data) => {
         if (!isCancelled && Array.isArray(data) && data.length > 0) {
           setDynamicSlots(data);
+        } else if (!isCancelled) {
+          setDynamicSlots([]);
         }
       })
       .catch((err) => {
         console.warn('Could not fetch doctor slots:', err);
+        if (!isCancelled) setDynamicSlots([]);
       })
       .finally(() => {
         if (!isCancelled) setLoadingSlots(false);
@@ -317,6 +417,7 @@ export default function BookingForm() {
   }, [selectedDoctor?.id, bookingDate]);
 
   const timeSlots = useMemo(() => {
+    if (!selectedDoctor?.id) return [];
     if (dynamicSlots.length > 0) {
       return dynamicSlots.map((s) => ({
         id: s.id,
@@ -350,7 +451,7 @@ export default function BookingForm() {
         disabled: false,
       };
     });
-  }, [bookingDate, dynamicSlots]);
+  }, [bookingDate, dynamicSlots, selectedDoctor?.id]);
 
   // Phân chia khung giờ Sáng & Chiều (Chuẩn YouMed - Ảnh 1 & Ảnh 3)
   const morningSlots = useMemo(() => {
@@ -369,6 +470,14 @@ export default function BookingForm() {
 
   // Tự động chọn khung giờ khả dụng đầu tiên
   useEffect(() => {
+    if (!selectedDoctor?.id) {
+      setSelectedSlot({
+        id: '',
+        time: 'Chưa chọn',
+        date: formatISODateToVN(bookingDate),
+      });
+      return;
+    }
     const firstAvailable = timeSlots.find((s) => !s.disabled);
     if (firstAvailable) {
       setSelectedSlot({
@@ -383,7 +492,7 @@ export default function BookingForm() {
         date: formatISODateToVN(bookingDate),
       });
     }
-  }, [bookingDate, timeSlots]);
+  }, [bookingDate, timeSlots, selectedDoctor?.id]);
 
   const activeCenterObj = useMemo(() => {
     return centers.find((c) => c.id === selectedCenter) || centers[0] || {
@@ -391,6 +500,10 @@ export default function BookingForm() {
       address: '210 Dương Bá Trạc, P.2, Q.8, TP.HCM',
     };
   }, [centers, selectedCenter]);
+
+  const activeSpecialtyObj = useMemo(() => {
+    return specialties.find((s) => s.id === selectedSpecialty) || null;
+  }, [specialties, selectedSpecialty]);
 
   if (authChecking) {
     return (
@@ -401,112 +514,152 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 px-3 sm:px-4">
+    <div className="max-w-6xl mx-auto space-y-4 px-3 sm:px-4">
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mb-2">
-              <Calendar size={14} />
-              <span>Cổng Đặt Lịch Y Tế Trực Tuyến MedSched</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
               Đặt Lịch Khám Bác Sĩ Chuyên Khoa
             </h1>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1">
-              Quy trình chuẩn hóa Y tế: Chọn bác sĩ $\rightarrow$ Chọn khung giờ thông minh $\rightarrow$ Phân loại triệu chứng với <strong>Spring AI</strong> $\rightarrow$ Nhận số thứ tự (STT) và mã QR tiếp đón tức thì.
-            </p>
           </div>
-          {step < 4 && (
-            <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-2xl text-xs font-bold text-blue-800 shrink-0 shadow-2xs">
-              Bước {step} / 3: {step === 1 ? 'Chọn Khoa & Chi Nhánh' : step === 2 ? 'Chọn Bác Sĩ & Ca Khám' : 'Thông Tin Bệnh Nhân'}
-            </div>
-          )}
         </div>
 
-        {/* Stepper Wizard Progress */}
+        {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Không tương tác trực tiếp) */}
         {step < 4 && (
-          <div className="grid grid-cols-3 gap-2 pb-6 border-b border-slate-100">
-            <button
-              onClick={() => setStep(1)}
-              className={`p-2.5 sm:p-3 rounded-2xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                step === 1 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>1</div>
-              <div className="truncate">
-                <span className="text-xs font-bold block truncate">1. Cơ Sở &amp; Khoa</span>
-                <span className="text-[10px] opacity-80 hidden sm:block truncate">Chọn phòng khám</span>
+          <div className="pt-1 pb-3 sm:pb-4 border-b border-slate-100 select-none">
+            <div className="relative max-w-xl mx-auto px-4">
+              {/* Đường ray kết nối nền */}
+              <div className="absolute left-10 right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
+                {/* Đường tiến trình màu xanh đã đạt được */}
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: step === 1 ? '0%' : step === 2 ? '50%' : '100%',
+                  }}
+                />
               </div>
-            </button>
 
-            <button
-              onClick={() => setStep(2)}
-              className={`p-2.5 sm:p-3 rounded-2xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 2 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                step === 2 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>2</div>
-              <div className="truncate">
-                <span className="text-xs font-bold block truncate">2. Bác Sĩ &amp; Giờ</span>
-                <span className="text-[10px] opacity-80 hidden sm:block truncate">Ca sáng / ca chiều</span>
-              </div>
-            </button>
+              {/* Các điểm mốc tiến trình (Step Nodes) */}
+              <div className="relative flex items-start justify-between">
+                
+                {/* Bước 1 */}
+                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                  <div
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                      step > 1
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : step === 1
+                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                        : 'bg-white border-2 border-slate-300 text-slate-400'
+                    }`}
+                  >
+                    {step > 1 ? <Check size={16} strokeWidth={2.8} /> : '1'}
+                  </div>
+                  <div className="mt-1 sm:mt-1.5">
+                    <span
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                        step === 1 ? 'text-blue-700' : step > 1 ? 'text-slate-800' : 'text-slate-400'
+                      }`}
+                    >
+                      1. Cơ Sở &amp; Khoa
+                    </span>
+                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
+                      Chọn phòng khám
+                    </span>
+                  </div>
+                </div>
 
-            <button
-              onClick={() => setStep(3)}
-              className={`p-2.5 sm:p-3 rounded-2xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 3 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                step === 3 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>3</div>
-              <div className="truncate">
-                <span className="text-xs font-bold block truncate">3. Hồ Sơ Bệnh Nhân</span>
-                <span className="text-[10px] opacity-80 hidden sm:block truncate">Triệu chứng &amp; Tài liệu</span>
+                {/* Bước 2 */}
+                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                  <div
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                      step > 2
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : step === 2
+                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                        : 'bg-white border-2 border-slate-300 text-slate-400'
+                    }`}
+                  >
+                    {step > 2 ? <Check size={16} strokeWidth={2.8} /> : '2'}
+                  </div>
+                  <div className="mt-1 sm:mt-1.5">
+                    <span
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                        step === 2 ? 'text-blue-700' : step > 2 ? 'text-slate-800' : 'text-slate-400'
+                      }`}
+                    >
+                      2. Bác Sĩ &amp; Giờ
+                    </span>
+                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
+                      Chọn ca khám
+                    </span>
+                  </div>
+                </div>
+
+                {/* Bước 3 */}
+                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                  <div
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                      step === 3
+                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                        : 'bg-white border-2 border-slate-300 text-slate-400'
+                    }`}
+                  >
+                    3
+                  </div>
+                  <div className="mt-1 sm:mt-1.5">
+                    <span
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                        step === 3 ? 'text-blue-700' : 'text-slate-400'
+                      }`}
+                    >
+                      3. Hồ Sơ Bệnh Nhân
+                    </span>
+                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
+                      Xác nhận thông tin
+                    </span>
+                  </div>
+                </div>
+
               </div>
-            </button>
+            </div>
           </div>
         )}
 
         {/* Error Alert */}
         {error && (
-          <div className="mt-4">
+          <div className="mt-3">
             <AlertMessage type="error" message={error} onClose={() => setError(null)} />
           </div>
         )}
 
         {/* Step 1: Cơ Sở & Chuyên Khoa */}
         {step === 1 && (
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 sm:mt-5 space-y-3.5 sm:space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-3 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                 <Building2 size={15} className="text-blue-600" />
                 <span>1. Chọn Chi Nhánh Phòng Khám MedSched:</span>
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 {centers.map((center) => (
                   <div
                     key={center.id}
                     onClick={() => setSelectedCenter(center.id)}
-                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                    className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
                       selectedCenter === center.id
                         ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-bold text-slate-800 text-sm">{center.name}</span>
-                        {selectedCenter === center.id && <CheckCircle2 size={18} className="text-blue-600" />}
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-slate-800 text-xs sm:text-sm">{center.name}</span>
+                        {selectedCenter === center.id && <CheckCircle2 size={16} className="text-blue-600 shrink-0" />}
                       </div>
-                      <p className="text-xs text-slate-500 flex items-start gap-1">
-                        <MapPin size={14} className="shrink-0 mt-0.5 text-slate-400" />
+                      <p className="text-[11px] sm:text-xs text-slate-500 flex items-start gap-1">
+                        <MapPin size={13} className="shrink-0 mt-0.5 text-slate-400" />
                         <span>{center.address}</span>
                       </p>
                     </div>
@@ -516,41 +669,67 @@ export default function BookingForm() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-3 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                 <Stethoscope size={15} className="text-blue-600" />
                 <span>2. Chọn Chuyên Khoa Thăm Khám:</span>
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {specialties.map((spec) => (
-                  <div
-                    key={spec.id}
-                    onClick={() => setSelectedSpecialty(spec.id)}
-                    className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                      selectedSpecialty === spec.id
-                        ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 text-sm">
-                      <div className="w-8 h-8 rounded-xl bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
-                        <Stethoscope size={15} />
-                      </div>
-                      <span className="font-medium text-xs sm:text-sm">{spec.name}</span>
-                    </div>
-                    {selectedSpecialty === spec.id && <CheckCircle2 size={16} className="text-blue-600" />}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+                {filteredSpecialties.length === 0 ? (
+                  <div className="col-span-full py-6 px-4 text-center bg-slate-50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200">
+                    <Stethoscope size={24} className="mx-auto text-slate-400 mb-1.5" />
+                    <p className="text-xs font-semibold text-slate-600">Chi nhánh này hiện chưa có chuyên khoa khả dụng</p>
                   </div>
-                ))}
+                ) : (
+                  filteredSpecialties.map((spec) => {
+                    const docCount = doctors.filter(
+                      (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
+                    ).length;
+                    return (
+                      <div
+                        key={spec.id}
+                        onClick={() => setSelectedSpecialty(spec.id)}
+                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
+                          selectedSpecialty === spec.id
+                            ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+                            <Stethoscope size={14} />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-xs sm:text-sm block truncate">{spec.name}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {docCount > 0 ? (
+                                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
+                                  {docCount} bác sĩ
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.2 rounded">
+                                  Chưa có bác sĩ
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {selectedSpecialty === spec.id && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1" />}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
-            <div className="pt-4 flex justify-end">
+            <div className="pt-2 sm:pt-3 flex justify-end">
               <button
                 type="button"
+                disabled={!selectedSpecialty}
                 onClick={() => setStep(2)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
-                <ArrowRight size={16} />
+                <ArrowRight size={15} />
               </button>
             </div>
           </div>
@@ -571,11 +750,11 @@ export default function BookingForm() {
                     {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
                   </span>
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight truncate">
-                    {selectedDoctor?.name || 'BS. Hoàng Thị Bích Thủy'}
+                    {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
                   </h3>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-0.5">
                     <Stethoscope size={12} className="text-blue-500" />
-                    <span>{selectedDoctor?.specialty || 'Nội Khoa Tổng Hợp'}</span>
+                    <span>{selectedDoctor?.specialty || activeSpecialtyObj?.name || 'Chuyên khoa'}</span>
                   </span>
                 </div>
               </div>
@@ -595,7 +774,7 @@ export default function BookingForm() {
                   <div>
                     <span className="font-bold text-slate-700 block">Buồng khám tiếp nhận:</span>
                     <span className="text-[11px] text-blue-700 font-semibold bg-blue-100/70 px-2 py-0.5 rounded-md">
-                      {selectedDoctor?.room || 'Phòng P.208'}
+                      {selectedDoctor ? (selectedDoctor.room || 'Phòng khám chuyên khoa') : 'Chưa phân bổ buồng khám'}
                     </span>
                   </div>
                 </div>
@@ -617,7 +796,7 @@ export default function BookingForm() {
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Phí khám bác sĩ:</span>
                   <span className="font-bold text-slate-800">
-                    {Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ
+                    {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
@@ -626,7 +805,7 @@ export default function BookingForm() {
                 </div>
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-extrabold text-sm text-blue-700">
                   <span>Tổng viện phí:</span>
-                  <span>{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</span>
+                  <span>{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</span>
                 </div>
               </div>
 
@@ -655,13 +834,18 @@ export default function BookingForm() {
                       1. Chọn Bác Sĩ Phụ Trách:
                     </label>
                     <div className="space-y-2.5">
-                      {doctors.length === 0 ? (
-                        <div className="py-6 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <Stethoscope size={28} className="mx-auto text-slate-400 mb-1.5" />
-                          <p className="text-xs font-semibold text-slate-600">Chưa có bác sĩ thuộc khoa này</p>
+                      {filteredDoctors.length === 0 ? (
+                        <div className="py-8 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <Stethoscope size={28} className="mx-auto text-slate-400 mb-2" />
+                          <p className="text-xs font-semibold text-slate-600">
+                            Khoa {activeSpecialtyObj?.name || 'này'} hiện chưa có bác sĩ phụ trách tại {activeCenterObj.name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Vui lòng nhấn &quot;Quay lại&quot; ở bên dưới để chọn Chuyên khoa khác
+                          </p>
                         </div>
                       ) : (
-                        doctors.map((doc) => (
+                        filteredDoctors.map((doc) => (
                           <div
                             key={doc.id}
                             onClick={() => setSelectedDoctor(doc)}
@@ -694,129 +878,139 @@ export default function BookingForm() {
                     </div>
                   </div>
 
-                  {/* 2. Chọn Ngày Khám Bệnh */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                      2. Chọn Ngày Khám Bệnh:
-                    </label>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="relative">
-                        <input
-                          type="date"
-                          value={bookingDate}
-                          min={getTodayISODate()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setBookingDate(val);
-                            const parts = val.split('-');
-                            const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : val;
-                            setSelectedSlot((prev) => ({ ...prev, date: formatted }));
-                          }}
-                          className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-                        />
-                        <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                      <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-3 py-2 rounded-xl border border-blue-200">
-                        Ngày đã chọn: <strong>Ngày {selectedSlot.date}</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3. Phân nhóm Khung giờ Khám (Sáng vs Chiều - Chuẩn Ảnh 1 Screen 3) */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        3. Chọn Khung Giờ Khám (Time-slot):
-                      </label>
-                      {loadingSlots && (
-                        <span className="text-[11px] text-blue-600 animate-pulse font-medium">
-                          Đang tải khung giờ thực tế...
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Buổi Sáng */}
-                    <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
-                        <div className="flex items-center gap-1.5 text-amber-700">
-                          <Sun size={15} className="text-amber-500" />
-                          <span>Buổi Sáng (07:30 - 12:00)</span>
+                  {/* Chỉ hiển thị Chọn Ngày & Khung Giờ khi ĐÃ CÓ BÁC SĨ ĐƯỢC CHỌN */}
+                  {selectedDoctor ? (
+                    <>
+                      {/* 2. Chọn Ngày Khám Bệnh */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                          2. Chọn Ngày Khám Bệnh:
+                        </label>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="relative">
+                            <input
+                              type="date"
+                              value={bookingDate}
+                              min={getTodayISODate()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBookingDate(val);
+                                const parts = val.split('-');
+                                const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : val;
+                                setSelectedSlot((prev) => ({ ...prev, date: formatted }));
+                              }}
+                              className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                            />
+                            <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          </div>
+                          <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-3 py-2 rounded-xl border border-blue-200">
+                            Ngày đã chọn: <strong>Ngày {selectedSlot.date || formatISODateToVN(bookingDate)}</strong>
+                          </span>
                         </div>
-                        <span className="text-[11px] font-normal text-slate-500">
-                          {morningSlots.filter((s) => !s.disabled).length} khung giờ còn trống
-                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {morningSlots.map((slot) => {
-                          const isSelected = selectedSlot.id === slot.id;
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              disabled={slot.disabled}
-                              onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date })}
-                              className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                                slot.disabled
-                                  ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-                                  : isSelected
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
-                                  : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
-                              }`}
-                            >
-                              <span className="text-xs font-extrabold">{slot.time}</span>
-                              <span className={`text-[10px] mt-0.5 font-medium ${
-                                isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
-                              }`}>
-                                {slot.label}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Buổi Chiều */}
-                    <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
-                        <div className="flex items-center gap-1.5 text-indigo-700">
-                          <Sunset size={15} className="text-indigo-500" />
-                          <span>Buổi Chiều (13:30 - 17:30)</span>
+                      {/* 3. Phân nhóm Khung giờ Khám (Sáng vs Chiều - Chuẩn Ảnh 1 Screen 3) */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-700 uppercase">
+                            3. Chọn Khung Giờ Khám (Time-slot):
+                          </label>
+                          {loadingSlots && (
+                            <span className="text-[11px] text-blue-600 animate-pulse font-medium">
+                              Đang tải khung giờ thực tế...
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[11px] font-normal text-slate-500">
-                          {afternoonSlots.filter((s) => !s.disabled).length} khung giờ còn trống
-                        </span>
-                      </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {afternoonSlots.map((slot) => {
-                          const isSelected = selectedSlot.id === slot.id;
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              disabled={slot.disabled}
-                              onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date })}
-                              className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                                slot.disabled
-                                  ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-                                  : isSelected
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
-                                  : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
-                              }`}
-                            >
-                              <span className="text-xs font-extrabold">{slot.time}</span>
-                              <span className={`text-[10px] mt-0.5 font-medium ${
-                                isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
-                              }`}>
-                                {slot.label}
-                              </span>
-                            </button>
-                          );
-                        })}
+                        {/* Buổi Sáng */}
+                        <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
+                            <div className="flex items-center gap-1.5 text-amber-700">
+                              <Sun size={15} className="text-amber-500" />
+                              <span>Buổi Sáng (07:30 - 12:00)</span>
+                            </div>
+                            <span className="text-[11px] font-normal text-slate-500">
+                              {morningSlots.filter((s) => !s.disabled).length} khung giờ còn trống
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {morningSlots.map((slot) => {
+                              const isSelected = selectedSlot.id === slot.id;
+                              return (
+                                <button
+                                  key={slot.id}
+                                  type="button"
+                                  disabled={slot.disabled}
+                                  onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date || formatISODateToVN(bookingDate) })}
+                                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
+                                    slot.disabled
+                                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
+                                      : isSelected
+                                      ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
+                                      : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
+                                  }`}
+                                >
+                                  <span className="text-xs font-extrabold">{slot.time}</span>
+                                  <span className={`text-[10px] mt-0.5 font-medium ${
+                                    isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
+                                  }`}>
+                                    {slot.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Buổi Chiều */}
+                        <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
+                            <div className="flex items-center gap-1.5 text-indigo-700">
+                              <Sunset size={15} className="text-indigo-500" />
+                              <span>Buổi Chiều (13:30 - 17:30)</span>
+                            </div>
+                            <span className="text-[11px] font-normal text-slate-500">
+                              {afternoonSlots.filter((s) => !s.disabled).length} khung giờ còn trống
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {afternoonSlots.map((slot) => {
+                              const isSelected = selectedSlot.id === slot.id;
+                              return (
+                                <button
+                                  key={slot.id}
+                                  type="button"
+                                  disabled={slot.disabled}
+                                  onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date || formatISODateToVN(bookingDate) })}
+                                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
+                                    slot.disabled
+                                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
+                                      : isSelected
+                                      ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
+                                      : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
+                                  }`}
+                                >
+                                  <span className="text-xs font-extrabold">{slot.time}</span>
+                                  <span className={`text-[10px] mt-0.5 font-medium ${
+                                    isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
+                                  }`}>
+                                    {slot.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
+                    </>
+                  ) : filteredDoctors.length > 0 ? (
+                    <div className="py-6 px-4 text-center bg-blue-50/50 rounded-2xl border border-blue-200 text-blue-800 text-xs">
+                      <User size={24} className="mx-auto text-blue-500 mb-1.5" />
+                      <p className="font-semibold">Vui lòng chọn 1 Bác sĩ ở trên để xem lịch khám và chọn khung giờ</p>
                     </div>
-                  </div>
+                  ) : null}
 
                   {/* Navigation Buttons */}
                   <div className="pt-4 flex justify-between border-t border-slate-100">
@@ -1056,6 +1250,85 @@ export default function BookingForm() {
                     </div>
                   </div>
 
+                  {/* Mã Khuyến Mãi / Voucher Miễn Phí Cọc (Dành cho Giảng Viên / Tester) */}
+                  <div className="bg-gradient-to-r from-amber-50/80 to-orange-50/80 border border-amber-200/90 p-3.5 sm:p-4 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                          <Gift size={16} />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-amber-950 block">
+                            Mã Ưu Đãi / Voucher Miễn Tiền Cọc:
+                          </span>
+                          <span className="text-[11px] text-amber-700">
+                            Dành cho Giảng viên &amp; Tester kiểm thử hệ thống không cần chuyển khoản tiền thật
+                          </span>
+                        </div>
+                      </div>
+                      <span className="hidden sm:inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">
+                        Miễn 100% Cọc
+                      </span>
+                    </div>
+
+                    {appliedPromo ? (
+                      <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="text-xs font-bold text-emerald-900">
+                              Đã áp dụng mã: <span className="text-blue-700 font-mono tracking-wider font-extrabold">{appliedPromo}</span>
+                            </span>
+                            <p className="text-[11px] text-emerald-700">
+                              ✓ Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ). Lịch hẹn sẽ tự động được duyệt ngay khi bấm Đặt Khám.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemovePromo}
+                          className="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-medium cursor-pointer transition border border-rose-200"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={promoInput}
+                            onChange={(e) => {
+                              setPromoInput(e.target.value);
+                              if (promoError) setPromoError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleApplyPromo();
+                              }
+                            }}
+                            placeholder="Nhập GIAOVIEN hoặc MEDFREE..."
+                            className="flex-1 bg-white border border-amber-300 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyPromo}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap"
+                          >
+                            Áp Dụng
+                          </button>
+                        </div>
+                        {promoError && (
+                          <p className="text-[11px] text-rose-600 font-medium">{promoError}</p>
+                        )}
+                        <p className="text-[11px] text-slate-500 italic">
+                          💡 Gợi ý mã chấm thi nhanh: <button type="button" onClick={() => { setPromoInput('GIAOVIEN'); setAppliedPromo('GIAOVIEN'); setPromoError(null); }} className="text-blue-600 underline font-semibold hover:text-blue-800">GIAOVIEN</button> hoặc <button type="button" onClick={() => { setPromoInput('MEDFREE'); setAppliedPromo('MEDFREE'); setPromoError(null); }} className="text-blue-600 underline font-semibold hover:text-blue-800">MEDFREE</button>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Thanh Xác Nhận Tóm Tắt & Nút Đặt Khám (Ảnh 3 Sticky Footer) */}
                   <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
@@ -1065,10 +1338,24 @@ export default function BookingForm() {
                         <span className="text-blue-700 font-bold"> {selectedSlot.time} (Ngày {selectedSlot.date})</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-slate-500">Tổng thanh toán: </span>
-                        <strong className="text-base text-blue-700 font-extrabold">
-                          {Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ
-                        </strong>
+                        {appliedPromo ? (
+                          <div>
+                            <div className="text-[11px] text-emerald-600 font-bold">
+                              ✓ Voucher [{appliedPromo}]: Miễn phí tiền cọc
+                            </div>
+                            <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
+                            <strong className="text-base text-emerald-600 font-extrabold">
+                              0 đ <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
+                            </strong>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="text-slate-500">Tổng thanh toán: </span>
+                            <strong className="text-base text-blue-700 font-extrabold">
+                              {Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ
+                            </strong>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1172,14 +1459,9 @@ export default function BookingForm() {
                   <span className="text-[10px] font-mono font-bold text-slate-700 mt-2 bg-slate-200/80 px-2.5 py-0.5 rounded">
                     {result.bookingCode}
                   </span>
-                  <a
-                    href={`/checkin?code=${encodeURIComponent(result.bookingCode)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-emerald-700 hover:text-emerald-800 font-bold mt-1 hover:underline"
-                  >
-                    ✓ Quét Camera hoặc bấm mở tiếp đón
-                  </a>
+                  <span className="text-[10px] text-slate-500 font-medium text-center mt-1.5 max-w-[130px] leading-tight">
+                    Xuất trình mã này tại quầy tiếp đón
+                  </span>
                 </div>
               </div>
 
@@ -1199,22 +1481,24 @@ export default function BookingForm() {
                 </div>
               </div>
 
-              {/* Thanh toán VietQR */}
+              {/* Thanh toán VietQR & Voucher */}
               <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                     <CreditCard size={15} />
-                    <span>Thanh Toán Trực Tuyến Qua VietQR &amp; Ví MoMo:</span>
+                    <span>{isPaidOnline ? 'Xác Nhận Giữ Chỗ & Đặt Cọc:' : 'Thanh Toán Trực Tuyến Qua VietQR & Ví MoMo:'}</span>
                   </div>
                   <p className="text-[11px] text-slate-600 mt-0.5">
                     {isPaidOnline
-                      ? '✓ Quý khách đã xác nhận thanh toán thành công.'
+                      ? (paidPromoCode || appliedPromo)
+                        ? `✓ Đã áp dụng mã ưu đãi [${paidPromoCode || appliedPromo}]: Miễn 100% tiền cọc (0 đ) - Lịch hẹn đã được xác nhận chính thức!`
+                        : '✓ Quý khách đã xác nhận thanh toán thành công.'
                       : 'Hỗ trợ quét mã VietQR chuyển khoản nhanh 24/7 để xác nhận giữ chỗ ưu tiên.'}
                   </p>
                 </div>
                 {isPaidOnline ? (
                   <span className="inline-flex items-center gap-1 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs whitespace-nowrap">
-                    <CheckCircle2 size={14} /> ĐÃ THANH TOÁN
+                    <CheckCircle2 size={14} /> {(paidPromoCode || appliedPromo) ? 'ĐÃ GIỮ CHỖ (0 Đ)' : 'ĐÃ THANH TOÁN'}
                   </span>
                 ) : (
                   <button
@@ -1223,7 +1507,7 @@ export default function BookingForm() {
                     className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
                   >
                     <QrCode size={15} />
-                    <span>Quét Mã VietQR / MoMo</span>
+                    <span>Quét Mã VietQR / Nhập Voucher</span>
                   </button>
                 )}
               </div>
@@ -1283,7 +1567,12 @@ export default function BookingForm() {
         <VietQrModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          onConfirmSuccess={() => setIsPaidOnline(true)}
+          onConfirmSuccess={(info) => {
+            setIsPaidOnline(true);
+            if (info?.promoCode) {
+              setPaidPromoCode(info.promoCode);
+            }
+          }}
           amount={Number(selectedDoctor?.fee) || 200000}
           appointmentId={result.id}
           bookingCode={result.bookingCode}

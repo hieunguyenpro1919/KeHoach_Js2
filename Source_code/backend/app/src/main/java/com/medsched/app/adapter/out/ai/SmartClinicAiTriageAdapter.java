@@ -40,7 +40,12 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
     ) {
         this.geminiApiKey = geminiApiKey;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.builder().build();
+        var requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(java.time.Duration.ofSeconds(3));
+        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(4));
+        this.restClient = RestClient.builder()
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Override

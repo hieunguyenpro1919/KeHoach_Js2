@@ -62,28 +62,33 @@ public class BookAppointmentService implements BookAppointmentUseCase {
             throw new SlotNotAvailableException("Không thể giữ chỗ slot khám (xung đột đồng thời)");
         }
 
-        String aiSummary = null;
-        if (aiTriagePort != null && command.symptoms() != null && !command.symptoms().isBlank()) {
-            aiSummary = aiTriagePort.generateClinicalSummary(command.symptoms(), command.medicalHistory());
+        try {
+            String aiSummary = null;
+            if (aiTriagePort != null && command.symptoms() != null && !command.symptoms().isBlank()) {
+                aiSummary = aiTriagePort.generateClinicalSummary(command.symptoms(), command.medicalHistory());
+            }
+
+            String id = UUID.randomUUID().toString();
+            String bookingCode = "MED" + (100000 + ThreadLocalRandom.current().nextInt(900000));
+            String queueNumber = "APP-" + (1000 + ThreadLocalRandom.current().nextInt(9000));
+
+            Appointment appointment = Appointment.createNew(
+                    id,
+                    bookingCode,
+                    command.medicalCenterId(),
+                    command.patientProfileId(),
+                    command.doctorId(),
+                    command.slotId(),
+                    queueNumber,
+                    command.symptoms(),
+                    aiSummary
+            );
+
+            return appointmentRepository.save(appointment);
+        } catch (Exception ex) {
+            timeSlotRepository.releaseSlot(command.slotId());
+            throw ex;
         }
-
-        String id = UUID.randomUUID().toString();
-        String bookingCode = "MED" + (100000 + ThreadLocalRandom.current().nextInt(900000));
-        String queueNumber = "APP-" + (1000 + ThreadLocalRandom.current().nextInt(9000));
-
-        Appointment appointment = Appointment.createNew(
-                id,
-                bookingCode,
-                command.medicalCenterId(),
-                command.patientProfileId(),
-                command.doctorId(),
-                command.slotId(),
-                queueNumber,
-                command.symptoms(),
-                aiSummary
-        );
-
-        return appointmentRepository.save(appointment);
     }
 
     /**

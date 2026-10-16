@@ -5,16 +5,14 @@ import {
   X,
   Check,
   Copy,
-  QrCode,
-  CreditCard,
   ShieldCheck,
   Building2,
-  Sparkles,
   Loader2,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  Zap,
+  Gift,
+  Sparkles,
 } from 'lucide-react';
 import { QrCodeImage } from './QrCodeImage';
 import { api } from '@/shared/lib/api';
@@ -39,7 +37,7 @@ export const OFFICIAL_BANK_CONFIG: BankConfig = {
 interface VietQrModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmSuccess?: () => void;
+  onConfirmSuccess?: (info?: { promoCode?: string }) => void;
   title?: string;
   amount: number;
   description?: string;
@@ -71,20 +69,100 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   const [paidDetails, setPaidDetails] = useState<{ amount: number; txnRef?: string } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState<boolean>(false);
   const [checkError, setCheckError] = useState<string | null>(null);
-  const [simulatingWebhook, setSimulatingWebhook] = useState<boolean>(false);
+  const [isManualConfirming, setIsManualConfirming] = useState<boolean>(false);
+  const [payOsData, setPayOsData] = useState<{
+    accountNumber?: string;
+    accountName?: string;
+    bin?: string;
+    checkoutUrl?: string;
+    qrCode?: string;
+  } | null>(null);
+
+  // 4. Mã khuyến mãi / Voucher ưu đãi (Free cọc cho Giảng viên / Tester)
+  const [promoInput, setPromoInput] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountPercent: number;
+    message: string;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   const cleanBookingCode = (bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   const transferContent = `MEDPAY ${cleanBookingCode}`;
 
-  // Tính số tiền thực tế theo mode đã chọn
+  // Tính số tiền thực tế theo mode đã chọn và mã khuyến mãi
   const fullAmount = Math.max(0, Math.round(amount || 200000));
-  const depositAmount = OFFICIAL_BANK_CONFIG.depositAmount;
+  const baseDepositAmount = OFFICIAL_BANK_CONFIG.depositAmount;
+  const isDepositFree = appliedPromo !== null && paymentType === 'DEPOSIT';
+  const depositAmount = isDepositFree ? 0 : baseDepositAmount;
   const activeAmount = paymentType === 'DEPOSIT' ? depositAmount : fullAmount;
 
+  const handleApplyPromo = () => {
+    setPromoError(null);
+    const cleaned = promoInput.trim().toUpperCase();
+    if (!cleaned) {
+      setPromoError('Vui lòng nhập mã khuyến mãi');
+      return;
+    }
+    const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
+    if (validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
+      setAppliedPromo({
+        code: cleaned,
+        discountPercent: 100,
+        message: 'Áp dụng mã thành công! Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).',
+      });
+      setPaymentType('DEPOSIT');
+    } else {
+      setPromoError('Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError(null);
+  };
+
+  const handleConfirmFreePromo = async () => {
+    setIsManualConfirming(true);
+    setCheckError(null);
+    try {
+      const res = await api.confirmRealPayment({
+        appointmentId,
+        bookingCode: cleanBookingCode,
+        amount: 0,
+        paymentType: 'PROMO_FREE',
+        promoCode: appliedPromo?.code || 'GIAOVIEN',
+      });
+
+      if (res && res.success) {
+        setIsPaidSuccess(true);
+        setPaidDetails({
+          amount: 0,
+          txnRef: `VOUCHER_${appliedPromo?.code || 'GIAOVIEN'}`,
+        });
+        setTimeout(() => {
+          if (onConfirmSuccess) onConfirmSuccess({ promoCode: appliedPromo?.code });
+        }, 1500);
+      } else {
+        setCheckError(res?.message || 'Không thể xác nhận ưu đãi. Vui lòng thử lại.');
+      }
+    } catch (err: any) {
+      setCheckError(err.message || 'Lỗi kết nối khi xác nhận ưu đãi');
+    } finally {
+      setIsManualConfirming(false);
+    }
+  };
+
+  // Tài khoản và ngân hàng động nhận tiền từ PayOS (Tài khoản định danh VietQR PRO)
+  const effectiveAccountNo = payOsData?.accountNumber || bankConfig.accountNo;
+  const effectiveAccountName = payOsData?.accountName || bankConfig.accountName;
+  const effectiveBin = payOsData?.bin || bankConfig.bankId;
+
   // URL VietQR chuẩn Napas 247 tương thích tất cả App Ngân Hàng + Ví MoMo
-  const vietQrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact2.png?amount=${activeAmount}&addInfo=${encodeURIComponent(
+  const vietQrUrl = `https://img.vietqr.io/image/${effectiveBin}-${effectiveAccountNo}-compact2.png?amount=${activeAmount}&addInfo=${encodeURIComponent(
     transferContent
-  )}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
+  )}&accountName=${encodeURIComponent(effectiveAccountName)}`;
 
   // Tạo Payment Entity trên backend khi mở modal hoặc đổi chế độ thanh toán
   useEffect(() => {
@@ -94,13 +172,23 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     setPaidDetails(null);
     setCheckError(null);
 
-    // Gửi yêu cầu khởi tạo thanh toán pending tới backend
+    // Gửi yêu cầu khởi tạo thanh toán pending tới backend và lấy Virtual Account của PayOS
     api.createRealPayment({
       appointmentId,
       bookingCode: cleanBookingCode,
       paymentType,
       amount: activeAmount,
-      method: 'MOMO',
+      method: 'BANK_TRANSFER',
+    }).then((res: any) => {
+      if (res) {
+        setPayOsData({
+          accountNumber: res.accountNumber || undefined,
+          accountName: res.accountName || undefined,
+          bin: res.bin || undefined,
+          checkoutUrl: res.checkoutUrl || undefined,
+          qrCode: res.qrCode || undefined,
+        });
+      }
     }).catch((err) => {
       console.warn('Không thể khởi tạo bản ghi thanh toán backend:', err);
     });
@@ -147,7 +235,38 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  // Kiểm tra trạng thái thanh toán thực tế (Chỉ cho phép xác nhận khi TIỀN ĐÃ VỀ)
+  // Xác nhận trực tiếp khi người bệnh đã chuyển khoản vào tài khoản KienlongBank
+  const handleManualConfirm = async () => {
+    setIsManualConfirming(true);
+    setCheckError(null);
+    try {
+      const res = await api.confirmRealPayment({
+        appointmentId,
+        bookingCode: cleanBookingCode,
+        amount: activeAmount,
+        paymentType,
+      });
+
+      if (res && res.success) {
+        setIsPaidSuccess(true);
+        setPaidDetails({
+          amount: res.amountPaid || activeAmount,
+          txnRef: (res as any).transactionRef,
+        });
+        setTimeout(() => {
+          if (onConfirmSuccess) onConfirmSuccess();
+        }, 1500);
+      } else {
+        setCheckError('Không thể hoàn tất xác nhận. Vui lòng kiểm tra lại kết nối.');
+      }
+    } catch (err: any) {
+      setCheckError(err?.message || 'Lỗi xác nhận chuyển khoản. Vui lòng thử lại.');
+    } finally {
+      setIsManualConfirming(false);
+    }
+  };
+
+  // Kiểm tra trạng thái thanh toán tự động qua Napas 247 & PayOS
   const handleCheckPaymentStatus = async () => {
     setCheckingStatus(true);
     setCheckError(null);
@@ -168,35 +287,16 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
           if (onConfirmSuccess) onConfirmSuccess();
         }, 1500);
       } else {
-        // Chưa nhận được tiền -> TUYỆT ĐỐI KHÔNG CHO PHÉP XÁC NHẬN!
         setCheckError(
-          `Hệ thống chưa ghi nhận số tiền ${activeAmount.toLocaleString(
+          `Hệ thống chưa ghi nhận biến động số dư cho khoản chuyển ${activeAmount.toLocaleString(
             'vi-VN'
-          )} đ vào tài khoản KienlongBank. Vui lòng mở App MoMo hoặc Ngân hàng để hoàn tất lệnh chuyển tiền với nội dung: "${transferContent}".`
+          )} đ (nội dung: ${transferContent}). Nếu bạn vừa chuyển tiền, vui lòng đợi 5-10 giây để liên ngân hàng xử lý hoặc bấm "Kiểm Tra Ngay".`
         );
       }
     } catch (err: any) {
       setCheckError(err.message || 'Lỗi kiểm tra giao dịch từ hệ thống ngân hàng.');
     } finally {
       setCheckingStatus(false);
-    }
-  };
-
-  // Mô phỏng Webhook ngân hàng báo tiền về (Hỗ trợ Tester kiểm thử tự động)
-  const handleSimulateWebhook = async () => {
-    setSimulatingWebhook(true);
-    try {
-      await api.simulateBankWebhook({
-        bookingCode: cleanBookingCode,
-        amount: activeAmount,
-        paymentType,
-      });
-      // Gọi kiểm tra lại ngay
-      handleCheckPaymentStatus();
-    } catch (err: any) {
-      alert(`Lỗi giả lập: ${err.message || 'Lỗi kết nối'}`);
-    } finally {
-      setSimulatingWebhook(false);
     }
   };
 
@@ -241,11 +341,13 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 <div className="flex justify-between">
                   <span className="text-slate-500">Hình thức:</span>
                   <strong className="text-emerald-800 font-semibold">
-                    {paymentType === 'DEPOSIT' ? '🟢 Đặt cọc giữ chỗ' : '🔵 Trọn gói dịch vụ'}
+                    {appliedPromo && paidDetails?.amount === 0
+                      ? `🎁 Ưu đãi (${appliedPromo.code} - Miễn phí)`
+                      : paymentType === 'DEPOSIT' ? '🟢 Đặt cọc giữ chỗ' : '🔵 Trọn gói dịch vụ'}
                   </strong>
                 </div>
                 <div className="flex justify-between border-t border-emerald-200/60 pt-1.5">
-                  <span className="text-slate-500">Số tiền thực nhận:</span>
+                  <span className="text-slate-500">Số tiền thanh toán:</span>
                   <strong className="text-emerald-700 font-bold font-mono text-sm">
                     {(paidDetails?.amount || activeAmount).toLocaleString('vi-VN')} đ
                   </strong>
@@ -253,7 +355,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 <div className="flex justify-between">
                   <span className="text-slate-500">Trạng thái:</span>
                   <span className="text-emerald-700 font-bold flex items-center gap-1">
-                    <Check size={13} /> Đã Khớp Số Dư
+                    <Check size={13} /> {appliedPromo && paidDetails?.amount === 0 ? 'Đã Xác Nhận Giữ Chỗ' : 'Đã Khớp Số Dư'}
                   </span>
                 </div>
               </div>
@@ -266,7 +368,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 }}
                 className="mt-3 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-emerald-600/20 cursor-pointer"
               >
-                Hoàn tất & Đóng
+                Hoàn tất &amp; Đóng
               </button>
             </div>
           ) : (
@@ -297,11 +399,17 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                       <span className="text-xs">🟢 Đặt cọc giữ chỗ</span>
                       {paymentType === 'DEPOSIT' && <Check size={14} className="text-emerald-600" />}
                     </div>
-                    <div className="text-sm font-black text-emerald-700 font-mono mt-1">
-                      {depositAmount.toLocaleString('vi-VN')} <span className="text-xs font-normal">đ</span>
+                    <div className="text-sm font-black text-emerald-700 font-mono mt-1 flex items-center gap-1">
+                      <span>{depositAmount.toLocaleString('vi-VN')}</span>
+                      <span className="text-xs font-normal">đ</span>
+                      {isDepositFree && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-sans font-bold">
+                          Free 100%
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] text-slate-400 font-normal mt-0.5 leading-tight">
-                      Giữ slot chắc chắn, phần còn lại trả tại quầy
+                      {isDepositFree ? 'Miễn phí giữ chỗ bằng mã ưu đãi' : 'Giữ slot chắc chắn, phần còn lại trả tại quầy'}
                     </span>
                   </button>
 
@@ -332,10 +440,78 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 </div>
               </div>
 
+              {/* Khung Nhập Mã Khuyến Mãi / Voucher (Free Đặt Cọc cho Giảng Viên / Tester) */}
+              <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-3 text-left">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+                    <Gift size={14} className="text-emerald-700" />
+                    <span>Mã Khuyến Mãi / Ưu Đãi Đặt Cọc:</span>
+                  </span>
+                  {appliedPromo && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold underline cursor-pointer"
+                    >
+                      Bỏ áp dụng
+                    </button>
+                  )}
+                </div>
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-emerald-300 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="text-emerald-950 font-bold block">
+                          Mã ưu đãi: <span className="font-mono text-emerald-700">{appliedPromo.code}</span>
+                        </span>
+                        <span className="text-[10px] text-emerald-700">Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ)</span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                      -2.000 đ
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={promoInput}
+                        onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyPromo();
+                          }
+                        }}
+                        placeholder="Nhập mã: GIAOVIEN hoặc MEDFREE"
+                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-mono uppercase placeholder:normal-case placeholder:font-sans placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyPromo}
+                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
+                      >
+                        Áp dụng
+                      </button>
+                    </div>
+                    {promoError && (
+                      <p className="text-[10px] text-rose-600 font-medium mt-1">{promoError}</p>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                      <span>💡</span>
+                      <span>Dành cho Giảng viên / Kiểm thử: Nhập <strong>GIAOVIEN</strong> hoặc <strong>MEDFREE</strong> để miễn phí cọc 0 đ.</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Amount Display & Patient info */}
               <div className="text-center pt-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Số tiền cần chuyển:
+                  Số tiền cần thanh toán:
                 </span>
                 <div className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono mt-0.5">
                   {activeAmount.toLocaleString('vi-VN')}{' '}
@@ -348,102 +524,161 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 )}
               </div>
 
-              {/* VietQR Box */}
-              <div className="text-center">
-                <div className="bg-slate-50 border-2 border-dashed border-emerald-500/40 rounded-2xl p-3 inline-block shadow-inner relative group">
-                  <img
-                    src={vietQrUrl}
-                    alt="Mã VietQR Thanh Toán Viện Phí"
-                    className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl mx-auto shadow-sm bg-white p-1"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      const fallbackEl = document.getElementById('vietqr-offline-fallback');
-                      if (fallbackEl) fallbackEl.style.display = 'block';
-                    }}
-                  />
-                  <div id="vietqr-offline-fallback" style={{ display: 'none' }} className="py-2">
-                    <QrCodeImage
-                      value={`2|99|${bankConfig.accountNo}|${bankConfig.accountName}|${activeAmount}|${transferContent}`}
-                      size={180}
-                      className="mx-auto rounded-lg shadow-xs"
-                    />
-                    <span className="text-[10px] text-slate-400 block mt-1">Chế độ tạo mã QR ngoại tuyến</span>
+              {/* Trường hợp 1: Miễn phí đặt cọc qua mã khuyến mãi */}
+              {isDepositFree ? (
+                <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-500/40 rounded-2xl p-4 text-center space-y-3 shadow-inner">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-sm">
+                    <Sparkles size={24} className="text-emerald-600 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Ưu Đãi Giảng Viên &amp; Kiểm Thử</span>
+                    <h4 className="text-base font-extrabold text-slate-800 mt-0.5">Miễn Phí 100% Tiền Đặt Cọc Giữ Chỗ</h4>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Mã <strong className="font-mono text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">{appliedPromo.code}</strong> đã kích hoạt. Bạn không cần chuyển khoản 2.000 đ tiền cọc.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Số tiền cọc cần nạp:</span>
+                    <strong className="text-emerald-700 font-black text-sm">0 đ (Miễn phí)</strong>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isManualConfirming}
+                    onClick={handleConfirmFreePromo}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {isManualConfirming ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Đang xác nhận giữ chỗ...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={18} />
+                        <span>Xác Nhận Giữ Chỗ Miễn Phí (0 đ)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Trường hợp 2: Chuyển khoản VietQR bình thường */}
+                  <div className="text-center">
+                    <div className="bg-slate-50 border-2 border-dashed border-emerald-500/40 rounded-2xl p-3 inline-block shadow-inner relative group">
+                      <img
+                        src={vietQrUrl}
+                        alt="Mã VietQR Thanh Toán Viện Phí"
+                        className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl mx-auto shadow-sm bg-white p-1"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fallbackEl = document.getElementById('vietqr-offline-fallback');
+                          if (fallbackEl) fallbackEl.style.display = 'block';
+                        }}
+                      />
+                      <div id="vietqr-offline-fallback" style={{ display: 'none' }} className="py-2">
+                        <QrCodeImage
+                          value={`2|99|${bankConfig.accountNo}|${bankConfig.accountName}|${activeAmount}|${transferContent}`}
+                          size={180}
+                          className="mx-auto rounded-lg shadow-xs"
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">Chế độ tạo mã QR ngoại tuyến</span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-600 font-medium mt-2 flex items-center justify-center gap-1.5">
+                        <ShieldCheck size={14} className="text-emerald-600" />
+                        <span>Mở <strong>App Ngân hàng</strong> hoặc <strong>Ví MoMo</strong> quét mã</span>
+                      </div>
+                    </div>
+
+                    {/* Polling Liveness Badge */}
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-teal-700 font-medium mt-1.5">
+                      <Loader2 size={12} className="animate-spin text-teal-600" />
+                      <span>Đang tự động lắng nghe giao dịch từ tài khoản...</span>
+                    </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-600 font-medium mt-2 flex items-center justify-center gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-600" />
-                    <span>Mở <strong>App Ngân hàng</strong> hoặc <strong>Ví MoMo</strong> quét mã</span>
+                  {/* Account Details Box with 1-click Copy */}
+                  <div className="bg-slate-50 rounded-2xl p-3.5 text-left space-y-2 border border-slate-200 text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Ngân hàng nhận:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 font-black rounded text-[10px]">
+                          KLB
+                        </span>
+                        <strong className="text-slate-800 font-semibold">{bankConfig.bankName}</strong>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Số tài khoản:</span>
+                      <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
+                        <span className="text-sm text-emerald-800 font-black">{effectiveAccountNo}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(effectiveAccountNo, 'account')}
+                          className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
+                          title="Sao chép số tài khoản"
+                        >
+                          {copiedField === 'account' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Chủ tài khoản:</span>
+                      <strong className="text-slate-800 font-semibold uppercase">{effectiveAccountName}</strong>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-500">Nội dung CK:</span>
+                      <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-800">
+                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-xs border border-emerald-300">
+                          {transferContent}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(transferContent, 'content')}
+                          className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
+                          title="Sao chép nội dung chuyển khoản"
+                        >
+                          {copiedField === 'content' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                {/* Polling Liveness Badge */}
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-teal-700 font-medium mt-1.5">
-                  <Loader2 size={12} className="animate-spin text-teal-600" />
-                  <span>Đang tự động lắng nghe giao dịch từ tài khoản...</span>
-                </div>
-              </div>
-
-              {/* Account Details Box with 1-click Copy */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 text-left space-y-2 border border-slate-200 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Ngân hàng nhận:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 font-black rounded text-[10px]">
-                      KLB
-                    </span>
-                    <strong className="text-slate-800 font-semibold">{bankConfig.bankName}</strong>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Số tài khoản:</span>
-                  <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-                    <span className="text-sm text-emerald-800 font-black">{bankConfig.accountNo}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(bankConfig.accountNo, 'account')}
-                      className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                      title="Sao chép số tài khoản"
-                    >
-                      {copiedField === 'account' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500">Chủ tài khoản:</span>
-                  <strong className="text-slate-800 font-semibold uppercase">{bankConfig.accountName}</strong>
-                </div>
-
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-slate-500">Nội dung CK:</span>
-                  <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-800">
-                    <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-xs border border-emerald-300">
-                      {transferContent}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(transferContent, 'content')}
-                      className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                      title="Sao chép nội dung chuyển khoản"
-                    >
-                      {copiedField === 'content' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
 
               {/* Cảnh báo khi người dùng bấm kiểm tra nhưng tiền chưa về */}
               {checkError && (
-                <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3 rounded-2xl text-xs space-y-1 animate-in fade-in">
+                <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3.5 rounded-2xl text-xs space-y-2 animate-in fade-in">
                   <div className="flex items-center gap-1.5 font-bold text-rose-900">
                     <AlertCircle size={15} className="text-rose-600 shrink-0" />
-                    <span>Chưa Nhận Được Thanh Toán:</span>
+                    <span>Chưa Nhận Được Thanh Toán Tự Động:</span>
                   </div>
                   <p className="text-[11px] leading-relaxed text-rose-700">{checkError}</p>
-                  <p className="text-[10px] text-rose-500 italic pt-0.5">
-                    * Hệ thống chỉ cho phép xác nhận khi tài khoản ngân hàng thực tế nhận được tiền.
-                  </p>
+
+                  {/* Cứu cánh khi người dùng chuyển thẳng vào STK cá nhân 18112007 thay vì tài khoản PayOS */}
+                  <div className="pt-1 border-t border-rose-200">
+                    <button
+                      type="button"
+                      disabled={isManualConfirming}
+                      onClick={handleManualConfirm}
+                      className="text-xs text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 w-full cursor-pointer shadow-xs"
+                    >
+                      {isManualConfirming ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Đang xác nhận lịch khám...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={15} className="text-emerald-700 shrink-0" />
+                          <span>Tôi đã chuyển {activeAmount.toLocaleString('vi-VN')} đ vào tài khoản KienlongBank ({bankConfig.accountNo})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -460,53 +695,74 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
 
         {/* Footer Actions */}
         {!isPaidSuccess && (
-          <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2 shrink-0">
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Để Sau / Đóng
-              </button>
-              <button
-                type="button"
-                disabled={checkingStatus}
-                onClick={handleCheckPaymentStatus}
-                className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                title="Kiểm tra xem hệ thống ngân hàng đã nhận được số tiền chuyển khoản chưa"
-              >
-                {checkingStatus ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Đang đối soát số dư...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw size={14} />
-                    <span>Kiểm Tra Trạng Thái Thanh Toán</span>
-                  </>
-                )}
-              </button>
-            </div>
+          <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2.5 shrink-0">
+            {isDepositFree ? (
+              <div className="flex items-center justify-between gap-2.5">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Để Sau / Đóng
+                </button>
+                <button
+                  type="button"
+                  disabled={isManualConfirming}
+                  onClick={handleConfirmFreePromo}
+                  className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isManualConfirming ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Đang xác nhận...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} />
+                      <span>Xác Nhận Giữ Chỗ (0 đ)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Thanh trạng thái tự động bắt giao dịch */}
+                <div className="w-full py-2.5 px-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-2 text-emerald-800 text-xs font-semibold">
+                  <Loader2 size={15} className="animate-spin text-emerald-600 shrink-0" />
+                  <span>Hệ thống đang tự động xác thực biến động số dư qua KienlongBank...</span>
+                </div>
 
-            {/* Công cụ hỗ trợ Tester giả lập Webhook nhanh khi cần test môi trường dev */}
-            <div className="pt-1 text-center">
-              <button
-                type="button"
-                disabled={simulatingWebhook}
-                onClick={handleSimulateWebhook}
-                className="text-[11px] text-slate-400 hover:text-amber-700 underline transition cursor-pointer inline-flex items-center gap-1"
-                title="Dành riêng cho kiểm thử: Mô phỏng Webhook ngân hàng thông báo tiền đã vào tài khoản"
-              >
-                {simulatingWebhook ? (
-                  <Loader2 size={11} className="animate-spin" />
-                ) : (
-                  <Zap size={11} className="text-amber-500" />
-                )}
-                <span>Mô phỏng Webhook tiền về (Dành cho kiểm thử)</span>
-              </button>
-            </div>
+                {/* Action Row */}
+                <div className="flex items-center justify-between gap-2.5">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Để Sau / Đóng
+                  </button>
+                  <button
+                    type="button"
+                    disabled={checkingStatus}
+                    onClick={handleCheckPaymentStatus}
+                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    title="Kiểm tra đối soát số dư tức thì từ PayOS &amp; KienlongBank"
+                  >
+                    {checkingStatus ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>Đang đối soát...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={13} />
+                        <span>Kiểm Tra Ngay</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

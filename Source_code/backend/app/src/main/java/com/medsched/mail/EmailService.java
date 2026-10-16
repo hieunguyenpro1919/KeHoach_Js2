@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -54,8 +55,9 @@ public class EmailService {
     }
 
     /**
-     * Gửi email mã OTP xác thực đăng ký tài khoản MedSched (HTML đẹp mắt).
+     * Gửi email mã OTP xác thực đăng ký tài khoản MedSched (HTML đẹp mắt) bất đồng bộ.
      */
+    @Async
     public void sendOtpEmail(String toEmail, String recipientName, String otpCode) {
         String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
         String subject = "[MedSched] " + otpCode + " là mã xác thực OTP đăng ký tài khoản của bạn";
