@@ -78,14 +78,19 @@ class DoctorScheduleServiceTest {
                 BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
         );
 
+        LocalDate validWorkDate = LocalDate.now().plusDays(1);
+        while (validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            validWorkDate = validWorkDate.plusDays(1);
+        }
+
         given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
-        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", LocalDate.now().plusDays(2))).willReturn(List.of());
-        given(doctorScheduleRepository.findByWorkDate(LocalDate.now().plusDays(2))).willReturn(List.of());
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", validWorkDate)).willReturn(List.of());
+        given(doctorScheduleRepository.findByWorkDate(validWorkDate)).willReturn(List.of());
         given(doctorScheduleRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         var req = new DoctorScheduleDtos.CreateScheduleRequest(
                 "doc-1",
-                LocalDate.now().plusDays(2),
+                validWorkDate,
                 LocalTime.of(8, 0),
                 LocalTime.of(10, 0),
                 30,

@@ -64,7 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtService.isType(claims, JwtService.TYPE_ACCESS)) {
                 AppUserDetails user = userDetailsService.loadUserById(claims.getSubject());
                 if (user.isEnabled()) {
-                    // Single active web session check (Zalo-style kickout):
+                    // Single active web session check (Concurrent session kickout):
                     // Khi tài khoản đăng nhập trên trình duyệt khác, currentSessionId trong DB đã thay đổi.
                     if (user.getCurrentSessionId() != null) {
                         String tokenSid = claims.get(JwtService.CLAIM_SESSION_ID, String.class);

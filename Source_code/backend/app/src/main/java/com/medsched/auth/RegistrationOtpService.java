@@ -26,12 +26,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Quản lý quy trình đăng ký tài khoản 2 bước qua mã OTP 4 số (Email Gmail thật).
+ * Quản lý quy trình đăng ký tài khoản 2 bước qua mã OTP 4 số (Email Brevo / Gmail).
  */
 @Service
-public class ZaloOtpService {
+public class RegistrationOtpService {
 
-    private static final Logger log = LoggerFactory.getLogger(ZaloOtpService.class);
+    private static final Logger log = LoggerFactory.getLogger(RegistrationOtpService.class);
     private static final int OTP_EXPIRES_SECONDS = 120; // 2 phút
     private static final int RESEND_COOLDOWN_SECONDS = 60; // 1 phút
     private static final int MAX_ATTEMPTS = 3;
@@ -44,16 +44,15 @@ public class ZaloOtpService {
     private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-
     // Cache lưu trữ các phiên đăng ký tạm thời
     private final Map<String, OtpSession> sessionCache = new ConcurrentHashMap<>();
 
-    public ZaloOtpService(UserJpaRepository users,
-                           PatientProfileJpaRepository patientProfiles,
-                           PasswordEncoder passwordEncoder,
-                           AppUserDetailsService userDetailsService,
-                           JwtService jwtService,
-                           @Qualifier("otpEmailService") EmailService emailService) {
+    public RegistrationOtpService(UserJpaRepository users,
+                                  PatientProfileJpaRepository patientProfiles,
+                                  PasswordEncoder passwordEncoder,
+                                  AppUserDetailsService userDetailsService,
+                                  JwtService jwtService,
+                                  @Qualifier("otpEmailService") EmailService emailService) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.passwordEncoder = passwordEncoder;
@@ -88,7 +87,7 @@ public class ZaloOtpService {
     /**
      * BƯỚC 1: Yêu cầu gửi mã OTP.
      */
-    public ZaloOtpDtos.RequestOtpResponse requestOtp(ZaloOtpDtos.RequestOtpRequest request) {
+    public RegistrationOtpDtos.RequestOtpResponse requestOtp(RegistrationOtpDtos.RequestOtpRequest request) {
         String email = normalizeEmail(request.email());
         if (users.existsByEmail(email)) {
             throw new AppExceptions.ConflictException("Email này đã được đăng ký tài khoản");
@@ -124,7 +123,7 @@ public class ZaloOtpService {
 
         sessionCache.put(sessionToken, session);
 
-        // Gửi email OTP thật qua Google Gmail SMTP
+        // Gửi email OTP thật qua Brevo API / Gmail SMTP
         try {
             emailService.sendOtpEmail(email, fullName, otpCode);
         } catch (Exception ex) {
@@ -137,7 +136,7 @@ public class ZaloOtpService {
         log.info("🔑 Mã OTP 4 chữ số: [{}] (Hiệu lực 120s)", otpCode);
         log.info("════════════════════════════════════════════════════════════");
 
-        return new ZaloOtpDtos.RequestOtpResponse(
+        return new RegistrationOtpDtos.RequestOtpResponse(
                 sessionToken,
                 maskPhone(phone),
                 maskEmail(email),
@@ -152,7 +151,7 @@ public class ZaloOtpService {
      * BƯỚC 2: Xác thực mã OTP và chính thức lưu tài khoản vào CSDL.
      */
     @Transactional
-    public AuthDtos.AuthResponse verifyOtp(ZaloOtpDtos.VerifyOtpRequest request) {
+    public AuthDtos.AuthResponse verifyOtp(RegistrationOtpDtos.VerifyOtpRequest request) {
         OtpSession session = sessionCache.get(request.sessionToken());
         if (session == null) {
             throw new AppExceptions.BadRequestException("Phiên đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.");
@@ -231,7 +230,7 @@ public class ZaloOtpService {
     /**
      * BƯỚC 3: Gửi lại mã OTP mới.
      */
-    public ZaloOtpDtos.ResendOtpResponse resendOtp(ZaloOtpDtos.ResendOtpRequest request) {
+    public RegistrationOtpDtos.ResendOtpResponse resendOtp(RegistrationOtpDtos.ResendOtpRequest request) {
         OtpSession session = sessionCache.get(request.sessionToken());
         if (session == null) {
             throw new AppExceptions.BadRequestException("Phiên đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.");
@@ -251,17 +250,20 @@ public class ZaloOtpService {
         OtpSession updated = session.withNewOtp(newOtp, newExpiresAt, newResendAt);
         sessionCache.put(request.sessionToken(), updated);
 
-        // Gửi lại email OTP thật
+        // Gửi email OTP
         try {
             emailService.sendOtpEmail(session.email(), session.fullName(), newOtp);
         } catch (Exception ex) {
-            log.warn("⚠️ Không thể gửi lại email OTP tới {}: {}", session.email(), ex.getMessage());
+            log.warn("⚠️ Không thể gửi lại email OTP thật tới {}: {}", session.email(), ex.getMessage());
         }
 
-        log.info("🔄 [MEDSCHED RESEND OTP] Gửi lại mã OTP tới Email {}: [{}]", session.email(), newOtp);
+        log.info("════════════════════════════════════════════════════════════");
+        log.info("📧 [MEDSCHED EMAIL OTP RESEND] Gửi lại mã tới: {}", session.email());
+        log.info("🔑 Mã OTP 4 chữ số mới: [{}] (Hiệu lực 120s)", newOtp);
+        log.info("════════════════════════════════════════════════════════════");
 
-        return new ZaloOtpDtos.ResendOtpResponse(
-                "Mã OTP mới đã được gửi lại tới email " + maskEmail(session.email()) + ".",
+        return new RegistrationOtpDtos.ResendOtpResponse(
+                "Mã xác thực mới đã được gửi tới email " + maskEmail(session.email()),
                 OTP_EXPIRES_SECONDS,
                 RESEND_COOLDOWN_SECONDS,
                 newOtp
@@ -294,62 +296,50 @@ public class ZaloOtpService {
         );
     }
 
-    private static void validatePasswordSecurity(String password, String fullName, String phone, String email) {
-        if (password == null) return;
-        String lowerPwd = removeAccents(password.toLowerCase());
+    private void validatePasswordSecurity(String password, String fullName, String phone, String email) {
+        String lowerPwd = password.toLowerCase();
 
-        if (fullName != null) {
-            String normName = removeAccents(fullName.toLowerCase()).trim();
-            String noSpaces = normName.replaceAll("\\s+", "");
-            if (noSpaces.length() >= 3 && lowerPwd.contains(noSpaces)) {
+        // 1. Không trùng với số điện thoại
+        if (phone != null && phone.length() >= 6 && lowerPwd.contains(phone)) {
+            throw new AppExceptions.BadRequestException("Mật khẩu không được chứa số điện thoại của bạn");
+        }
+
+        // 2. Không chứa email name
+        String emailPrefix = email.split("@")[0].toLowerCase();
+        if (emailPrefix.length() >= 3 && lowerPwd.contains(emailPrefix)) {
+            throw new AppExceptions.BadRequestException("Mật khẩu không được chứa tên tài khoản email");
+        }
+
+        // 3. Không chứa các từ trong tên của người dùng (nếu từ dài >= 3 ký tự)
+        String[] nameParts = fullName.toLowerCase().split("\\s+");
+        for (String part : nameParts) {
+            if (part.length() >= 3 && lowerPwd.contains(part)) {
                 throw new AppExceptions.BadRequestException("Mật khẩu không được chứa họ tên của bạn");
             }
-            for (String word : normName.split("\\s+")) {
-                if (word.length() >= 3 && lowerPwd.contains(word)) {
-                    throw new AppExceptions.BadRequestException("Mật khẩu không được chứa từ trong họ tên");
-                }
-            }
-        }
-
-        if (phone != null && !phone.isBlank()) {
-            String cleanPhone = phone.replaceAll("\\D", "");
-            if (cleanPhone.length() >= 6 && (lowerPwd.contains(cleanPhone)
-                    || (cleanPhone.length() == 10 && (lowerPwd.contains(cleanPhone.substring(4)) || lowerPwd.contains(cleanPhone.substring(0, 6)))))) {
-                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa số điện thoại của bạn");
-            }
-        }
-
-        if (email != null && email.contains("@")) {
-            String prefix = email.split("@")[0].toLowerCase().trim();
-            if (prefix.length() >= 3 && lowerPwd.contains(prefix)) {
-                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa tên tài khoản email");
-            }
         }
     }
 
-    private static String removeAccents(String text) {
-        if (text == null) return "";
-        String nfd = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
-        return java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+").matcher(nfd)
-                .replaceAll("").replace("đ", "d").replace("Đ", "D");
-    }
-
-    private static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase();
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase();
     }
 
     private static String maskPhone(String phone) {
-        if (phone == null || phone.length() < 7) return phone;
+        if (phone == null || phone.length() < 7) {
+            return phone;
+        }
         return phone.substring(0, 4) + "***" + phone.substring(phone.length() - 3);
     }
 
-    private static String maskEmail(String email) {
-        if (email == null || !email.contains("@")) return email;
-        String[] parts = email.split("@");
-        String name = parts[0];
-        if (name.length() <= 2) {
-            return name.charAt(0) + "***@" + parts[1];
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return email;
         }
-        return name.charAt(0) + "***" + name.charAt(name.length() - 1) + "@" + parts[1];
+        String[] parts = email.split("@", 2);
+        String name = parts[0];
+        String domain = parts[1];
+        if (name.length() <= 2) {
+            return name.charAt(0) + "***@" + domain;
+        }
+        return name.charAt(0) + "***" + name.charAt(name.length() - 1) + "@" + domain;
     }
 }

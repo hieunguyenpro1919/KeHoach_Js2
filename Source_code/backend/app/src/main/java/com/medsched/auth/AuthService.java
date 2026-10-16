@@ -89,7 +89,7 @@ public class AuthService {
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
 
-        // Single active web session (Zalo-style kickout):
+        // Single active web session (Concurrent session kickout):
         // Sinh session ID mới, ghi đè session cũ để vô hiệu hóa trình duyệt trước đó
         String sessionId = UUID.randomUUID().toString();
         user.setCurrentSessionId(sessionId);

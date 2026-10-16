@@ -118,6 +118,10 @@ public class PaymentEntity {
         return method;
     }
 
+    public void setMethod(PaymentMethod method) {
+        this.method = method;
+    }
+
     public PaymentStatus getStatus() {
         return status;
     }
@@ -128,6 +132,10 @@ public class PaymentEntity {
 
     public String getTransactionRef() {
         return transactionRef;
+    }
+
+    public void setTransactionRef(String transactionRef) {
+        this.transactionRef = transactionRef;
     }
 
     public Instant getPaidAt() {

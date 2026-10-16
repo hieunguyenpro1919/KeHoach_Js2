@@ -116,4 +116,12 @@ public final class AdminDtos {
             String newPassword) {
     }
 
+    public record UpdateDoctorProfileRequest(
+            String specialtyId,
+            String academicTitle,
+            BigDecimal consultationFee,
+            String roomNumber,
+            String bio) {
+    }
+
 }

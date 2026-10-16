@@ -76,11 +76,16 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        // 2. Cho phép GET public danh mục y tế để người bệnh xem thông tin phòng khám/dịch vụ
+                        // 2. Cho phép GET public danh mục y tế để người bệnh xem thông tin phòng khám/dịch vụ/bác sĩ
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/medical-centers/**",
+                                "/api/medical-centers/**",
                                 "/api/v1/specialties/**",
-                                "/api/v1/services/**"
+                                "/api/specialties/**",
+                                "/api/v1/services/**",
+                                "/api/services/**",
+                                "/api/v1/doctors/**",
+                                "/api/doctors/**"
                         ).permitAll()
 
                         // 3. Khách xem danh sách slot giờ khám và tra cứu mã booking

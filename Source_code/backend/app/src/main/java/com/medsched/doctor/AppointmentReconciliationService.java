@@ -73,8 +73,7 @@ public class AppointmentReconciliationService {
         List<AppointmentEntity> staleAppointments = appointmentRepo.findAll().stream()
                 .filter(a -> a.getStatus() == AppointmentStatus.CHECKED_IN
                         || a.getStatus() == AppointmentStatus.IN_PROGRESS
-                        || a.getStatus() == AppointmentStatus.WAITING_FOR_LAB_RESULTS
-                        || a.getStatus() == AppointmentStatus.CONFIRMED)
+                        || a.getStatus() == AppointmentStatus.WAITING_FOR_LAB_RESULTS)
                 .filter(a -> {
                     Instant apptTime = a.getCheckInTime() != null ? a.getCheckInTime() : a.getCreatedAt();
                     return apptTime != null && apptTime.isBefore(startOfToday);

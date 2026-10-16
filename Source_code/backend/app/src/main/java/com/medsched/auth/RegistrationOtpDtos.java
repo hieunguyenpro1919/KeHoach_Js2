@@ -6,11 +6,11 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Hợp đồng dữ liệu Request / Response cho quy trình xác thực OTP qua Zalo & Email.
+ * Hợp đồng dữ liệu Request / Response cho quy trình xác thực OTP đăng ký tài khoản qua Email.
  */
-public final class ZaloOtpDtos {
+public final class RegistrationOtpDtos {
 
-    private ZaloOtpDtos() {
+    private RegistrationOtpDtos() {
     }
 
     /**

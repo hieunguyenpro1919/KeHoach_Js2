@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-class ZaloOtpServiceTest {
+class RegistrationOtpServiceTest {
 
     private static final String SECRET = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
 
@@ -35,7 +35,7 @@ class ZaloOtpServiceTest {
     private AppUserDetailsService userDetailsService;
     private JwtService jwtService;
     private EmailService emailService;
-    private ZaloOtpService zaloOtpService;
+    private RegistrationOtpService registrationOtpService;
 
     @BeforeEach
     void setUp() {
@@ -46,7 +46,7 @@ class ZaloOtpServiceTest {
         emailService = mock(EmailService.class);
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-        zaloOtpService = new ZaloOtpService(users, patientProfiles, passwordEncoder, userDetailsService, jwtService, emailService);
+        registrationOtpService = new RegistrationOtpService(users, patientProfiles, passwordEncoder, userDetailsService, jwtService, emailService);
     }
 
     @Test
@@ -54,7 +54,7 @@ class ZaloOtpServiceTest {
     void requestOtpSuccess() {
         when(users.existsByEmail("test@gmail.com")).thenReturn(false);
 
-        ZaloOtpDtos.RequestOtpResponse res = zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        RegistrationOtpDtos.RequestOtpResponse res = registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Trần Văn An", "test@gmail.com", "0912345678", "MatKhau@Secure99"
         ));
 
@@ -69,7 +69,7 @@ class ZaloOtpServiceTest {
     void requestOtpDuplicateEmail() {
         when(users.existsByEmail("da_co@gmail.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        assertThatThrownBy(() -> registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Trần Văn An", "da_co@gmail.com", "0912345678", "MatKhau@Secure99"
         ))).isInstanceOf(AppExceptions.ConflictException.class);
     }
@@ -79,7 +79,7 @@ class ZaloOtpServiceTest {
     void requestOtpRejectsPasswordWithPersonalName() {
         when(users.existsByEmail("nam@gmail.com")).thenReturn(false);
 
-        assertThatThrownBy(() -> zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        assertThatThrownBy(() -> registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Nguyễn Văn Nam", "nam@gmail.com", "0912345678", "NguyenVanNam@123"
         ))).isInstanceOf(AppExceptions.BadRequestException.class);
     }
@@ -96,14 +96,14 @@ class ZaloOtpServiceTest {
         });
 
         // Step 1: Request
-        ZaloOtpDtos.RequestOtpResponse reqRes = zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        RegistrationOtpDtos.RequestOtpResponse reqRes = registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Trần Văn An", "an@gmail.com", "0912345678", "MatKhau@Secure99"
         ));
 
         String code = reqRes.devDemoOtp();
 
         // Step 2: Verify with correct code
-        AuthDtos.AuthResponse authRes = zaloOtpService.verifyOtp(new ZaloOtpDtos.VerifyOtpRequest(
+        AuthDtos.AuthResponse authRes = registrationOtpService.verifyOtp(new RegistrationOtpDtos.VerifyOtpRequest(
                 reqRes.sessionToken(), code
         ));
 
@@ -122,11 +122,11 @@ class ZaloOtpServiceTest {
     void verifyOtpWrongCode() {
         when(users.existsByEmail("an@gmail.com")).thenReturn(false);
 
-        ZaloOtpDtos.RequestOtpResponse reqRes = zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        RegistrationOtpDtos.RequestOtpResponse reqRes = registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Trần Văn An", "an@gmail.com", "0912345678", "MatKhau@Secure99"
         ));
 
-        assertThatThrownBy(() -> zaloOtpService.verifyOtp(new ZaloOtpDtos.VerifyOtpRequest(
+        assertThatThrownBy(() -> registrationOtpService.verifyOtp(new RegistrationOtpDtos.VerifyOtpRequest(
                 reqRes.sessionToken(), "0000"
         ))).isInstanceOf(AppExceptions.BadRequestException.class)
           .hasMessageContaining("2 lần thử");
@@ -137,12 +137,12 @@ class ZaloOtpServiceTest {
     void resendOtpCooldown() {
         when(users.existsByEmail("an@gmail.com")).thenReturn(false);
 
-        ZaloOtpDtos.RequestOtpResponse reqRes = zaloOtpService.requestOtp(new ZaloOtpDtos.RequestOtpRequest(
+        RegistrationOtpDtos.RequestOtpResponse reqRes = registrationOtpService.requestOtp(new RegistrationOtpDtos.RequestOtpRequest(
                 "Trần Văn An", "an@gmail.com", "0912345678", "MatKhau@Secure99"
         ));
 
         // Immediately resend should fail due to 60s cooldown
-        assertThatThrownBy(() -> zaloOtpService.resendOtp(new ZaloOtpDtos.ResendOtpRequest(
+        assertThatThrownBy(() -> registrationOtpService.resendOtp(new RegistrationOtpDtos.ResendOtpRequest(
                 reqRes.sessionToken()
         ))).isInstanceOf(AppExceptions.BadRequestException.class)
           .hasMessageContaining("giây");

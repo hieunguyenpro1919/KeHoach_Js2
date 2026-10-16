@@ -130,7 +130,9 @@ public class DoctorEntity {
     }
 
 
-    // Setter phục vụ các luồng cập nhật của Task 1 (sửa hồ sơ, đổi mật khẩu, CRUD danh mục).
+    public void setSpecialtyId(String specialtyId) {
+        this.specialtyId = specialtyId;
+    }
 
     public void setAcademicTitle(String academicTitle) {
         this.academicTitle = academicTitle;

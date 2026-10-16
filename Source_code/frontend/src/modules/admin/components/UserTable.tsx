@@ -22,7 +22,9 @@ import {
   Calendar,
   Building2,
   Stethoscope,
-  DoorOpen
+  DoorOpen,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -76,6 +78,48 @@ export default function UserTable() {
   const [newPassword, setNewPassword] = useState('Medsched@123');
   const [showPassword, setShowPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  // Danh mục buồng khám lâm sàng tiêu chuẩn
+  const APPROVED_CLINIC_ROOMS = [
+    {
+      roomNumber: 'P.101',
+      name: 'Phòng Khám Đa Khoa & Cấp Cứu Ban Đầu',
+      center: 'Chi nhánh Quận 7',
+      floor: 'Tầng 1',
+    },
+    {
+      roomNumber: 'P.102',
+      name: 'Phòng Khám Chuyên Khoa Da Liễu Thẩm Mỹ',
+      center: 'Chi nhánh Quận 7',
+      floor: 'Tầng 1',
+    },
+    {
+      roomNumber: 'P.205',
+      name: 'Phòng Khám Tim Mạch & Can Thiệp Lâm Sàng',
+      center: 'Chi nhánh Quận 1',
+      floor: 'Tầng 2',
+    },
+    {
+      roomNumber: 'P.208',
+      name: 'Phòng Khám Nội Tổng Quát & Tiêu Hóa',
+      center: 'Chi nhánh Quận 1',
+      floor: 'Tầng 2',
+    },
+    {
+      roomNumber: 'P.209',
+      name: 'Phòng Khám Tư Vấn Chuyên Sâu & Tiền Phẫu',
+      center: 'Chi nhánh Quận 1',
+      floor: 'Tầng 2',
+    },
+  ];
+
+  // State cho Modal Phân Buồng Khám Bác Sĩ
+  const [assignModalUser, setAssignModalUser] = useState<UserItem | null>(null);
+  const [assignRoom, setAssignRoom] = useState<string>('P.101');
+  const [customRoom, setCustomRoom] = useState<string>('');
+  const [isCustomRoom, setIsCustomRoom] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -289,6 +333,33 @@ export default function UserTable() {
     }
   };
 
+  const handleAssignRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignModalUser) return;
+    const targetRoom = isCustomRoom ? customRoom.trim().toUpperCase() : assignRoom.trim().toUpperCase();
+    if (!targetRoom) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn hoặc nhập mã số buồng khám hợp lệ.' });
+      return;
+    }
+    setAssignLoading(true);
+    try {
+      await api.updateAdminDoctorProfile(assignModalUser.id, {
+        roomNumber: targetRoom,
+      });
+      setMessage({
+        type: 'success',
+        text: `Đã phân bổ buồng [${targetRoom}] thành công cho ${assignModalUser.fullName}! Bác sĩ có thể trực tiếp làm việc tại buồng này.`,
+      });
+      setAssignModalUser(null);
+      // Tải lại danh sách
+      loadUsers(debouncedQuery, currentPage, selectedRole, true);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Phân buồng khám thất bại. Vui lòng thử lại.' });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   const roleBadge = (roles: string[]) => {
     if (!roles || roles.length === 0) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600">Khách</span>;
     if (roles.includes('ROLE_ADMIN')) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 border border-purple-200">Quản Trị Viên</span>;
@@ -455,6 +526,23 @@ export default function UserTable() {
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap text-center">
                       {roleBadge(user.roles)}
+                      {user.roles.includes('ROLE_DOCTOR') && (
+                        <div className="mt-1">
+                          {user.roomNumber ? (
+                            <span 
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200" 
+                              title={`Buồng khám lâm sàng: ${user.roomNumber}`}
+                            >
+                              <DoorOpen size={11} className="shrink-0 text-purple-600" />
+                              <span>{user.roomNumber}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                              Chưa xếp buồng
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 px-3 whitespace-nowrap">
                       {user.medicalCenterName ? (
@@ -483,6 +571,22 @@ export default function UserTable() {
                     </td>
                     <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        {user.roles.includes('ROLE_DOCTOR') && (
+                          <button
+                            onClick={() => {
+                              setAssignModalUser(user);
+                              setAssignRoom(user.roomNumber || 'P.101');
+                              setCustomRoom(user.roomNumber || '');
+                              setIsCustomRoom(!['P.101', 'P.102', 'P.205', 'P.208', 'P.209'].includes(user.roomNumber || ''));
+                            }}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 cursor-pointer shadow-2xs"
+                            title="Phân buồng khám / Giải quyết trùng buồng cho Bác sĩ"
+                          >
+                            <DoorOpen size={13} />
+                            <span>Phân buồng</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => { setDetailUser(user); setCopied(false); }}
                           className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
@@ -819,6 +923,24 @@ export default function UserTable() {
             {/* Footer Modal Actions */}
             <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
+                {detailUser.roles.includes('ROLE_DOCTOR') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = detailUser;
+                      setDetailUser(null);
+                      setAssignModalUser(target);
+                      setAssignRoom(target.roomNumber || 'P.101');
+                      setCustomRoom(target.roomNumber || '');
+                      setIsCustomRoom(!APPROVED_CLINIC_ROOMS.some(r => r.roomNumber === target.roomNumber));
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200 rounded-xl transition cursor-pointer"
+                  >
+                    <DoorOpen size={14} />
+                    <span>Phân buồng khám</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -861,6 +983,185 @@ export default function UserTable() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Phân Bổ Buồng Khám Bác Sĩ */}
+      {assignModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-100 w-full max-w-lg overflow-hidden transform transition-all">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-purple-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-purple-900 font-bold text-base">
+                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                  <DoorOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Phân Bổ Buồng Khám & Tránh Xung Đột</h3>
+                  <p className="text-[11px] text-purple-700 font-normal">Chỉ định phòng khám lâm sàng hoạt động cho Bác sĩ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAssignModalUser(null)}
+                className="text-slate-400 hover:text-slate-600 transition cursor-pointer p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleAssignRoom} className="p-6 space-y-4">
+              {/* Doctor Info Card */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200">
+                  {assignModalUser.fullName ? assignModalUser.fullName.charAt(0).toUpperCase() : 'B'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Bác sĩ thực hiện:</div>
+                  <div className="font-bold text-slate-800 text-sm truncate">{assignModalUser.fullName}</div>
+                  <div className="text-slate-500 font-mono text-[11px] truncate">{assignModalUser.email}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-slate-400 block font-medium">Buồng hiện tại:</span>
+                  <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    {assignModalUser.roomNumber || 'Chưa xếp'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Danh sách các buồng khám tiêu chuẩn */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Chọn buồng khám lâm sàng tiêu chuẩn:
+                </label>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {APPROVED_CLINIC_ROOMS.map((room) => {
+                    const occupyingDoc = users.find(
+                      (u) => u.roles.includes('ROLE_DOCTOR') && u.id !== assignModalUser.id && u.roomNumber === room.roomNumber
+                    );
+                    const isSelected = !isCustomRoom && assignRoom === room.roomNumber;
+
+                    return (
+                      <div
+                        key={room.roomNumber}
+                        onClick={() => {
+                          setIsCustomRoom(false);
+                          setAssignRoom(room.roomNumber);
+                        }}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/20 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-purple-200 hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {room.roomNumber}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-slate-800 truncate">{room.name}</div>
+                            <div className="text-[11px] text-slate-400">{room.center} • {room.floor}</div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          {occupyingDoc ? (
+                            <span 
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 max-w-[130px] truncate"
+                              title={`Đang gán cho: ${occupyingDoc.fullName}`}
+                            >
+                              <AlertTriangle size={11} className="shrink-0 text-amber-600" />
+                              <span className="truncate">{occupyingDoc.fullName}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              <CheckCircle2 size={11} className="shrink-0 text-emerald-600" />
+                              <span>Trống</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tùy chọn nhập buồng khác */}
+              <div className="pt-1">
+                <div 
+                  onClick={() => setIsCustomRoom(true)}
+                  className={`p-3 rounded-xl border transition cursor-pointer ${
+                    isCustomRoom 
+                      ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/20' 
+                      : 'bg-white border-slate-200 hover:border-purple-200'
+                  }`}
+                >
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                    <input
+                      type="radio"
+                      name="roomOption"
+                      checked={isCustomRoom}
+                      onChange={() => setIsCustomRoom(true)}
+                      className="text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>Nhập mã buồng khám lâm sàng khác</span>
+                  </label>
+                  {isCustomRoom && (
+                    <div className="mt-2 pl-5">
+                      <input
+                        type="text"
+                        value={customRoom}
+                        onChange={(e) => setCustomRoom(e.target.value.toUpperCase())}
+                        placeholder="Ví dụ: P.301, P.402..."
+                        className="w-full text-xs px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400/30 uppercase font-mono font-bold"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cảnh báo nếu chọn buồng đang có người */}
+              {!isCustomRoom && (() => {
+                const dupDoc = users.find(
+                  (u) => u.roles.includes('ROLE_DOCTOR') && u.id !== assignModalUser.id && u.roomNumber === assignRoom
+                );
+                if (dupDoc) {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                      <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Chú ý xung đột:</strong> Buồng <strong>[{assignRoom}]</strong> hiện đang được phân cho <strong>{dupDoc.fullName}</strong>. Nếu gán cùng buồng, hãy xếp ca trực khác giờ để tránh xung đột lịch trực.
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalUser(null)}
+                  disabled={assignLoading}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignLoading}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition shadow-sm hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {assignLoading ? <RefreshCw size={13} className="animate-spin" /> : <DoorOpen size={14} />}
+                  <span>{assignLoading ? 'Đang lưu...' : 'Lưu Phân Buồng'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
