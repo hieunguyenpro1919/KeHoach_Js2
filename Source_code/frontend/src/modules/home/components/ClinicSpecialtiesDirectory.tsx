@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Calendar, Sparkles, Stethoscope, User, MapPin } from 'lucide-react';
 import { api } from '@/shared/lib/api';
@@ -54,6 +54,26 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
 export default function ClinicSpecialtiesDirectory() {
   const [doctors, setDoctors] = useState<DoctorDirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      {
+        threshold: 0.15,
+        rootMargin: '0px 0px -60px 0px',
+      }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     // Luôn nạp đồng bộ trực tiếp danh sách Bác sĩ từ CSDL qua API
@@ -98,11 +118,22 @@ export default function ClinicSpecialtiesDirectory() {
   }, []);
 
   return (
-    <section id="specialties" className="scroll-mt-24 space-y-6 py-2">
-      <div className="bg-white rounded-3xl p-6 sm:p-10 border border-mint-light shadow-xs">
+    <section ref={sectionRef} id="specialties" className="scroll-mt-24 space-y-6 py-2 overflow-hidden">
+      {/* Khối danh mục - Hiệu ứng xuất hiện và biến mất khi lăn chuột */}
+      <div
+        className={`bg-white rounded-3xl p-6 sm:p-10 border border-mint-light shadow-xs transition-all duration-700 ease-out ${
+          isVisible
+            ? 'opacity-100 translate-y-0 scale-100'
+            : 'opacity-0 translate-y-12 scale-[0.98]'
+        }`}
+      >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           {/* Cột Trái: Tiêu đề & Giới thiệu */}
-          <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
+          <div
+            className={`lg:col-span-5 space-y-4 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
+              isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
+            }`}
+          >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
               <Sparkles size={14} />
               <span>Đội Ngũ Chuyên Khoa Đang Trực</span>
@@ -136,8 +167,12 @@ export default function ClinicSpecialtiesDirectory() {
             </div>
           </div>
 
-          {/* Cột Phải: Danh Sách Bác Sĩ Đồng Bộ (Tối Đa 5 Bác Sĩ) */}
-          <div className="lg:col-span-7 divide-y divide-slate-100">
+          {/* Cột Phải: Danh Sách Bác Sĩ Chuyên Khoa - Từng Card Độc Lập Xuất Hiện Lần Lượt */}
+          <div
+            className={`lg:col-span-7 space-y-3 sm:space-y-3.5 transition-all duration-700 delay-200 ease-out ${
+              isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
+            }`}
+          >
             {loading ? (
               <div className="py-8 text-center text-xs text-slate-400">
                 Đang nạp danh sách bác sĩ trực tiếp từ hệ thống...
@@ -147,42 +182,51 @@ export default function ClinicSpecialtiesDirectory() {
                 <Link
                   key={item.id}
                   href="/booking"
-                  className="group py-4 sm:py-5 flex items-start sm:items-center justify-between gap-4 hover:pl-2 transition-all duration-200 cursor-pointer"
+                  style={{ transitionDelay: `${index * 80 + 200}ms` }}
+                  className={`group p-4 sm:p-5 rounded-2xl bg-slate-50/70 hover:bg-white border border-slate-200/80 hover:border-teal-primary/50 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_-4px_rgba(14,92,85,0.15)] hover:-translate-y-1 hover:scale-[1.01] transition-all duration-300 flex items-start sm:items-center justify-between gap-4 cursor-pointer relative overflow-hidden ${
+                    isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+                  }`}
                 >
-                  <div className="flex items-start sm:items-center gap-3.5">
-                    <span className="font-mono text-base font-bold text-teal-600/80 group-hover:text-pine-teal transition-colors shrink-0">
+                  {/* Vạch màu nhấn ở cạnh trái khi hover */}
+                  <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-pine-teal opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-l-2xl" />
+
+                  <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 pl-1">
+                    {/* Badge số thứ tự độc lập */}
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-pine-teal border border-teal-200/80 shadow-2xs flex items-center justify-center font-mono text-sm font-black group-hover:!bg-pine-teal group-hover:!text-white group-hover:!border-pine-teal group-hover:scale-105 transition-all duration-300 shrink-0">
                       0{index + 1}
-                    </span>
-                    <div className="space-y-1">
+                    </div>
+
+                    <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm sm:text-base font-bold text-slate-800 group-hover:text-pine-teal transition-colors">
                           {item.specialtyName}
                         </h4>
                         {item.roomNumber && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shadow-2xs">
                             {item.roomNumber}
                           </span>
                         )}
                         {item.centerName && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200/70">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200/70 shadow-2xs">
                             {item.centerName}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
                         {item.description}
                       </p>
 
                       <div className="flex items-center gap-1.5 text-[11px] text-pine-teal font-medium pt-0.5">
-                        <User size={12} className="text-teal-600" />
+                        <User size={13} className="text-teal-600 shrink-0" />
                         <span>Bác sĩ phụ trách: <strong className="text-slate-900 font-bold">{item.doctorName}</strong></span>
                       </div>
                     </div>
                   </div>
 
-                  <span className="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center shrink-0 group-hover:bg-pine-teal group-hover:text-white transition-all duration-200">
-                    <ArrowUpRight size={15} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  {/* Nút hành động tròn bo góc bên phải */}
+                  <span className="w-9 h-9 rounded-xl bg-emerald-50 text-pine-teal border border-teal-200/80 shadow-2xs flex items-center justify-center shrink-0 group-hover:!bg-pine-teal group-hover:!text-white group-hover:!border-pine-teal group-hover:scale-110 transition-all duration-300">
+                    <ArrowUpRight size={16} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </span>
                 </Link>
               ))

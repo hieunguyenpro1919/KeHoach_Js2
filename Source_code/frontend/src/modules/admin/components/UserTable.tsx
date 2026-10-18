@@ -402,10 +402,10 @@ export default function UserTable() {
         <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
-      {/* Filter & Actions Toolbar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+      {/* Filter & Actions Toolbar (Đã xóa khung trắng bao quanh) */}
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         {/* Role Tabs */}
-        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
@@ -416,14 +416,14 @@ export default function UserTable() {
             <button
               key={tab.id}
               onClick={() => { setSelectedRole(tab.id); setCurrentPage(0); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs border ${
                 selectedRole === tab.id
                   ? tab.id === 'LOCKED'
-                    ? 'bg-red-50 text-red-600 shadow-xs font-bold border border-red-200'
-                    : 'bg-white text-pine-teal shadow-xs font-bold'
+                    ? 'bg-rose-600 text-white border-rose-600'
+                    : 'bg-pine-teal text-white border-pine-teal'
                   : tab.id === 'LOCKED'
-                    ? 'text-red-500 hover:text-red-700 hover:bg-red-50/50'
-                    : 'text-slate-600 hover:text-pine-teal'
+                    ? 'bg-white text-rose-600 hover:bg-rose-50 border-rose-200'
+                    : 'bg-white text-slate-600 hover:text-pine-teal hover:bg-mint-soft border-mint-light'
               }`}
             >
               {tab.id === 'LOCKED' && <XCircle size={13} />}
@@ -442,7 +442,7 @@ export default function UserTable() {
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Tìm theo tên, email, SĐT..."
-              className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full transition"
+              className="pl-9 pr-8 py-2 text-xs sm:text-sm bg-white border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 w-full transition shadow-xs"
             />
             {isSearching ? (
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2">

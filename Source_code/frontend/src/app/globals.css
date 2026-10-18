@@ -83,7 +83,7 @@
 }
 
 body {
-  background-color: var(--bg-canvas);
+  background: linear-gradient(135deg, #eef3ff 0%, #fdf2f8 50%, #f0fdf4 100%) fixed !important;
   color: #1e293b;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -105,3 +105,121 @@ body {
     border: none !important;
   }
 }
+
+/* ==========================================================================
+   GIAO DIỆN CHÍNH THỨC: CLAYMORPHISM (ĐẤT SÉT 3D PHỒNG BO TRÒN)
+   Phong cách chuẩn duy nhất của toàn bộ hệ thống MedSched
+   ========================================================================== */
+
+/* Đảm bảo header và footer không bị áp đặt bo góc card 28px */
+header,
+footer {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Thẻ Card chính dạng Claymorphism 3D */
+.bg-white {
+  background: #ffffff !important;
+  border-radius: 28px !important;
+  border: none !important;
+  box-shadow: 0 16px 36px -6px rgba(14, 92, 85, 0.08),
+              0 4px 16px -2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Container phụ / Inset Claymorphism */
+.bg-slate-50,
+.bg-slate-50\/70 {
+  background: #f8fafc !important;
+  border-radius: 20px !important;
+  border: none !important;
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.03),
+              inset -2px -2px 5px rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Toàn bộ nút bấm bo tròn viên thuốc (Pill) và phồng 3D Clay */
+button:not(.no-clay) {
+  border-radius: 9999px;
+  box-shadow: 0 8px 16px -2px rgba(14, 92, 85, 0.2),
+              inset -2px -2px 5px rgba(0, 0, 0, 0.12),
+              inset 2px 2px 5px rgba(255, 255, 255, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:not(.no-clay):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -2px rgba(14, 92, 85, 0.25),
+              inset -2px -2px 5px rgba(0, 0, 0, 0.12),
+              inset 2px 2px 5px rgba(255, 255, 255, 0.6);
+}
+
+button:not(.no-clay):active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 8px -2px rgba(14, 92, 85, 0.25),
+              inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+              inset 2px 2px 4px rgba(255, 255, 255, 0.4);
+}
+
+/* Claymorphism Utility Classes */
+.ui-clay-card {
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.06),
+              inset 2px 2px 6px rgba(255, 255, 255, 0.9);
+}
+
+/* Thẻ Card 3D bồng bềnh cao cấp (Floating 3D Claymorphic Card) */
+.clay-floating-card {
+  background: #ffffff !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 14px 28px -8px rgba(14, 92, 85, 0.07),
+              0 4px 12px -3px rgba(0, 0, 0, 0.02),
+              inset 0 2px 5px rgba(255, 255, 255, 0.95) !important;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
+              opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.clay-floating-card:hover {
+  transform: translateY(-8px) scale(1.015) !important;
+  box-shadow: 0 22px 42px -10px rgba(14, 92, 85, 0.14),
+              0 8px 16px -4px rgba(0, 0, 0, 0.03),
+              inset 0 2px 5px rgba(255, 255, 255, 1) !important;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.ui-clay-btn {
+  border-radius: 9999px;
+  box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.15),
+              inset -3px -3px 6px rgba(0, 0, 0, 0.15),
+              inset 3px 3px 6px rgba(255, 255, 255, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ui-clay-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2),
+              inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+              inset 2px 2px 4px rgba(255, 255, 255, 0.4);
+}
+
+/* Ẩn hoàn toàn thanh cuộn khó coi trên toàn bộ giao diện */
+html,
+body,
+* {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+
+

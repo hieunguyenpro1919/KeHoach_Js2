@@ -204,13 +204,16 @@ export default function BookingForm() {
   // Tự động đồng bộ chuyên khoa khi thay đổi chi nhánh hoặc danh sách chuyên khoa
   useEffect(() => {
     if (filteredSpecialties.length > 0) {
-      const exists = filteredSpecialties.some((s) => s.id === selectedSpecialty);
-      if (!exists) {
-        // Ưu tiên chọn chuyên khoa có bác sĩ khả dụng trước
+      // Kiểm tra chuyên khoa hiện tại có tồn tại và có bác sĩ ở chi nhánh này không
+      const currentValidWithDoc = filteredSpecialties.some(
+        (s) => s.id === selectedSpecialty && doctors.some((d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === s.id)
+      );
+      if (!currentValidWithDoc) {
+        // Ưu tiên chọn chuyên khoa đầu tiên có bác sĩ khả dụng
         const firstWithDoc = filteredSpecialties.find((s) =>
           doctors.some((d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === s.id)
         );
-        setSelectedSpecialty(firstWithDoc?.id || filteredSpecialties[0].id);
+        setSelectedSpecialty(firstWithDoc?.id || '');
       }
     } else {
       setSelectedSpecialty('');
@@ -515,15 +518,9 @@ export default function BookingForm() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 px-3 sm:px-4">
-      {/* Header Banner */}
+      {/* Header Banner - Thanh tiến trình Stepper */}
       <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
-              Đặt Lịch Khám Bác Sĩ Chuyên Khoa
-            </h1>
-          </div>
-        </div>
+        <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
 
         {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Không tương tác trực tiếp) */}
         {step < 4 && (
@@ -684,36 +681,52 @@ export default function BookingForm() {
                     const docCount = doctors.filter(
                       (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
                     ).length;
+                    const hasDoctors = docCount > 0;
+                    const isSelected = selectedSpecialty === spec.id && hasDoctors;
+
                     return (
                       <div
                         key={spec.id}
-                        onClick={() => setSelectedSpecialty(spec.id)}
-                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
-                          selectedSpecialty === spec.id
-                            ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                        onClick={() => {
+                          if (hasDoctors) {
+                            setSelectedSpecialty(spec.id);
+                          }
+                        }}
+                        title={
+                          hasDoctors 
+                            ? `Chọn ${spec.name}` 
+                            : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
+                        }
+                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between select-none ${
+                          !hasDoctors
+                            ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+                            : isSelected
+                            ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs cursor-pointer'
+                            : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
                         }`}
                       >
                         <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
+                            !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
+                          }`}>
                             <Stethoscope size={14} />
                           </div>
                           <div className="min-w-0">
                             <span className="font-semibold text-xs sm:text-sm block truncate">{spec.name}</span>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              {docCount > 0 ? (
+                              {hasDoctors ? (
                                 <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
                                   {docCount} bác sĩ
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.2 rounded">
+                                <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded">
                                   Chưa có bác sĩ
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
-                        {selectedSpecialty === spec.id && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1" />}
+                        {isSelected && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1" />}
                       </div>
                     );
                   })
@@ -721,17 +734,32 @@ export default function BookingForm() {
               </div>
             </div>
 
-            <div className="pt-2 sm:pt-3 flex justify-end">
-              <button
-                type="button"
-                disabled={!selectedSpecialty}
-                onClick={() => setStep(2)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
-                <ArrowRight size={15} />
-              </button>
-            </div>
+            {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ (chỉ sáng khi chuyên khoa có bác sĩ khả dụng) */}
+            {(() => {
+              const selectedSpecDocCount = doctors.filter(
+                (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialty
+              ).length;
+              const canProceed = Boolean(selectedSpecialty && selectedSpecDocCount > 0);
+
+              return (
+                <div className="pt-2 sm:pt-3 flex flex-col sm:flex-row items-end sm:items-center justify-between gap-2">
+                  {!canProceed && selectedSpecialty && (
+                    <p className="text-xs text-amber-600 font-medium">
+                      * Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!canProceed}
+                    onClick={() => setStep(2)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
+                  >
+                    <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         )}
 

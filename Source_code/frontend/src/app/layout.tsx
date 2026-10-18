@@ -22,22 +22,25 @@ export const metadata: Metadata = {
   },
 };
 
+import AppMainLayout from "@/shared/components/Layout/AppMainLayout";
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className="scroll-smooth">
+    <html lang="vi" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
         <ConcurrentSessionModal />
         <HeaderNav />
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 flex flex-col">
+        <AppMainLayout>
           {children}
-        </main>
+        </AppMainLayout>
         <Footer />
         <FloatingWidgets />
       </body>
     </html>
   );
 }
+

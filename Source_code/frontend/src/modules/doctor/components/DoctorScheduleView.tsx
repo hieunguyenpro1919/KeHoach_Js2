@@ -493,27 +493,7 @@ export default function DoctorScheduleView() {
     }
   };
 
-  // Kiểm tra slot đã qua giờ hay chưa theo thời gian thực
-  const isSlotPast = (workDate: string, startTime: string, durationMinutes = 30) => {
-    if (!workDate || !startTime) return false;
-    const now = new Date();
-    const [h, m] = startTime.split(':').map(Number);
-    const slotDate = new Date(`${workDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
-    return slotDate <= now;
-  };
 
-  // Thống kê nhanh
-  const totalShifts = schedules.length;
-  const totalSlotsCount = schedules.reduce((acc, s) => acc + s.totalSlots, 0);
-  const totalBookedCount = schedules.reduce((acc, s) => acc + s.bookedSlots, 0);
-  // Khung giờ còn trống chưa qua giờ (thực tế còn khả dụng đón người bệnh)
-  const totalAvailableCount = schedules.reduce((acc, s) => {
-    if (!s.slots || s.slots.length === 0) return acc + s.availableSlots;
-    const validAvailable = s.slots.filter(
-      (slot) => slot.status === 'AVAILABLE' && !isSlotPast(s.workDate, slot.startTime, s.slotDurationMinutes)
-    ).length;
-    return acc + validAvailable;
-  }, 0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -544,25 +524,7 @@ export default function DoctorScheduleView() {
         </div>
       )}
 
-      {/* ── Thống kê tổng quan ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng số ca trực</div>
-          <div className="text-xl font-black text-slate-800 mt-1">{totalShifts} ca</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">Tổng khung giờ</div>
-          <div className="text-xl font-black text-teal-800 mt-1">{totalSlotsCount} slots</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Khung giờ còn trống</div>
-          <div className="text-xl font-black text-emerald-700 mt-1">{totalAvailableCount} slots</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Đã có người đặt</div>
-          <div className="text-xl font-black text-blue-700 mt-1">{totalBookedCount} bệnh nhân</div>
-        </div>
-      </div>
+
 
 
       {/* ── Thanh Điều Hướng Tuần & Đăng Ký Ca Trực ── */}
