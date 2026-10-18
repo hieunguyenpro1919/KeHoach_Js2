@@ -18,7 +18,7 @@ import {
   FileSpreadsheet,
   Lock
 } from 'lucide-react';
-import { getAuthUser, getAuthToken } from '@/shared/lib/api';
+import { getAuthUser, getAuthToken, api } from '@/shared/lib/api';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { TimeGranularity, UserRoleScope } from '../types';
 import { getStatisticsData, fetchStatisticsDataAsync, exportStatisticsCSV } from '../services/statisticsService';
@@ -45,6 +45,15 @@ export default function StatisticsOverview() {
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Thống kê ca trực & khung giờ khám (Tổng số ca trực, Tổng khung giờ, Khung giờ còn trống, Đã có người đặt)
+  const [scheduleStats, setScheduleStats] = useState({
+    totalShifts: 0,
+    totalSlotsCount: 0,
+    totalAvailableCount: 0,
+    totalBookedCount: 0,
+    loading: false,
+  });
 
   // Dữ liệu dataset
   const [dataset, setDataset] = useState(() =>
@@ -128,6 +137,58 @@ export default function StatisticsOverview() {
       isCancelled = true;
     };
   }, [isAuthenticated, activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId, isAdmin]);
+
+  // Đồng bộ số liệu Ca Trực & Khung Giờ Khám Bệnh thực tế từ lịch trực bác sĩ
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isCancelled = false;
+    setScheduleStats((prev) => ({ ...prev, loading: true }));
+
+    const targetDocId = (isAdmin && activeRole === 'ROLE_DOCTOR') ? selectedDoctorId : undefined;
+
+    api.getDoctorSchedules(targetDocId)
+      .then((schedules) => {
+        if (isCancelled || !Array.isArray(schedules)) return;
+
+        const totalShifts = schedules.length;
+        const totalSlotsCount = schedules.reduce((acc, s) => acc + (s.totalSlots || 0), 0);
+        const totalBookedCount = schedules.reduce((acc, s) => acc + (s.bookedSlots || 0), 0);
+
+        const now = new Date();
+        const isSlotPast = (workDate: string, startTime: string) => {
+          if (!workDate || !startTime) return false;
+          const [h, m] = startTime.split(':').map(Number);
+          const slotDate = new Date(`${workDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
+          return slotDate <= now;
+        };
+
+        const totalAvailableCount = schedules.reduce((acc, s) => {
+          if (!s.slots || s.slots.length === 0) return acc + (s.availableSlots || 0);
+          const validAvailable = s.slots.filter(
+            (slot: any) => slot.status === 'AVAILABLE' && !isSlotPast(s.workDate, slot.startTime)
+          ).length;
+          return acc + validAvailable;
+        }, 0);
+
+        setScheduleStats({
+          totalShifts,
+          totalSlotsCount,
+          totalAvailableCount,
+          totalBookedCount,
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        if (!isCancelled) {
+          console.warn('Lỗi tải thống kê ca trực:', err);
+          setScheduleStats((prev) => ({ ...prev, loading: false }));
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuthenticated, activeRole, selectedDoctorId, isAdmin]);
 
   const handleMetricCardClick = (metricId: string) => {
     // Nếu metric này có trong danh sách đồ thị thì đổi
@@ -323,6 +384,56 @@ export default function StatisticsOverview() {
           </div>
         </div>
       )}
+
+      {/* ── Thống kê ca trực & khung giờ khám bệnh (Chuyển từ Lịch trực sang) ── */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
+              <Calendar size={16} />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <span>Thống Kê Ca Trực &amp; Khung Giờ Khám Bệnh</span>
+                {scheduleStats.loading && <RefreshCw size={12} className="animate-spin text-teal-600" />}
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Tổng hợp số ca trực, tổng khung giờ và phân bổ slot khám khả dụng theo thời gian thực
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/doctor/schedule"
+            className="text-teal-700 hover:text-teal-900 text-xs font-bold flex items-center gap-1 hover:underline cursor-pointer"
+          >
+            <span>Quản lý lịch trực</span>
+            <span>&rarr;</span>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng số ca trực</div>
+            <div className="text-xl font-black text-slate-800 mt-1">{scheduleStats.totalShifts} ca</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Ca làm việc đã đăng ký</div>
+          </div>
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+            <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">Tổng khung giờ</div>
+            <div className="text-xl font-black text-teal-800 mt-1">{scheduleStats.totalSlotsCount} slots</div>
+            <div className="text-[10px] text-teal-600/70 mt-0.5">Tổng số lượt khám mở</div>
+          </div>
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+            <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Khung giờ còn trống</div>
+            <div className="text-xl font-black text-emerald-700 mt-1">{scheduleStats.totalAvailableCount} slots</div>
+            <div className="text-[10px] text-emerald-600/70 mt-0.5">Khả dụng đón bệnh nhân</div>
+          </div>
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+            <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Đã có người đặt</div>
+            <div className="text-xl font-black text-blue-700 mt-1">{scheduleStats.totalBookedCount} bệnh nhân</div>
+            <div className="text-[10px] text-blue-600/70 mt-0.5">Lịch hẹn đã xác nhận</div>
+          </div>
+        </div>
+      </div>
 
       {/* ── 1. BIỂU ĐỒ XU HƯỚNG DÒNG THỜI GIAN CHÍNH (GOOGLE ANALYTICS TREND LINE) ── */}
       <AnalyticsLineChart
