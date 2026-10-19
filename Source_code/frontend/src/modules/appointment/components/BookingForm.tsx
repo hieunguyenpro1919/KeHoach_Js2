@@ -122,6 +122,7 @@ export default function BookingForm() {
 
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [centers, setCenters] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
@@ -318,6 +319,7 @@ export default function BookingForm() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        setError(null);
         setShowDatePicker(false);
         setShowSessionModal(false);
         setShowSlotModal(false);
@@ -332,6 +334,7 @@ export default function BookingForm() {
       }
     };
     if (
+      Boolean(error) ||
       showDatePicker ||
       showSessionModal ||
       showSlotModal ||
@@ -350,6 +353,7 @@ export default function BookingForm() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [
+    error,
     showDatePicker,
     showSessionModal,
     showSlotModal,
@@ -493,7 +497,6 @@ export default function BookingForm() {
   // Submit states
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AppointmentResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadCategories() {
@@ -973,10 +976,50 @@ export default function BookingForm() {
         </div>
       )}
 
-        {/* Error Alert */}
+        {/* Popup Modal Thông Báo Lỗi (Error Modal Popup) */}
         {error && (
-          <div className="mt-3">
-            <AlertMessage type="error" message={error} onClose={() => setError(null)} />
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm animate-fadeIn flex items-center justify-center p-4"
+            onClick={() => setError(null)}
+          >
+            <div
+              className="bg-white rounded-3xl max-w-sm sm:max-w-md w-full shadow-2xl border border-red-100 overflow-hidden animate-scaleUp p-5 sm:p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0 text-red-600 shadow-xs">
+                  <AlertCircle size={26} className="text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                      Thông Báo Lịch Hẹn
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setError(null)}
+                      className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition active:scale-95"
+                      aria-label="Đóng"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <p className="mt-2.5 text-sm text-slate-700 leading-relaxed font-medium">
+                    {error}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-sm shadow-md shadow-red-500/20 active:scale-95 transition"
+                >
+                  Đã hiểu & Đóng
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
