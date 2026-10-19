@@ -517,7 +517,7 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 px-3 sm:px-4">
+    <div className="max-w-6xl mx-auto space-y-4 px-3 sm:px-4 pb-28 sm:pb-12">
       {/* Header Banner - Thanh tiến trình Stepper */}
       <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
         <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
@@ -697,7 +697,7 @@ export default function BookingForm() {
                             ? `Chọn ${spec.name}` 
                             : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
                         }
-                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between select-none ${
+                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-start justify-between select-none min-h-[66px] sm:min-h-[72px] ${
                           !hasDoctors
                             ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
                             : isSelected
@@ -705,15 +705,20 @@ export default function BookingForm() {
                             : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
                         }`}
                       >
-                        <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0">
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
+                        <div className="flex items-start gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                             !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
                           }`}>
                             <Stethoscope size={14} />
                           </div>
-                          <div className="min-w-0">
-                            <span className="font-semibold text-xs sm:text-sm block truncate">{spec.name}</span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="min-w-0 flex-1">
+                            <span 
+                              className="font-semibold text-[11px] sm:text-sm leading-snug block line-clamp-2 break-words"
+                              title={spec.name}
+                            >
+                              {spec.name}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-1">
                               {hasDoctors ? (
                                 <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
                                   {docCount} bác sĩ
@@ -726,7 +731,7 @@ export default function BookingForm() {
                             </div>
                           </div>
                         </div>
-                        {isSelected && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1" />}
+                        {isSelected && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1 mt-0.5" />}
                       </div>
                     );
                   })
@@ -742,9 +747,9 @@ export default function BookingForm() {
               const canProceed = Boolean(selectedSpecialty && selectedSpecDocCount > 0);
 
               return (
-                <div className="pt-2 sm:pt-3 flex flex-col sm:flex-row items-end sm:items-center justify-between gap-2">
+                <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   {!canProceed && selectedSpecialty && (
-                    <p className="text-xs text-amber-600 font-medium">
+                    <p className="text-xs text-amber-600 font-medium text-center sm:text-left">
                       * Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.
                     </p>
                   )}
@@ -752,7 +757,7 @@ export default function BookingForm() {
                     type="button"
                     disabled={!canProceed}
                     onClick={() => setStep(2)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto sm:ml-auto"
                   >
                     <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
                     <ArrowRight size={15} />
@@ -1041,11 +1046,11 @@ export default function BookingForm() {
                   ) : null}
 
                   {/* Navigation Buttons */}
-                  <div className="pt-4 flex justify-between border-t border-slate-100">
+                  <div className="pt-4 flex flex-col-reverse sm:flex-row gap-2.5 justify-between items-stretch sm:items-center border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1.5"
+                      className="px-5 py-3 sm:py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-full sm:w-auto"
                     >
                       <ArrowLeft size={16} /> Quay lại
                     </button>
@@ -1053,7 +1058,7 @@ export default function BookingForm() {
                       type="button"
                       disabled={!selectedDoctor || !selectedSlot.id}
                       onClick={() => setStep(3)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                       <span>Tiếp tục: Hồ sơ &amp; Triệu chứng</span>
                       <ArrowRight size={16} />
@@ -1387,18 +1392,18 @@ export default function BookingForm() {
                       </div>
                     </div>
 
-                    <div className="flex justify-between pt-2 border-t border-blue-200/60">
+                    <div className="flex flex-col-reverse sm:flex-row gap-2.5 justify-between items-stretch sm:items-center pt-3 border-t border-blue-200/60">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="px-5 py-2.5 rounded-2xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1.5"
+                        className="px-5 py-3 sm:py-2.5 rounded-2xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-full sm:w-auto"
                       >
                         <ArrowLeft size={16} /> Quay lại
                       </button>
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-8 py-3 rounded-2xl transition shadow-lg shadow-blue-600/30 flex items-center gap-2 cursor-pointer text-sm disabled:opacity-50"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-8 py-3 rounded-2xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 w-full sm:w-auto"
                       >
                         {submitting ? (
                           <>
