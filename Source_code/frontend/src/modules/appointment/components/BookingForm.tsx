@@ -1238,24 +1238,19 @@ export default function BookingForm() {
                             </div>
                           )}
 
-                          {hasSelectedDate ? (
+                          {hasSelectedDate && (
                             <span className="text-xs text-blue-800 font-semibold bg-blue-50 px-3.5 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5 animate-fadeIn">
                               <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
                               <span>
                                 Ngày đã chọn: <strong>{formatVietnameseFullDate(bookingDate)}</strong>
                               </span>
                             </span>
-                          ) : (
-                            <span className="text-xs text-amber-800 font-medium bg-amber-50 px-3.5 py-2.5 rounded-xl border border-amber-200/80 flex items-center gap-1.5">
-                              <Info size={14} className="text-amber-600 shrink-0" />
-                              <span>Vui lòng chọn ngày trước để xem ca khám</span>
-                            </span>
                           )}
                         </div>
                       </div>
 
                       {/* Chọn Khung Giờ Khám (Time-slot) - Ẩn mặc định, CHỈ HIỆN KHI ĐÃ CHỌN NGÀY XONG */}
-                      {hasSelectedDate ? (
+                      {hasSelectedDate && (
                         <div className="space-y-3 animate-fadeIn pt-1">
                           <div className="flex items-center justify-between">
                             <label className="block text-xs font-bold text-slate-700 uppercase">
@@ -1590,11 +1585,6 @@ export default function BookingForm() {
                             </div>
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                        <Clock size={16} className="text-slate-400 shrink-0" />
-                        <span>Sau khi chọn ngày khám bệnh, hệ thống sẽ mở các ca khám và khung giờ tương ứng để bạn lựa chọn</span>
                       </div>
                     )}
                     </>
