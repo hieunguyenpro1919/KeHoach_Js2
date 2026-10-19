@@ -141,6 +141,10 @@ export default function BookingForm() {
   const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
   const [doctorModalData, setDoctorModalData] = useState<any>(null);
 
+  // Validation errors cho các bước (Khoanh vùng đỏ + thông báo khi chưa chọn đủ tiêu chí)
+  const [step1Errors, setStep1Errors] = useState<{ center?: string; specialty?: string }>({});
+  const [step2Errors, setStep2Errors] = useState<{ doctor?: string; date?: string; slot?: string }>({});
+
   // Authentication & Role Check
   useEffect(() => {
     const token = getAuthToken();
@@ -356,8 +360,62 @@ export default function BookingForm() {
     }));
     setShowDatePicker(false);
     setHasSelectedDate(true);
+    setStep2Errors((prev) => ({ ...prev, date: undefined }));
     // Tự động mở Popup chọn Buổi khám sau khi vừa chọn ngày xong
     setShowSessionModal(true);
+  };
+
+  // Điều hướng Step 1 kèm kiểm tra và khoanh vùng đỏ tiêu chí chưa chọn
+  const handleContinueStep1 = () => {
+    const errors: { center?: string; specialty?: string } = {};
+
+    if (!selectedCenter) {
+      errors.center = 'Vui lòng chọn một Chi nhánh phòng khám MedSched';
+    }
+
+    if (!selectedSpecialty) {
+      errors.specialty = 'Vui lòng chọn Chuyên khoa thăm khám';
+    } else {
+      const selectedSpecDocCount = doctors.filter(
+        (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialty
+      ).length;
+      if (selectedSpecDocCount === 0) {
+        errors.specialty = 'Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.';
+      }
+    }
+
+    setStep1Errors(errors);
+
+    if (Object.keys(errors).length === 0) {
+      setStep(2);
+    }
+  };
+
+  // Điều hướng Step 2 kèm kiểm tra và khoanh vùng đỏ tiêu chí chưa chọn
+  const handleContinueStep2 = () => {
+    const errors: { doctor?: string; date?: string; slot?: string } = {};
+
+    if (filteredDoctors.length > 1 && !selectedDoctor) {
+      errors.doctor = 'Vui lòng chọn Bác sĩ phụ trách';
+    }
+
+    if (!hasSelectedDate) {
+      errors.date = 'Vui lòng chọn ngày khám bệnh (Thứ 2 đến Thứ 6)';
+    } else if (
+      !selectedSlot.id ||
+      selectedSlot.id === 'default' ||
+      !selectedSlot.time ||
+      selectedSlot.time === 'Chưa chọn' ||
+      selectedSlot.time === 'Đang tải...'
+    ) {
+      errors.slot = 'Vui lòng chọn khung giờ khám bệnh (Time-slot)';
+    }
+
+    setStep2Errors(errors);
+
+    if (Object.keys(errors).length === 0) {
+      setStep(3);
+    }
   };
 
   const todayDateOnly = useMemo(() => {
@@ -883,10 +941,15 @@ export default function BookingForm() {
                 {centers.map((center) => (
                   <div
                     key={center.id}
-                    onClick={() => setSelectedCenter(center.id)}
+                    onClick={() => {
+                      setSelectedCenter(center.id);
+                      setStep1Errors((prev) => ({ ...prev, center: undefined }));
+                    }}
                     className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 ${
                       selectedCenter === center.id
                         ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                        : step1Errors.center
+                        ? 'border-red-400 bg-red-50/20 hover:border-red-500'
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
@@ -911,6 +974,16 @@ export default function BookingForm() {
                   </div>
                 ))}
               </div>
+
+              {/* Thông báo lỗi khi chưa chọn chi nhánh */}
+              {step1Errors.center && (
+                <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                  <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                    <AlertCircle size={14} />
+                  </div>
+                  <span>{step1Errors.center}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -938,6 +1011,7 @@ export default function BookingForm() {
                         onClick={() => {
                           if (hasDoctors) {
                             setSelectedSpecialty(spec.id);
+                            setStep1Errors((prev) => ({ ...prev, specialty: undefined }));
                           }
                         }}
                         title={
@@ -950,6 +1024,8 @@ export default function BookingForm() {
                             ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
                             : isSelected
                             ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs cursor-pointer'
+                            : step1Errors.specialty
+                            ? 'border-red-400 bg-red-50/20 hover:border-red-500 text-slate-800 cursor-pointer'
                             : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
                         }`}
                       >
@@ -995,34 +1071,29 @@ export default function BookingForm() {
                   })
                 )}
               </div>
+
+              {/* Thông báo lỗi khi chưa chọn chuyên khoa */}
+              {step1Errors.specialty && (
+                <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                  <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                    <AlertCircle size={14} />
+                  </div>
+                  <span>{step1Errors.specialty}</span>
+                </div>
+              )}
             </div>
 
-            {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ (chỉ sáng khi chuyên khoa có bác sĩ khả dụng) */}
-            {(() => {
-              const selectedSpecDocCount = doctors.filter(
-                (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialty
-              ).length;
-              const canProceed = Boolean(selectedSpecialty && selectedSpecDocCount > 0);
-
-              return (
-                <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  {!canProceed && selectedSpecialty && (
-                    <p className="text-xs text-amber-600 font-medium text-center sm:text-left">
-                      * Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    disabled={!canProceed}
-                    onClick={() => setStep(2)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto sm:ml-auto"
-                  >
-                    <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
-                    <ArrowRight size={15} />
-                  </button>
-                </div>
-              );
-            })()}
+            {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ */}
+            <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleContinueStep1}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm w-full sm:w-auto sm:ml-auto"
+              >
+                <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
+                <ArrowRight size={15} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -1152,6 +1223,7 @@ export default function BookingForm() {
                                 setSelectedDoctor(doc);
                                 setDoctorModalData(details);
                                 setShowDoctorModal(true);
+                                setStep2Errors((prev) => ({ ...prev, doctor: undefined }));
                               }}
                               className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 group hover:shadow-xs ${
                                 isSelected
@@ -1224,27 +1296,42 @@ export default function BookingForm() {
                           {/* Nút bấm mở lịch chọn ngày: Bấm vào hiện modal phủ mờ toàn bộ thông tin nền */}
                           <button
                             type="button"
-                            onClick={() => setShowDatePicker(true)}
+                            onClick={() => {
+                              setShowDatePicker(true);
+                              setStep2Errors((prev) => ({ ...prev, date: undefined }));
+                            }}
                             aria-haspopup="dialog"
                             aria-expanded={showDatePicker}
-                            className={`w-full flex items-center justify-between p-3 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100 ${
-                              hasSelectedDate
-                                ? 'border-blue-500 text-slate-900 bg-blue-50/20'
-                                : 'border-blue-400 hover:border-blue-600 text-slate-800'
+                            className={`w-full flex items-center justify-between p-3 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 ${
+                              step2Errors.date
+                                ? 'border-red-500 ring-2 ring-red-300 bg-red-50/40 text-red-900'
+                                : hasSelectedDate
+                                ? 'border-blue-500 text-slate-900 bg-blue-50/20 focus:ring-blue-100'
+                                : 'border-blue-400 hover:border-blue-600 text-slate-800 focus:ring-blue-100'
                             }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                                  step2Errors.date ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'
+                                }`}
+                              >
                                 <Calendar size={15} />
                               </div>
                               <div className="text-left min-w-0">
                                 <span className="text-[10px] text-slate-400 block font-normal leading-tight">Ngày khám bệnh:</span>
-                                <span className="font-bold text-slate-900 block leading-tight truncate">
+                                <span className={`font-bold block leading-tight truncate ${step2Errors.date ? 'text-red-700' : 'text-slate-900'}`}>
                                   {hasSelectedDate ? formatVietnameseFullDate(bookingDate) : 'Bấm vào để chọn ngày khám (Thứ 2 - Thứ 6)'}
                                 </span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                            <div
+                              className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0 transition ml-2 ${
+                                step2Errors.date
+                                  ? 'text-red-700 bg-red-100/90'
+                                  : 'text-blue-600 bg-blue-50 group-hover:bg-blue-100'
+                              }`}
+                            >
                               <span>{hasSelectedDate ? 'Đổi ngày' : 'Chọn ngày'}</span>
                               <ChevronDown size={13} />
                             </div>
@@ -1418,16 +1505,26 @@ export default function BookingForm() {
                           )}
                         </div>
 
-                        {/* Thẻ hướng dẫn tinh gọn khi chưa chọn ngày */}
+                        {/* Thẻ hướng dẫn khi chưa chọn ngày (khoanh đỏ cảnh báo nếu bấm tiếp tục mà chưa chọn) */}
                         {!hasSelectedDate && (
-                          <div className="mt-3 p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/30 rounded-2xl border border-blue-100 flex items-center gap-3 text-xs text-slate-600 animate-fadeIn">
-                            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                              <CalendarDays size={16} />
+                          <div className={`mt-3 p-4 rounded-2xl border flex items-center gap-3 text-xs animate-fadeIn ${
+                            step2Errors.date
+                              ? 'bg-red-50/80 border-red-300 text-red-800 ring-1 ring-red-200'
+                              : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 border-blue-100 text-slate-600'
+                          }`}>
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              step2Errors.date ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {step2Errors.date ? <AlertCircle size={18} /> : <CalendarDays size={16} />}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <span className="font-bold text-slate-800 block text-xs">Chưa chọn ngày khám bệnh</span>
-                              <span className="text-[11px] text-slate-500 block">
-                                Vui lòng bấm nút phía trên để chọn ngày khám từ Thứ 2 đến Thứ 6. Hệ thống sẽ tự động hiển thị ca trực và khung giờ còn trống.
+                              <span className={`font-bold block text-xs ${step2Errors.date ? 'text-red-700' : 'text-slate-800'}`}>
+                                {step2Errors.date ? step2Errors.date : 'Chưa chọn ngày khám bệnh'}
+                              </span>
+                              <span className={`text-[11px] block mt-0.5 ${step2Errors.date ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                                {step2Errors.date 
+                                  ? 'Vui lòng nhấn nút "Chọn ngày" ở trên để chọn ngày khám hợp lệ trước khi tiếp tục.'
+                                  : 'Vui lòng bấm nút phía trên để chọn ngày khám từ Thứ 2 đến Thứ 6. Hệ thống sẽ tự động hiển thị ca trực và khung giờ còn trống.'}
                               </span>
                             </div>
                           </div>
@@ -1481,27 +1578,50 @@ export default function BookingForm() {
                           {/* Nút 2: Chọn Khung Giờ Khám */}
                           <button
                             type="button"
-                            onClick={() => setShowSlotModal(true)}
+                            onClick={() => {
+                              setShowSlotModal(true);
+                              setStep2Errors((prev) => ({ ...prev, slot: undefined }));
+                            }}
                             aria-haspopup="dialog"
                             aria-expanded={showSlotModal}
-                            className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            className={`w-full flex items-center justify-between p-3 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 ${
+                              step2Errors.slot
+                                ? 'border-red-500 ring-2 ring-red-300 bg-red-50/40 text-red-900'
+                                : 'border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 text-slate-800 focus:ring-blue-100'
+                            }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                                  step2Errors.slot ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'
+                                }`}
+                              >
                                 <Clock size={15} />
                               </div>
                               <div className="text-left min-w-0">
                                 <span className="text-[10px] text-slate-400 block font-normal leading-tight">Khung giờ:</span>
-                                <span className="font-bold text-blue-700 block leading-tight truncate">
+                                <span className={`font-bold block leading-tight truncate ${
+                                  step2Errors.slot ? 'text-red-700' : 'text-blue-700'
+                                }`}>
                                   {selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ'
                                     ? selectedSlot.time
-                                    : 'Chưa chọn giờ'}
+                                    : 'Bấm chọn khung giờ'}
                                 </span>
                               </div>
                             </div>
-                            <ChevronDown size={14} className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors shrink-0" />
+                            <ChevronDown size={14} className={`${step2Errors.slot ? 'text-red-500' : 'text-slate-400 group-hover:text-blue-600'} ml-1 transition-colors shrink-0`} />
                           </button>
                         </div>
+
+                        {/* Thông báo lỗi khi chưa chọn khung giờ */}
+                        {step2Errors.slot && (
+                          <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                            <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                              <AlertCircle size={14} />
+                            </div>
+                            <span>{step2Errors.slot}</span>
+                          </div>
+                        )}
 
                         {/* Popup 1: Chọn Buổi Khám Bệnh (Sáng / Chiều) - Phủ mờ toàn bộ thông tin khác */}
                         {showSessionModal && (
@@ -1712,6 +1832,7 @@ export default function BookingForm() {
                                               time: slot.time,
                                               date: selectedSlot.date || formatISODateToVN(bookingDate),
                                             });
+                                            setStep2Errors((prev) => ({ ...prev, slot: undefined }));
                                             setShowSlotModal(false);
                                           }}
                                           className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-center ${
@@ -1783,9 +1904,8 @@ export default function BookingForm() {
                     </button>
                     <button
                       type="button"
-                      disabled={!selectedDoctor || !selectedSlot.id || !hasSelectedDate}
-                      onClick={() => setStep(3)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed w-1/2 sm:w-auto shrink-0"
+                      onClick={handleContinueStep2}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm w-1/2 sm:w-auto shrink-0"
                     >
                       <span>Tiếp tục</span>
                       <ArrowRight size={15} />
