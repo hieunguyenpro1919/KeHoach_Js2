@@ -2331,25 +2331,32 @@ export default function BookingForm() {
         {/* Step 4: Phiếu Hẹn Khám Điện Tử (Chuẩn E-Ticket YouMed - Ảnh 2 Screen 4) */}
         {step === 4 && result && (
           <div className="mt-6 max-w-2xl mx-auto space-y-6">
-            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white p-6 rounded-t-3xl relative overflow-hidden shadow-md">
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={22} className="text-cyan-300" />
-                  <span className="font-extrabold tracking-wider text-xs sm:text-sm uppercase">HỆ THỐNG Y TẾ MEDSCHED</span>
+            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white p-4 sm:p-6 rounded-t-3xl relative overflow-hidden shadow-md">
+              <div className="flex items-center justify-between gap-2 relative z-10">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <ShieldCheck size={18} className="text-cyan-300 shrink-0" />
+                  <span className="font-extrabold tracking-wider text-[11px] sm:text-xs md:text-sm uppercase whitespace-nowrap truncate">
+                    HỆ THỐNG Y TẾ MEDSCHED
+                  </span>
                 </div>
-                <span className="text-[11px] bg-white/20 px-3 py-1 rounded-full font-mono font-bold tracking-wider">
+                <span className="text-[10px] sm:text-[11px] bg-white/20 px-2.5 py-1 rounded-full font-mono font-bold tracking-wider whitespace-nowrap shrink-0">
                   ĐẶT KHÁM THÀNH CÔNG
                 </span>
               </div>
               
-              {/* STT Nổi Bật Siêu Lớn (Ảnh 2 Screen 4) */}
-              <div className="mt-5 text-center relative z-10 bg-white/10 backdrop-blur-xs py-4 px-6 rounded-2xl border border-white/20">
-                <span className="text-xs text-blue-100 uppercase tracking-widest font-bold">SỐ THỨ TỰ VÀO KHÁM (STT)</span>
-                <div className="text-4xl sm:text-5xl font-black text-white mt-1 tracking-tight drop-shadow-sm">
-                  STT: #{result.queueNumber ? String(result.queueNumber).padStart(4, '0') : '0003'}
+              {/* STT Nổi Bật Siêu Lớn (Đảm bảo luôn trên 1 dòng duy nhất) */}
+              <div className="mt-4 sm:mt-5 text-center relative z-10 bg-white/10 backdrop-blur-xs py-3.5 sm:py-4 px-2 sm:px-6 rounded-2xl border border-white/20">
+                <span className="text-[11px] sm:text-xs text-blue-100 uppercase tracking-widest font-bold block whitespace-nowrap">
+                  SỐ THỨ TỰ VÀO KHÁM (STT)
+                </span>
+                <div className="text-2xl sm:text-4xl md:text-5xl font-black text-white mt-1 tracking-tight drop-shadow-sm whitespace-nowrap overflow-hidden text-ellipsis">
+                  STT: {(() => {
+                    const qn = String(result.queueNumber || '0003').trim();
+                    return qn.startsWith('#') ? qn : `#${qn}`;
+                  })()}
                 </div>
-                <p className="text-xs text-cyan-200 mt-1.5 font-medium">
-                  Mã phiếu khám: <strong className="font-mono text-white text-sm bg-black/20 px-2.5 py-0.5 rounded-md ml-1">{result.bookingCode}</strong>
+                <p className="text-xs text-cyan-200 mt-1.5 font-medium whitespace-nowrap">
+                  Mã phiếu khám: <strong className="font-mono text-white text-xs sm:text-sm bg-black/20 px-2.5 py-0.5 rounded-md ml-1">{result.bookingCode}</strong>
                 </p>
               </div>
             </div>
