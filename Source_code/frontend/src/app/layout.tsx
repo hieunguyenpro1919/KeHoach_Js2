@@ -30,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className="scroll-smooth" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
+    <html lang="vi" className="scroll-smooth overflow-x-hidden" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-screen w-full bg-mint-soft text-slate-800 flex flex-col antialiased overflow-x-hidden`}>
         <ConcurrentSessionModal />
         <HeaderNav />
         <AppMainLayout>

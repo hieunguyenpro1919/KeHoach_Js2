@@ -82,6 +82,13 @@
   --color-border-subtle: #e2e8f0;
 }
 
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
 body {
   background: linear-gradient(135deg, #eef3ff 0%, #fdf2f8 50%, #f0fdf4 100%) fixed !important;
   color: #1e293b;

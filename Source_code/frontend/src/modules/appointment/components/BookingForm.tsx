@@ -517,17 +517,17 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 px-3 sm:px-4 pb-28 sm:pb-12">
+    <div className="w-full max-w-6xl mx-auto space-y-4 sm:px-4 pb-28 sm:pb-12">
       {/* Header Banner - Thanh tiến trình Stepper */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
         <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
 
         {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Không tương tác trực tiếp) */}
         {step < 4 && (
           <div className="pt-1 pb-3 sm:pb-4 border-b border-slate-100 select-none">
-            <div className="relative max-w-xl mx-auto px-4">
+            <div className="relative max-w-xl mx-auto px-1 sm:px-4">
               {/* Đường ray kết nối nền */}
-              <div className="absolute left-10 right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
+              <div className="absolute left-6 right-6 sm:left-10 sm:right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
                 {/* Đường tiến trình màu xanh đã đạt được */}
                 <div
                   className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
@@ -541,7 +541,7 @@ export default function BookingForm() {
               <div className="relative flex items-start justify-between">
                 
                 {/* Bước 1 */}
-                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
                   <div
                     className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                       step > 1
@@ -553,9 +553,9 @@ export default function BookingForm() {
                   >
                     {step > 1 ? <Check size={16} strokeWidth={2.8} /> : '1'}
                   </div>
-                  <div className="mt-1 sm:mt-1.5">
+                  <div className="mt-1 sm:mt-1.5 px-0.5">
                     <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
                         step === 1 ? 'text-blue-700' : step > 1 ? 'text-slate-800' : 'text-slate-400'
                       }`}
                     >
@@ -568,7 +568,7 @@ export default function BookingForm() {
                 </div>
 
                 {/* Bước 2 */}
-                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
                   <div
                     className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                       step > 2
@@ -580,9 +580,9 @@ export default function BookingForm() {
                   >
                     {step > 2 ? <Check size={16} strokeWidth={2.8} /> : '2'}
                   </div>
-                  <div className="mt-1 sm:mt-1.5">
+                  <div className="mt-1 sm:mt-1.5 px-0.5">
                     <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
                         step === 2 ? 'text-blue-700' : step > 2 ? 'text-slate-800' : 'text-slate-400'
                       }`}
                     >
@@ -595,7 +595,7 @@ export default function BookingForm() {
                 </div>
 
                 {/* Bước 3 */}
-                <div className="flex flex-col items-center text-center w-24 sm:w-32">
+                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
                   <div
                     className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                       step === 3
@@ -605,9 +605,9 @@ export default function BookingForm() {
                   >
                     3
                   </div>
-                  <div className="mt-1 sm:mt-1.5">
+                  <div className="mt-1 sm:mt-1.5 px-0.5">
                     <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors ${
+                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
                         step === 3 ? 'text-blue-700' : 'text-slate-400'
                       }`}
                     >
@@ -1078,7 +1078,7 @@ export default function BookingForm() {
                       <span>1. Chọn Hồ Sơ Người Đi Khám:</span>
                     </label>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         type="button"
                         onClick={() => setBookingFor('self')}
