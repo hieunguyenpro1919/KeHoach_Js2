@@ -782,25 +782,20 @@ export default function BookingForm() {
             
             {/* Cột Trái: Doctor & Clinic Profile Card (Sticky Card - Ảnh 3) */}
             <div className="lg:col-span-4 bg-slate-50/80 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
-              <div className="flex items-center gap-2.5 sm:gap-3.5 pb-3.5 sm:pb-4 border-b border-slate-200">
-                <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-base sm:text-xl shadow-md shadow-blue-600/20 shrink-0">
-                  {getDoctorInitials(selectedDoctor?.name)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
-                    {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
-                  </span>
-                  <h3 
-                    className="font-extrabold text-slate-800 text-[13px] sm:text-base leading-tight truncate"
-                    title={selectedDoctor?.name}
-                  >
-                    {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
-                  </h3>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-0.5">
-                    <Stethoscope size={12} className="text-blue-500" />
-                    <span>{selectedDoctor?.specialty || activeSpecialtyObj?.name || 'Chuyên khoa'}</span>
-                  </span>
-                </div>
+              <div className="pb-3.5 sm:pb-4 border-b border-slate-200">
+                <span className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider block">
+                  {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
+                </span>
+                <h3 
+                  className="font-extrabold text-slate-800 text-sm sm:text-base leading-tight mt-0.5"
+                  title={selectedDoctor?.name}
+                >
+                  {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
+                </h3>
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 mt-1 font-medium">
+                  <Stethoscope size={13} className="text-blue-500 shrink-0" />
+                  <span>{selectedDoctor?.specialty || activeSpecialtyObj?.name || 'Chuyên khoa'}</span>
+                </span>
               </div>
 
               {/* Chi tiết phòng khám & Địa chỉ */}
