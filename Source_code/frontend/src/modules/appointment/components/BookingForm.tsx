@@ -853,24 +853,14 @@ export default function BookingForm() {
               {/* Step 2: Chọn Ngày & Ca Khám (Phân ca Sáng / Chiều - Ảnh 1 & 3) */}
               {step === 2 && (
                 <div className="space-y-6">
-                  {/* Danh sách bác sĩ */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                      1. Chọn Bác Sĩ Phụ Trách:
-                    </label>
-                    <div className="space-y-2.5">
-                      {filteredDoctors.length === 0 ? (
-                        <div className="py-8 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <Stethoscope size={28} className="mx-auto text-slate-400 mb-2" />
-                          <p className="text-xs font-semibold text-slate-600">
-                            Khoa {activeSpecialtyObj?.name || 'này'} hiện chưa có bác sĩ phụ trách tại {activeCenterObj.name}
-                          </p>
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            Vui lòng nhấn &quot;Quay lại&quot; ở bên dưới để chọn Chuyên khoa khác
-                          </p>
-                        </div>
-                      ) : (
-                        filteredDoctors.map((doc) => (
+                  {/* Danh sách bác sĩ: Chỉ hiển thị khi có từ 2 bác sĩ trở lên để bệnh nhân chọn đổi */}
+                  {filteredDoctors.length > 1 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                        1. Chọn Bác Sĩ Phụ Trách:
+                      </label>
+                      <div className="space-y-2.5">
+                        {filteredDoctors.map((doc) => (
                           <div
                             key={doc.id}
                             onClick={() => setSelectedDoctor(doc)}
@@ -898,18 +888,31 @@ export default function BookingForm() {
                               )}
                             </div>
                           </div>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Thông báo nếu chuyên khoa chưa có bác sĩ trực */}
+                  {filteredDoctors.length === 0 && (
+                    <div className="py-8 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Stethoscope size={28} className="mx-auto text-slate-400 mb-2" />
+                      <p className="text-xs font-semibold text-slate-600">
+                        Khoa {activeSpecialtyObj?.name || 'này'} hiện chưa có bác sĩ phụ trách tại {activeCenterObj.name}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Vui lòng nhấn &quot;Quay lại&quot; ở bên dưới để chọn Chuyên khoa khác
+                      </p>
+                    </div>
+                  )}
 
                   {/* Chỉ hiển thị Chọn Ngày & Khung Giờ khi ĐÃ CÓ BÁC SĨ ĐƯỢC CHỌN */}
                   {selectedDoctor ? (
                     <>
-                      {/* 2. Chọn Ngày Khám Bệnh */}
+                      {/* Chọn Ngày Khám Bệnh */}
                       <div>
                         <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                          2. Chọn Ngày Khám Bệnh:
+                          {filteredDoctors.length > 1 ? '2. Chọn Ngày Khám Bệnh:' : '1. Chọn Ngày Khám Bệnh:'}
                         </label>
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="relative">
@@ -934,11 +937,11 @@ export default function BookingForm() {
                         </div>
                       </div>
 
-                      {/* 3. Phân nhóm Khung giờ Khám (Sáng vs Chiều - Chuẩn Ảnh 1 Screen 3) */}
+                      {/* Phân nhóm Khung giờ Khám (Sáng vs Chiều - Chuẩn Ảnh 1 Screen 3) */}
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-bold text-slate-700 uppercase">
-                            3. Chọn Khung Giờ Khám (Time-slot):
+                            {filteredDoctors.length > 1 ? '3. Chọn Khung Giờ Khám (Time-slot):' : '2. Chọn Khung Giờ Khám (Time-slot):'}
                           </label>
                           {loadingSlots && (
                             <span className="text-[11px] text-blue-600 animate-pulse font-medium">
