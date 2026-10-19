@@ -30,7 +30,8 @@ import {
   Phone,
   Info,
   CalendarDays,
-  Gift
+  Gift,
+  X
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -71,6 +72,7 @@ export default function BookingForm() {
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [paidPromoCode, setPaidPromoCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [showClinicInfoModal, setShowClinicInfoModal] = useState<boolean>(false);
 
   // Authentication & Role Check
   useEffect(() => {
@@ -798,34 +800,30 @@ export default function BookingForm() {
                 </span>
               </div>
 
-              {/* Chi tiết phòng khám & Địa chỉ */}
-              <div className="space-y-2.5 text-xs text-slate-600">
-                <div className="flex items-start gap-2">
-                  <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-slate-700 block">{activeCenterObj.name}</span>
-                    <span className="text-[11px] text-slate-500">{activeCenterObj.address}</span>
+              {/* Chi tiết phòng khám & Địa chỉ (Mặc định thu gọn, bấm mở popup để tiết kiệm diện tích) */}
+              <button
+                type="button"
+                onClick={() => setShowClinicInfoModal(true)}
+                className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
+              >
+                <div className="flex items-center gap-2 min-w-0 text-left">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                    <Building2 size={14} />
                   </div>
-                </div>
-
-                <div className="flex items-start gap-2">
-                  <Building2 size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-slate-700 block">Buồng khám tiếp nhận:</span>
-                    <span className="text-[11px] text-blue-700 font-semibold bg-blue-100/70 px-2 py-0.5 rounded-md">
-                      {selectedDoctor ? (selectedDoctor.room || 'Phòng khám chuyên khoa') : 'Chưa phân bổ buồng khám'}
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-slate-800 text-xs block truncate">
+                      {activeCenterObj?.name || 'Cơ sở khám bệnh'}
+                    </span>
+                    <span className="text-[11px] text-blue-600 font-semibold block truncate">
+                      {selectedDoctor?.room ? `Buồng ${selectedDoctor.room}` : 'Buồng khám'} • Thứ 2 - CN (07:30 - 17:30)
                     </span>
                   </div>
                 </div>
-
-                <div className="flex items-start gap-2">
-                  <Clock size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-slate-700 block">Giờ làm việc phòng khám:</span>
-                    <span className="text-[11px] text-slate-500">Thứ 2 - Chủ Nhật (07:30 - 17:30)</span>
-                  </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                  <span>Chi tiết</span>
+                  <ChevronRight size={13} />
                 </div>
-              </div>
+              </button>
 
               {/* Bảng giá niêm yết minh bạch (Chuẩn Ảnh 2 & Ảnh 3) */}
               <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-2 text-xs">
@@ -1580,6 +1578,99 @@ export default function BookingForm() {
           </div>
         )}
       </div>
+
+      {/* Popup Chi Tiết Phòng Khám & Buồng Khám (Mở khi bấm vào ô thu gọn) */}
+      {showClinicInfoModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setShowClinicInfoModal(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-md rounded-2xl sm:rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4 animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header popup */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <Building2 size={16} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">
+                    Thông Tin Cơ Sở Khám Bệnh
+                  </h3>
+                  <span className="text-[11px] text-slate-500">Chi tiết địa chỉ, buồng khám &amp; giờ trực</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClinicInfoModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Danh sách thông tin chi tiết */}
+            <div className="space-y-3 text-xs text-slate-700">
+              {/* 1. Cơ sở & Địa chỉ */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-start gap-2.5">
+                <MapPin size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-slate-800 block text-xs">
+                    {activeCenterObj?.name || 'Phòng khám Đa khoa MedSched'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
+                    {activeCenterObj?.address || 'Hệ thống phòng khám MedSched'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Buồng khám & Bác sĩ */}
+              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-2.5">
+                <Building2 size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-slate-800 block text-xs">Buồng khám tiếp nhận:</span>
+                  <span className="text-xs text-blue-700 font-extrabold bg-blue-100 px-2 py-0.5 rounded-md inline-block mt-1">
+                    {selectedDoctor ? (selectedDoctor.room || 'Phòng khám chuyên khoa') : 'Chưa phân bổ buồng khám'}
+                  </span>
+                  {selectedDoctor?.name && (
+                    <span className="text-[11px] text-slate-600 block mt-1">
+                      Bác sĩ phụ trách: <strong className="text-slate-800">{selectedDoctor.name}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Giờ làm việc */}
+              <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-start gap-2.5">
+                <Clock size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-slate-800 block text-xs">Giờ làm việc phòng khám:</span>
+                  <span className="text-[11px] text-emerald-800 font-medium block mt-0.5">
+                    Thứ 2 - Chủ Nhật (07:30 - 17:30)
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Hỗ trợ tiếp đón thông minh 1 giây qua mã QR hoặc CCCD
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Nút đóng */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClinicInfoModal(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-blue-600/20 cursor-pointer text-center"
+              >
+                Đã hiểu &amp; Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Single Tab Lock Overlay */}
       <SingleTabLockOverlay
