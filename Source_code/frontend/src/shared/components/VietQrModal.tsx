@@ -376,15 +376,16 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Quy định bắt buộc đặt cọc giữ chỗ & chính sách hoàn tiền qua hotline */}
-              <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-200/90 text-xs text-blue-900 space-y-1.5 text-left">
-                <div className="flex items-center gap-1.5 font-bold text-blue-950">
-                  <ShieldCheck size={16} className="text-blue-600 shrink-0" />
-                  <span>Quy định: Bắt buộc đặt cọc giữ chỗ ({baseDepositAmount.toLocaleString('vi-VN')} đ)</span>
-                </div>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
-                  Bắt buộc đặt cọc giữ chỗ để hoàn tất lịch hẹn (không chuyển hết một lần, phần còn lại thanh toán tại quầy). Trường hợp cần hủy lịch, quý khách vui lòng liên hệ trước <strong>2 tiếng</strong> qua số điện thoại <a href="tel:0818872833" className="font-bold underline text-blue-700">0818872833</a> để được hoàn lại tiền cọc.
-                </p>
+              {/* Lưu ý hủy gói trước 2 tiếng để hoàn tiền */}
+              <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200/90 text-xs text-blue-900 flex items-center gap-2 text-left">
+                <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                <span className="text-[11px] sm:text-xs text-blue-900 leading-snug">
+                  Lưu ý hủy gói trước 2 tiếng liên hệ SĐT:{' '}
+                  <a href="tel:0818872833" className="font-bold underline text-blue-700">
+                    0818872833
+                  </a>{' '}
+                  để hoàn tiền
+                </span>
               </div>
 
               {/* Thông báo voucher đã áp dụng từ bước trước (nếu có) */}
