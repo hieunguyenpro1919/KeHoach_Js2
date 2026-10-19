@@ -202,18 +202,18 @@ export default function BookingForm() {
     }
   }, [showDatePicker, bookingDate]);
 
-  // Đóng lịch khi click chuột ra ngoài
+  // Đóng lịch khi nhấn phím Escape
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setShowDatePicker(false);
       }
     };
     if (showDatePicker) {
-      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [showDatePicker]);
 
@@ -1027,45 +1027,63 @@ export default function BookingForm() {
                           {filteredDoctors.length > 1 ? '2. Chọn Ngày Khám Bệnh:' : '1. Chọn Ngày Khám Bệnh:'}
                         </label>
                         <div className="flex flex-wrap items-center gap-3">
-                          {/* Khối chọn ngày: Di chuột hoặc bấm vào để mở lịch tùy chỉnh (Không có Thứ 7 & CN) */}
-                          <div
-                            ref={datePickerRef}
-                            className="relative"
-                            onMouseEnter={() => setShowDatePicker(true)}
-                            onMouseLeave={() => setShowDatePicker(false)}
+                          {/* Nút bấm mở lịch chọn ngày: Bấm vào hiện modal phủ mờ toàn bộ thông tin nền */}
+                          <button
+                            type="button"
+                            onClick={() => setShowDatePicker(true)}
+                            aria-haspopup="dialog"
+                            aria-expanded={showDatePicker}
+                            className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
                           >
-                            <button
-                              type="button"
-                              onClick={() => setShowDatePicker((prev) => !prev)}
-                              aria-haspopup="dialog"
-                              aria-expanded={showDatePicker}
-                              className={`flex items-center gap-2.5 px-4 py-2.5 bg-white border rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer ${
-                                showDatePicker
-                                  ? 'border-blue-600 ring-2 ring-blue-100 text-blue-900 shadow-md'
-                                  : 'border-slate-200 hover:border-blue-400 text-slate-800 hover:shadow'
-                              }`}
-                            >
-                              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                                <Calendar size={15} />
-                              </div>
-                              <span className="font-bold text-slate-900">
-                                {formatVietnameseFullDate(bookingDate)}
-                              </span>
-                              <ChevronDown
-                                size={14}
-                                className={`text-slate-400 ml-1 transition-transform duration-200 ${
-                                  showDatePicker ? 'rotate-180 text-blue-600' : ''
-                                }`}
-                              />
-                            </button>
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Calendar size={15} />
+                            </div>
+                            <span className="font-bold text-slate-900">
+                              {formatVietnameseFullDate(bookingDate)}
+                            </span>
+                            <ChevronDown
+                              size={14}
+                              className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors"
+                            />
+                          </button>
 
-                            {/* Dropdown Popover Lịch Khám (Chặn Thứ 7 & Chủ Nhật) */}
-                            {showDatePicker && (
+                          {/* Modal Lịch Khám: Phủ mờ toàn bộ màn hình và thông tin khác (Chặn Thứ 7 & Chủ Nhật) */}
+                          {showDatePicker && (
+                            <div
+                              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+                              onClick={() => setShowDatePicker(false)}
+                            >
                               <div
-                                className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 w-[310px] sm:w-[330px] animate-in fade-in zoom-in-95 duration-150"
+                                className="bg-white w-full max-w-[340px] sm:max-w-[360px] rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-3.5 animate-scaleUp"
+                                onClick={(e) => e.stopPropagation()}
                               >
+                                {/* Header popup lịch */}
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                      <CalendarDays size={17} />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm">
+                                        Chọn Ngày Khám Bệnh
+                                      </h3>
+                                      <span className="text-[11px] text-slate-500 block">
+                                        Tiếp nhận Thứ 2 - Thứ 6 (Thứ 7 & CN nghỉ)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDatePicker(false)}
+                                    className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                                    aria-label="Đóng lịch"
+                                  >
+                                    <X size={15} />
+                                  </button>
+                                </div>
+
                                 {/* Header: Điều hướng tháng */}
-                                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                                <div className="flex items-center justify-between py-1 px-1 bg-slate-50 rounded-xl border border-slate-200/70">
                                   <button
                                     type="button"
                                     onClick={handlePrevMonth}
@@ -1073,7 +1091,7 @@ export default function BookingForm() {
                                     className={`p-1.5 rounded-lg border transition-colors ${
                                       isCurrentMonthOrPast
                                         ? 'border-transparent text-slate-300 cursor-not-allowed opacity-40'
-                                        : 'border-slate-200 hover:bg-slate-100 text-slate-700 hover:border-slate-300 cursor-pointer'
+                                        : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700 hover:border-slate-300 cursor-pointer shadow-2xs'
                                     }`}
                                     title="Tháng trước"
                                   >
@@ -1089,7 +1107,7 @@ export default function BookingForm() {
                                   <button
                                     type="button"
                                     onClick={handleNextMonth}
-                                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 hover:border-slate-300 transition-colors cursor-pointer"
+                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 hover:border-slate-300 transition-colors cursor-pointer shadow-2xs"
                                     title="Tháng sau"
                                   >
                                     <ChevronRight size={16} />
@@ -1097,7 +1115,7 @@ export default function BookingForm() {
                                 </div>
 
                                 {/* Hàng tiêu đề các thứ trong tuần */}
-                                <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
+                                <div className="grid grid-cols-7 gap-1 text-center pt-1">
                                   {['T2', 'T3', 'T4', 'T5', 'T6'].map((wd) => (
                                     <div key={wd} className="text-[11px] font-bold text-slate-600 py-1">
                                       {wd}
@@ -1115,7 +1133,7 @@ export default function BookingForm() {
                                 <div className="grid grid-cols-7 gap-1">
                                   {/* Các ô trống trước ngày đầu tháng */}
                                   {Array.from({ length: emptyCellsCount }).map((_, i) => (
-                                    <div key={`empty-${i}`} className="h-8" />
+                                    <div key={`empty-${i}`} className="h-8.5" />
                                   ))}
 
                                   {/* Các ngày trong tháng */}
@@ -1143,7 +1161,7 @@ export default function BookingForm() {
                                           type="button"
                                           disabled
                                           title="Phòng khám không nhận lịch hẹn vào Thứ 7 & Chủ Nhật"
-                                          className="h-8 rounded-lg text-xs font-medium text-slate-300 bg-slate-50/70 line-through cursor-not-allowed select-none opacity-50 flex items-center justify-center pointer-events-none"
+                                          className="h-8.5 rounded-xl text-xs font-medium text-slate-300 bg-slate-50/80 line-through cursor-not-allowed select-none opacity-50 flex items-center justify-center pointer-events-none"
                                         >
                                           {day}
                                         </button>
@@ -1158,7 +1176,7 @@ export default function BookingForm() {
                                           type="button"
                                           disabled
                                           title="Ngày đã qua"
-                                          className="h-8 rounded-lg text-xs font-medium text-slate-300 cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
+                                          className="h-8.5 rounded-xl text-xs font-medium text-slate-300 cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
                                         >
                                           {day}
                                         </button>
@@ -1170,15 +1188,12 @@ export default function BookingForm() {
                                       <button
                                         key={day}
                                         type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSelectDate(isoString);
-                                        }}
-                                        className={`h-8 rounded-lg text-xs font-semibold transition-all flex items-center justify-center cursor-pointer ${
+                                        onClick={() => handleSelectDate(isoString)}
+                                        className={`h-8.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center cursor-pointer ${
                                           isSelected
-                                            ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-200'
+                                            ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-200 hover:bg-blue-700'
                                             : isCurrentDay
-                                            ? 'border-2 border-blue-500 text-blue-700 bg-blue-50/60 hover:bg-blue-100'
+                                            ? 'border-2 border-blue-500 text-blue-700 bg-blue-50/70 hover:bg-blue-100 font-bold'
                                             : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:font-bold'
                                         }`}
                                       >
@@ -1189,15 +1204,15 @@ export default function BookingForm() {
                                 </div>
 
                                 {/* Ghi chú rõ ràng phòng khám nghỉ Thứ 7 & CN */}
-                                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50/90 px-2.5 py-1.5 rounded-xl border border-amber-200/60">
-                                  <Info size={13} className="shrink-0 text-amber-600" />
+                                <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px] text-amber-800 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-200/60">
+                                  <Info size={14} className="shrink-0 text-amber-600" />
                                   <span>
-                                    Lịch khám: <strong>Thứ 2 - Thứ 6</strong> (Thứ 7 & CN nghỉ)
+                                    Phòng khám chỉ nhận lịch <strong>Thứ 2 đến Thứ 6</strong>. Thứ 7 & Chủ Nhật không tiếp nhận đặt trước.
                                   </span>
                                 </div>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
 
                           <span className="text-xs text-blue-800 font-semibold bg-blue-50 px-3.5 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5">
                             <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
