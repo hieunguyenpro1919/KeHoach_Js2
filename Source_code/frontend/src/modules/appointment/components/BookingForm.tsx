@@ -27,7 +27,6 @@ import {
   Trash2,
   FileText,
   HeartPulse,
-  BadgeCheck,
   Phone,
   Info,
   CalendarDays,
@@ -840,18 +839,6 @@ export default function BookingForm() {
                   <span>Tổng viện phí:</span>
                   <span>{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</span>
                 </div>
-              </div>
-
-              {/* Cam kết dịch vụ */}
-              <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-[11px] text-emerald-900 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <BadgeCheck size={14} className="text-emerald-700" />
-                  <span>Quyền lợi đặt trước MedSched:</span>
-                </div>
-                <p className="text-[10px] text-emerald-800 leading-relaxed">
-                  ✓ Được cấp số thứ tự ưu tiên khám đúng giờ.<br />
-                  ✓ Bác sĩ trực tiếp tư vấn và kê đơn thuốc chuẩn Bộ Y Tế.
-                </p>
               </div>
             </div>
 
