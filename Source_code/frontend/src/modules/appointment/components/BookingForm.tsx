@@ -2046,7 +2046,7 @@ export default function BookingForm() {
                         ) : (
                           <>
                             <CheckCircle2 size={15} className="shrink-0" />
-                            <span className="truncate">Xác nhận đặt khám</span>
+                            <span>Xác nhận đặt</span>
                           </>
                         )}
                       </button>
