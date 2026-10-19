@@ -1740,22 +1740,23 @@ export default function BookingForm() {
                   ) : null}
 
                   {/* Navigation Buttons */}
-                  <div className="pt-4 flex flex-col-reverse sm:flex-row gap-2.5 justify-between items-stretch sm:items-center border-t border-slate-100">
+                  <div className="pt-4 grid grid-cols-2 gap-2.5 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="px-5 py-3 sm:py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                      className="py-2.5 sm:py-3 px-3 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
                     >
-                      <ArrowLeft size={16} /> Quay lại
+                      <ArrowLeft size={15} />
+                      <span>Quay lại</span>
                     </button>
                     <button
                       type="button"
                       disabled={!selectedDoctor || !selectedSlot.id || !hasSelectedDate}
                       onClick={() => setStep(3)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
-                      <span>Tiếp tục: Hồ sơ &amp; Triệu chứng</span>
-                      <ArrowRight size={16} />
+                      <span className="truncate">Tiếp tục</span>
+                      <ArrowRight size={15} className="shrink-0" />
                     </button>
                   </div>
                 </div>
@@ -2023,28 +2024,29 @@ export default function BookingForm() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col-reverse sm:flex-row gap-2.5 justify-between items-stretch sm:items-center pt-3 border-t border-blue-200/60">
+                    <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-blue-200/60">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="px-5 py-3 sm:py-2.5 rounded-2xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                        className="py-2.5 sm:py-3 px-3 rounded-2xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
                       >
-                        <ArrowLeft size={16} /> Quay lại
+                        <ArrowLeft size={15} />
+                        <span>Quay lại</span>
                       </button>
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-8 py-3 rounded-2xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 w-full sm:w-auto"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-2xl transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap"
                       >
                         {submitting ? (
                           <>
-                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Đang tạo vé khám...</span>
+                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                            <span className="truncate">Đang tạo vé...</span>
                           </>
                         ) : (
                           <>
-                            <CheckCircle2 size={16} />
-                            <span>Xác Nhận &amp; Xuất Vé Khám (STT)</span>
+                            <CheckCircle2 size={15} className="shrink-0" />
+                            <span className="truncate">Xác nhận đặt khám</span>
                           </>
                         )}
                       </button>
