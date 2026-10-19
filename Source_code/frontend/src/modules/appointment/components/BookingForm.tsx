@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Printer,
   ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   AlertCircle,
   CreditCard,
   Sun,
@@ -125,15 +127,6 @@ export default function BookingForm() {
     return `${year}-${month}-${day}`;
   };
 
-  const getTomorrowISODate = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${year}-${month}-${day}`;
-  };
-
   const formatISODateToVN = (iso: string) => {
     const parts = iso.split('-');
     return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
@@ -146,15 +139,134 @@ export default function BookingForm() {
     return currentMinutes > 14 * 60 + 30;
   };
 
-  const [bookingDate, setBookingDate] = useState<string>(
-    isPastAllTodaySlots() ? getTomorrowISODate() : getTodayISODate()
-  );
+  // Tìm ngày làm việc hợp lệ tiếp theo (Thứ 2 đến Thứ 6), tuyệt đối không rơi vào Thứ 7 hoặc Chủ Nhật
+  const getNextAvailableWeekday = (baseDate?: Date): string => {
+    const d = baseDate ? new Date(baseDate) : new Date();
+    if (!baseDate && isPastAllTodaySlots()) {
+      d.setDate(d.getDate() + 1);
+    }
+    // Bỏ qua Thứ 7 (6) và Chủ Nhật (0)
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${year}-${month}-${day}`;
+  };
 
-  const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>({
-    id: '',
-    time: 'Chưa chọn',
-    date: formatISODateToVN(isPastAllTodaySlots() ? getTomorrowISODate() : getTodayISODate()),
+  const formatVietnameseFullDate = (iso: string) => {
+    if (!iso) return '';
+    const parts = iso.split('-');
+    if (parts.length !== 3) return iso;
+    const [y, m, d] = parts.map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay();
+    const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const dayName = dayNames[dayOfWeek] || '';
+    return `${dayName}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  };
+
+  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
+
+  const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>(() => {
+    const initialDate = getNextAvailableWeekday();
+    return {
+      id: '',
+      time: 'Chưa chọn',
+      date: formatISODateToVN(initialDate),
+    };
   });
+
+  // Quản lý hiển thị lịch chọn ngày (di chuột hoặc bấm vào để mở, không có Thứ 7 & CN)
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // Tháng và năm hiển thị trên lịch tùy chỉnh
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const initial = getNextAvailableWeekday();
+    const parts = initial.split('-').map(Number);
+    if (parts.length === 3) {
+      return new Date(parts[0], parts[1] - 1, 1);
+    }
+    return new Date();
+  });
+
+  // Tự động đồng bộ tháng xem theo ngày đã chọn khi mở popup
+  useEffect(() => {
+    if (showDatePicker && bookingDate) {
+      const parts = bookingDate.split('-').map(Number);
+      if (parts.length === 3) {
+        setCalendarMonth(new Date(parts[0], parts[1] - 1, 1));
+      }
+    }
+  }, [showDatePicker, bookingDate]);
+
+  // Đóng lịch khi click chuột ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
+
+  const handlePrevMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const handleSelectDate = (isoString: string) => {
+    const [y, m, d] = isoString.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay();
+    // Chặn triệt để Thứ 7 (6) và Chủ Nhật (0)
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return;
+    }
+    setBookingDate(isoString);
+    const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+    setSelectedSlot((prev) => ({
+      ...prev,
+      date: formatted,
+      id: '',
+      time: 'Đang tải...',
+    }));
+    setShowDatePicker(false);
+  };
+
+  const todayDateOnly = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }, []);
+
+  const isCurrentMonthOrPast = useMemo(() => {
+    const currentYear = todayDateOnly.getFullYear();
+    const currentMonth = todayDateOnly.getMonth();
+    const viewYear = calendarMonth.getFullYear();
+    const viewMonth = calendarMonth.getMonth();
+    return viewYear < currentYear || (viewYear === currentYear && viewMonth <= currentMonth);
+  }, [calendarMonth, todayDateOnly]);
+
+  const { emptyCellsCount, daysInMonth } = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const emptyCount = (firstDayIndex + 6) % 7;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    return { emptyCellsCount: emptyCount, daysInMonth: totalDays };
+  }, [calendarMonth]);
 
   const [symptoms, setSymptoms] = useState('');
   const [aiPreview, setAiPreview] = useState<{ specialty: string; summary: string } | null>(null);
@@ -915,24 +1027,183 @@ export default function BookingForm() {
                           {filteredDoctors.length > 1 ? '2. Chọn Ngày Khám Bệnh:' : '1. Chọn Ngày Khám Bệnh:'}
                         </label>
                         <div className="flex flex-wrap items-center gap-3">
-                          <div className="relative">
-                            <input
-                              type="date"
-                              value={bookingDate}
-                              min={getTodayISODate()}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setBookingDate(val);
-                                const parts = val.split('-');
-                                const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : val;
-                                setSelectedSlot((prev) => ({ ...prev, date: formatted }));
-                              }}
-                              className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-                            />
-                            <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          {/* Khối chọn ngày: Di chuột hoặc bấm vào để mở lịch tùy chỉnh (Không có Thứ 7 & CN) */}
+                          <div
+                            ref={datePickerRef}
+                            className="relative"
+                            onMouseEnter={() => setShowDatePicker(true)}
+                            onMouseLeave={() => setShowDatePicker(false)}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setShowDatePicker((prev) => !prev)}
+                              aria-haspopup="dialog"
+                              aria-expanded={showDatePicker}
+                              className={`flex items-center gap-2.5 px-4 py-2.5 bg-white border rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+                                showDatePicker
+                                  ? 'border-blue-600 ring-2 ring-blue-100 text-blue-900 shadow-md'
+                                  : 'border-slate-200 hover:border-blue-400 text-slate-800 hover:shadow'
+                              }`}
+                            >
+                              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                <Calendar size={15} />
+                              </div>
+                              <span className="font-bold text-slate-900">
+                                {formatVietnameseFullDate(bookingDate)}
+                              </span>
+                              <ChevronDown
+                                size={14}
+                                className={`text-slate-400 ml-1 transition-transform duration-200 ${
+                                  showDatePicker ? 'rotate-180 text-blue-600' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {/* Dropdown Popover Lịch Khám (Chặn Thứ 7 & Chủ Nhật) */}
+                            {showDatePicker && (
+                              <div
+                                className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 w-[310px] sm:w-[330px] animate-in fade-in zoom-in-95 duration-150"
+                              >
+                                {/* Header: Điều hướng tháng */}
+                                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={handlePrevMonth}
+                                    disabled={isCurrentMonthOrPast}
+                                    className={`p-1.5 rounded-lg border transition-colors ${
+                                      isCurrentMonthOrPast
+                                        ? 'border-transparent text-slate-300 cursor-not-allowed opacity-40'
+                                        : 'border-slate-200 hover:bg-slate-100 text-slate-700 hover:border-slate-300 cursor-pointer'
+                                    }`}
+                                    title="Tháng trước"
+                                  >
+                                    <ChevronLeft size={16} />
+                                  </button>
+
+                                  <div className="text-center">
+                                    <span className="text-xs font-bold text-slate-900 block">
+                                      Tháng {calendarMonth.getMonth() + 1}, {calendarMonth.getFullYear()}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={handleNextMonth}
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 hover:border-slate-300 transition-colors cursor-pointer"
+                                    title="Tháng sau"
+                                  >
+                                    <ChevronRight size={16} />
+                                  </button>
+                                </div>
+
+                                {/* Hàng tiêu đề các thứ trong tuần */}
+                                <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
+                                  {['T2', 'T3', 'T4', 'T5', 'T6'].map((wd) => (
+                                    <div key={wd} className="text-[11px] font-bold text-slate-600 py-1">
+                                      {wd}
+                                    </div>
+                                  ))}
+                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Thứ 7 nghỉ">
+                                    T7
+                                  </div>
+                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Chủ Nhật nghỉ">
+                                    CN
+                                  </div>
+                                </div>
+
+                                {/* Lưới các ngày trong tháng */}
+                                <div className="grid grid-cols-7 gap-1">
+                                  {/* Các ô trống trước ngày đầu tháng */}
+                                  {Array.from({ length: emptyCellsCount }).map((_, i) => (
+                                    <div key={`empty-${i}`} className="h-8" />
+                                  ))}
+
+                                  {/* Các ngày trong tháng */}
+                                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const day = i + 1;
+                                    const currentDate = new Date(
+                                      calendarMonth.getFullYear(),
+                                      calendarMonth.getMonth(),
+                                      day
+                                    );
+                                    const dayOfWeek = currentDate.getDay(); // 0 = CN, 6 = T7
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                    const isPast = currentDate < todayDateOnly;
+                                    const isoString = `${calendarMonth.getFullYear()}-${String(
+                                      calendarMonth.getMonth() + 1
+                                    ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    const isSelected = isoString === bookingDate;
+                                    const isCurrentDay = currentDate.getTime() === todayDateOnly.getTime();
+
+                                    // Thứ 7 & CN: Tuyệt đối bị khóa
+                                    if (isWeekend) {
+                                      return (
+                                        <button
+                                          key={day}
+                                          type="button"
+                                          disabled
+                                          title="Phòng khám không nhận lịch hẹn vào Thứ 7 & Chủ Nhật"
+                                          className="h-8 rounded-lg text-xs font-medium text-slate-300 bg-slate-50/70 line-through cursor-not-allowed select-none opacity-50 flex items-center justify-center pointer-events-none"
+                                        >
+                                          {day}
+                                        </button>
+                                      );
+                                    }
+
+                                    // Ngày quá khứ: Bị khóa
+                                    if (isPast) {
+                                      return (
+                                        <button
+                                          key={day}
+                                          type="button"
+                                          disabled
+                                          title="Ngày đã qua"
+                                          className="h-8 rounded-lg text-xs font-medium text-slate-300 cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
+                                        >
+                                          {day}
+                                        </button>
+                                      );
+                                    }
+
+                                    // Ngày trong tuần hợp lệ (T2 -> T6)
+                                    return (
+                                      <button
+                                        key={day}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSelectDate(isoString);
+                                        }}
+                                        className={`h-8 rounded-lg text-xs font-semibold transition-all flex items-center justify-center cursor-pointer ${
+                                          isSelected
+                                            ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-200'
+                                            : isCurrentDay
+                                            ? 'border-2 border-blue-500 text-blue-700 bg-blue-50/60 hover:bg-blue-100'
+                                            : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:font-bold'
+                                        }`}
+                                      >
+                                        {day}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Ghi chú rõ ràng phòng khám nghỉ Thứ 7 & CN */}
+                                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50/90 px-2.5 py-1.5 rounded-xl border border-amber-200/60">
+                                  <Info size={13} className="shrink-0 text-amber-600" />
+                                  <span>
+                                    Lịch khám: <strong>Thứ 2 - Thứ 6</strong> (Thứ 7 & CN nghỉ)
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-3 py-2 rounded-xl border border-blue-200">
-                            Ngày đã chọn: <strong>Ngày {selectedSlot.date || formatISODateToVN(bookingDate)}</strong>
+
+                          <span className="text-xs text-blue-800 font-semibold bg-blue-50 px-3.5 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5">
+                            <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
+                            <span>
+                              Ngày đã chọn: <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                            </span>
                           </span>
                         </div>
                       </div>
