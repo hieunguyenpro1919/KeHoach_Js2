@@ -2928,9 +2928,9 @@ export default function BookingForm() {
                 </span>
               </div>
               <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                <span className="text-[10px] text-emerald-700 block font-medium">Hài lòng</span>
-                <span className="text-xs sm:text-sm font-extrabold text-emerald-700 block mt-0.5">
-                  98.5%
+                <span className="text-[10px] text-emerald-700 block font-medium">Buồng khám</span>
+                <span className="text-xs sm:text-sm font-extrabold text-emerald-700 block mt-0.5 truncate">
+                  {doctorModalData.room ? (doctorModalData.room.startsWith('P.') ? doctorModalData.room : `P.${doctorModalData.room}`) : 'P.102'}
                 </span>
               </div>
               <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-100">
