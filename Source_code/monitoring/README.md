@@ -14,7 +14,7 @@ Hệ thống MedSched đã được tích hợp bộ đôi chuẩn công nghiệ
 [ Prometheus Server (Port 9090) ]
         │ (Cào dữ liệu tự động mỗi 5 giây)
         ▼
-[ Grafana Dashboard (Port 3000) ]
+[ Grafana Dashboard (Port 3100) ]
    (Vẽ biểu đồ RPS, HTTP 200 vs 429/500, Database Pool, CPU/RAM)
 ```
 
@@ -45,7 +45,7 @@ docker compose -f docker-compose-monitoring.yml up -d
   - `process_cpu_usage`: Tỷ lệ phần trăm CPU sử dụng.
 
 ### 3.2. Truy cập Grafana
-- URL: **http://localhost:3000**
+- URL: **http://localhost:3100** (Đã chuyển sang cổng 3100 để không trùng với Frontend Next.js cổng 3000)
 - Tài khoản đăng nhập mặc định:
   - **Username:** `admin`
   - **Password:** `admin`
