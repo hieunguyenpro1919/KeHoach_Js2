@@ -33,6 +33,7 @@ import {
   Info,
   CalendarDays,
   Gift,
+  ReceiptText,
   X
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
@@ -75,6 +76,11 @@ export default function BookingForm() {
   const [paidPromoCode, setPaidPromoCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [showClinicInfoModal, setShowClinicInfoModal] = useState<boolean>(false);
+  const [showFeeModal, setShowFeeModal] = useState<boolean>(false);
+  const [showRelativeModal, setShowRelativeModal] = useState<boolean>(false);
+  const [showAiModal, setShowAiModal] = useState<boolean>(false);
+  const [showAttachmentModal, setShowAttachmentModal] = useState<boolean>(false);
+  const [showVoucherModal, setShowVoucherModal] = useState<boolean>(false);
 
   // Authentication & Role Check
   useEffect(() => {
@@ -217,22 +223,48 @@ export default function BookingForm() {
     }
   }, [selectedSlot.time]);
 
-  // Đóng lịch & các popup chọn ca khám khi nhấn phím Escape
+  // Đóng lịch & các popup khi nhấn phím Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowDatePicker(false);
         setShowSessionModal(false);
         setShowSlotModal(false);
+        setShowClinicInfoModal(false);
+        setShowFeeModal(false);
+        setShowRelativeModal(false);
+        setShowAiModal(false);
+        setShowAttachmentModal(false);
+        setShowVoucherModal(false);
       }
     };
-    if (showDatePicker || showSessionModal || showSlotModal) {
+    if (
+      showDatePicker ||
+      showSessionModal ||
+      showSlotModal ||
+      showClinicInfoModal ||
+      showFeeModal ||
+      showRelativeModal ||
+      showAiModal ||
+      showAttachmentModal ||
+      showVoucherModal
+    ) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showDatePicker, showSessionModal, showSlotModal]);
+  }, [
+    showDatePicker,
+    showSessionModal,
+    showSlotModal,
+    showClinicInfoModal,
+    showFeeModal,
+    showRelativeModal,
+    showAiModal,
+    showAttachmentModal,
+    showVoucherModal,
+  ]);
 
   const handlePrevMonth = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -389,6 +421,7 @@ export default function BookingForm() {
     try {
       const res = await api.triageSymptoms(symptoms);
       setAiPreview(res);
+      setShowAiModal(true);
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -441,6 +474,11 @@ export default function BookingForm() {
     setError(null);
     if (!selectedSlot.id || timeSlots.find((s) => s.id === selectedSlot.id)?.disabled) {
       setError('Khung giờ bạn chọn đã qua hoặc không còn khả dụng. Vui lòng chọn khung giờ khác hoặc ngày khác.');
+      return;
+    }
+    if (bookingFor === 'relative' && !relativeInfo.fullName.trim()) {
+      setShowRelativeModal(true);
+      setError('Vui lòng nhập họ tên người thân được đặt khám hộ trong cửa sổ thông tin.');
       return;
     }
     setSubmitting(true);
@@ -957,26 +995,30 @@ export default function BookingForm() {
                 </div>
               </button>
 
-              {/* Bảng giá niêm yết minh bạch (Chuẩn Ảnh 2 & Ảnh 3) */}
-              <div className="p-3.5 bg-white rounded-2xl border border-slate-200/80 space-y-2 text-xs">
-                <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wider">
-                  Chi Phí Khám Niêm Yết:
-                </span>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Phí khám bác sĩ:</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
-                  </span>
+              {/* Bảng giá niêm yết minh bạch (Thu gọn thành nút bấm mở popup thông tin) */}
+              <button
+                type="button"
+                onClick={() => setShowFeeModal(true)}
+                className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
+              >
+                <div className="flex items-center gap-2 min-w-0 text-left">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                    <ReceiptText size={14} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-slate-800 text-xs block">
+                      Chi phí khám niêm yết
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium block truncate">
+                      Tổng tạm tính: <strong className="text-blue-700 font-bold">{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</strong> (Miễn phí tiện ích)
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Phí tiện ích MedSched:</span>
-                  <span className="font-semibold text-emerald-600">0 đ (Miễn phí)</span>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                  <span>Chi tiết</span>
+                  <ChevronRight size={13} />
                 </div>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-extrabold text-sm text-blue-700">
-                  <span>Tổng viện phí:</span>
-                  <span>{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</span>
-                </div>
-              </div>
+              </button>
             </div>
 
             {/* Cột Phải: Form Thao Tác Chi Tiết */}
@@ -1654,7 +1696,12 @@ export default function BookingForm() {
 
                       <button
                         type="button"
-                        onClick={() => setBookingFor('relative')}
+                        onClick={() => {
+                          setBookingFor('relative');
+                          if (!relativeInfo.fullName) {
+                            setShowRelativeModal(true);
+                          }
+                        }}
                         className={`p-3.5 rounded-2xl border-2 text-left transition cursor-pointer flex items-center justify-between ${
                           bookingFor === 'relative'
                             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
@@ -1667,74 +1714,40 @@ export default function BookingForm() {
                           </div>
                           <div>
                             <span className="font-bold text-slate-800 text-xs block">Người Thân Trong Gia Đình</span>
-                            <span className="text-[10px] text-slate-500">Ba, Mẹ, Con, Vợ/Chồng</span>
+                            <span className="text-[10px] text-slate-500">
+                              {bookingFor === 'relative' && relativeInfo.fullName
+                                ? `${relativeInfo.fullName} (${relativeInfo.relationship})`
+                                : 'Ba, Mẹ, Con, Vợ/Chồng'}
+                            </span>
                           </div>
                         </div>
                         {bookingFor === 'relative' && <CheckCircle2 size={16} className="text-blue-600" />}
                       </button>
                     </div>
 
-                    {/* Nếu chọn Người thân, mở form điền thông tin người thân */}
+                    {/* Nếu chọn Người thân, hiển thị thẻ thu gọn + nút mở popup thông tin */}
                     {bookingFor === 'relative' && (
-                      <div className="p-4 bg-purple-50/50 border border-purple-200 rounded-2xl space-y-3 animate-in fade-in duration-200 text-xs">
-                        <span className="font-bold text-purple-900 block text-xs">
-                          Thông Tin Người Thân Được Đặt Khám Hộ:
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Họ và tên người khám *:
-                            </label>
-                            <input
-                              type="text"
-                              required={bookingFor === 'relative'}
-                              value={relativeInfo.fullName}
-                              onChange={(e) => setRelativeInfo({ ...relativeInfo, fullName: e.target.value })}
-                              placeholder="Ví dụ: Hồ Gia Phúc"
-                              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-600"
-                            />
+                      <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-2xl flex items-center justify-between text-xs animate-fadeIn">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-purple-200 text-purple-800 flex items-center justify-center shrink-0 font-bold">
+                            <Users size={14} />
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Mối quan hệ:
-                            </label>
-                            <select
-                              value={relativeInfo.relationship}
-                              onChange={(e) => setRelativeInfo({ ...relativeInfo, relationship: e.target.value })}
-                              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-600"
-                            >
-                              <option value="Ba / Mẹ">Ba / Mẹ</option>
-                              <option value="Con cái">Con cái</option>
-                              <option value="Vợ / Chồng">Vợ / Chồng</option>
-                              <option value="Anh / Chị / Em">Anh / Chị / Em</option>
-                              <option value="Người thân khác">Người thân khác</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Năm sinh:
-                            </label>
-                            <input
-                              type="number"
-                              value={relativeInfo.birthYear}
-                              onChange={(e) => setRelativeInfo({ ...relativeInfo, birthYear: e.target.value })}
-                              placeholder="1994"
-                              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-600"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Số điện thoại liên hệ:
-                            </label>
-                            <input
-                              type="tel"
-                              value={relativeInfo.phone}
-                              onChange={(e) => setRelativeInfo({ ...relativeInfo, phone: e.target.value })}
-                              placeholder="0901234567"
-                              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-600"
-                            />
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-purple-950 block text-xs truncate">
+                              {relativeInfo.fullName || 'Chưa nhập tên người thân'}
+                            </span>
+                            <span className="text-[11px] text-purple-700 block truncate">
+                              {relativeInfo.relationship} • {relativeInfo.birthYear || '1995'} {relativeInfo.phone ? `• ${relativeInfo.phone}` : ''}
+                            </span>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowRelativeModal(true)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-purple-700 bg-white border border-purple-300 hover:bg-purple-100 rounded-lg shrink-0 transition cursor-pointer ml-2"
+                        >
+                          {relativeInfo.fullName ? 'Chỉnh sửa' : 'Nhập thông tin'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1765,34 +1778,58 @@ export default function BookingForm() {
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs sm:text-sm text-slate-800"
                     />
 
-                    {/* AI Preview Alert nếu có */}
+                    {/* AI Preview badge - Bấm mở popup xem phân tích chi tiết */}
                     {aiPreview && (
-                      <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 space-y-1.5 animate-in fade-in duration-200">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold flex items-center gap-1.5 text-purple-800">
-                            <Sparkles size={14} className="text-purple-600" />
-                            Đề Xuất Chuyên Môn Từ Spring AI:
-                          </span>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                            Đã Tối Ưu
+                      <button
+                        type="button"
+                        onClick={() => setShowAiModal(true)}
+                        className="w-full flex items-center justify-between p-2.5 bg-purple-50/80 border border-purple-200 hover:border-purple-400 rounded-xl text-xs text-purple-900 transition cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 text-left">
+                          <Sparkles size={14} className="text-purple-600 shrink-0 group-hover:rotate-12 transition" />
+                          <span className="font-bold text-purple-900 text-xs truncate">
+                            Đã có đề xuất chuyên môn Spring AI: <span className="font-normal text-slate-700">{(aiPreview as any).clinicalSummary || aiPreview.summary}</span>
                           </span>
                         </div>
-                        <p className="text-slate-700 leading-relaxed text-[11px]">
-                          {(aiPreview as any).clinicalSummary || aiPreview.summary}
-                        </p>
-                      </div>
+                        <span className="text-[11px] font-bold text-purple-700 bg-white border border-purple-200 px-2 py-0.5 rounded-lg shrink-0 group-hover:bg-purple-100 transition ml-2">
+                          Xem chi tiết
+                        </span>
+                      </button>
                     )}
                   </div>
 
-                  {/* 3. Tệp Đính Kèm (Ảnh 1 & Ảnh 3: Tối đa 5 file) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                        <Paperclip size={14} className="text-blue-600" />
-                        <span>3. Tệp Đính Kèm ({attachments.length}/5):</span>
-                      </label>
-                      <span className="text-[11px] text-slate-400">Kết quả xét nghiệm, đơn thuốc cũ, ảnh chụp X-Quang</span>
-                    </div>
+                  {/* 3. Tệp Đính Kèm (Thu gọn thành nút bấm mở popup quản lý tệp) */}
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowAttachmentModal(true)}
+                      className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 text-left">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                          <Paperclip size={14} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-800 text-xs block">
+                              3. Tệp đính kèm hồ sơ khám
+                            </span>
+                            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded-md">
+                              {attachments.length}/5 tệp
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block truncate">
+                            {attachments.length === 0
+                              ? 'Kết quả xét nghiệm, đơn thuốc cũ, ảnh chụp X-Quang...'
+                              : attachments.map((f) => f.name).join(', ')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                        <span>{attachments.length === 0 ? '+ Thêm tệp' : 'Quản lý'}</span>
+                        <ChevronRight size={13} />
+                      </div>
+                    </button>
 
                     <input
                       ref={fileInputRef}
@@ -1802,115 +1839,57 @@ export default function BookingForm() {
                       onChange={handleFileUpload}
                       className="hidden"
                     />
+                  </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={attachments.length >= 5}
-                        className="px-4 py-2.5 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-2xl text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50/50 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  {/* Mã Khuyến Mãi / Voucher Miễn Phí Cọc (Thu gọn thành nút bấm mở popup thông tin) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowVoucherModal(true)}
+                    className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-xs transition-all cursor-pointer group shadow-2xs ${
+                      appliedPromo
+                        ? 'bg-emerald-50/70 border-emerald-300 hover:border-emerald-400'
+                        : 'bg-amber-50/60 border-amber-200/90 hover:border-amber-400 hover:bg-amber-100/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 text-left">
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition ${
+                          appliedPromo ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white shadow-2xs'
+                        }`}
                       >
-                        <FileText size={15} className="text-blue-600" />
-                        <span>+ Thêm tệp hồ sơ (PNG, JPG, PDF)</span>
-                      </button>
-
-                      {attachments.map((file, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 shadow-2xs"
-                        >
-                          <span className="truncate max-w-[120px] font-medium">{file.name}</span>
-                          <span className="text-[10px] text-slate-400">({file.size})</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAttachment(idx)}
-                            className="text-rose-500 hover:text-rose-700 p-0.5"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mã Khuyến Mãi / Voucher Miễn Phí Cọc (Dành cho Giảng Viên / Tester) */}
-                  <div className="bg-gradient-to-r from-amber-50/80 to-orange-50/80 border border-amber-200/90 p-3.5 sm:p-4 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
-                          <Gift size={16} />
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-amber-950 block">
-                            Mã Ưu Đãi / Voucher Miễn Tiền Cọc:
-                          </span>
-                          <span className="text-[11px] text-amber-700">
-                            Dành cho Giảng viên &amp; Tester kiểm thử hệ thống không cần chuyển khoản tiền thật
-                          </span>
-                        </div>
+                        <Gift size={14} />
                       </div>
-                      <span className="hidden sm:inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">
-                        Miễn 100% Cọc
-                      </span>
-                    </div>
-
-                    {appliedPromo ? (
-                      <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                          <div>
-                            <span className="text-xs font-bold text-emerald-900">
-                              Đã áp dụng mã: <span className="text-blue-700 font-mono tracking-wider font-extrabold">{appliedPromo}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-800 text-xs block">
+                            Mã ưu đãi / Voucher miễn tiền cọc
+                          </span>
+                          {appliedPromo ? (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md">
+                              Đã giảm 100%
                             </span>
-                            <p className="text-[11px] text-emerald-700">
-                              ✓ Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ). Lịch hẹn sẽ tự động được duyệt ngay khi bấm Đặt Khám.
-                            </p>
-                          </div>
+                          ) : (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-md">
+                              Giảng viên / Tester
+                            </span>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleRemovePromo}
-                          className="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-medium cursor-pointer transition border border-rose-200"
-                        >
-                          Hủy
-                        </button>
+                        <span className="text-[11px] text-slate-600 block truncate">
+                          {appliedPromo ? (
+                            <span className="text-emerald-700 font-semibold">
+                              Đã áp dụng: <strong className="font-mono text-blue-700">{appliedPromo}</strong> (Miễn phí 100% cọc giữ chỗ)
+                            </span>
+                          ) : (
+                            'Chạm để nhập mã hoặc chọn mã nhanh (GIAOVIEN, MEDFREE)'
+                          )}
+                        </span>
                       </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={promoInput}
-                            onChange={(e) => {
-                              setPromoInput(e.target.value);
-                              if (promoError) setPromoError(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleApplyPromo();
-                              }
-                            }}
-                            placeholder="Nhập GIAOVIEN hoặc MEDFREE..."
-                            className="flex-1 bg-white border border-amber-300 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleApplyPromo}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap"
-                          >
-                            Áp Dụng
-                          </button>
-                        </div>
-                        {promoError && (
-                          <p className="text-[11px] text-rose-600 font-medium">{promoError}</p>
-                        )}
-                        <p className="text-[11px] text-slate-500 italic">
-                          💡 Gợi ý mã chấm thi nhanh: <button type="button" onClick={() => { setPromoInput('GIAOVIEN'); setAppliedPromo('GIAOVIEN'); setPromoError(null); }} className="text-blue-600 underline font-semibold hover:text-blue-800">GIAOVIEN</button> hoặc <button type="button" onClick={() => { setPromoInput('MEDFREE'); setAppliedPromo('MEDFREE'); setPromoError(null); }} className="text-blue-600 underline font-semibold hover:text-blue-800">MEDFREE</button>
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-1 rounded-lg shrink-0 group-hover:bg-amber-200 transition ml-2">
+                      <span>{appliedPromo ? 'Đổi mã' : 'Nhập mã'}</span>
+                      <ChevronRight size={13} />
+                    </div>
+                  </button>
 
                   {/* Thanh Xác Nhận Tóm Tắt & Nút Đặt Khám (Ảnh 3 Sticky Footer) */}
                   <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
@@ -2226,6 +2205,564 @@ export default function BookingForm() {
                 Đã hiểu &amp; Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup: Chi Tiết Biểu Phí Khám Niêm Yết */}
+      {showFeeModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          onClick={() => setShowFeeModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <ReceiptText size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Biểu Phí Khám Niêm Yết</h3>
+                  <span className="text-[11px] text-slate-500">Minh bạch 100% • Không phụ thu ẩn</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFeeModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Chi tiết từng khoản phí */}
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <div>
+                  <span className="font-bold text-slate-800 block">Phí khám chuyên gia:</span>
+                  <span className="text-[11px] text-slate-500">
+                    {selectedDoctor ? `${selectedDoctor.title || 'Bác sĩ'} ${selectedDoctor.name}` : 'Bác sĩ chuyên khoa'}
+                  </span>
+                </div>
+                <span className="font-bold text-slate-800 text-sm">
+                  {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                <div>
+                  <span className="font-bold text-emerald-900 block">Phí tiện ích MedSched:</span>
+                  <span className="text-[11px] text-emerald-700">Tiếp đón thông minh QR &amp; hồ sơ số hóa</span>
+                </div>
+                <span className="font-bold text-emerald-700">0 đ (Miễn phí)</span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                <div>
+                  <span className="font-bold text-blue-900 block">Phí giữ chỗ ưu tiên STT:</span>
+                  <span className="text-[11px] text-blue-700">Khóa số thứ tự trực tiếp theo khung giờ</span>
+                </div>
+                <span className="font-bold text-blue-700">0 đ (Miễn phí)</span>
+              </div>
+
+              {appliedPromo && (
+                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-200">
+                  <div>
+                    <span className="font-bold text-amber-900 block">Mã ưu đãi ({appliedPromo}):</span>
+                    <span className="text-[11px] text-amber-700">Miễn cọc cho Giảng viên / Tester</span>
+                  </div>
+                  <span className="font-bold text-amber-700">-100% Cọc</span>
+                </div>
+              )}
+
+              {/* Tổng cộng */}
+              <div className="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-blue-900 font-bold block">Tổng viện phí niêm yết:</span>
+                  <span className="text-[10px] text-blue-600">Thanh toán tại quầy hoặc trực tuyến</span>
+                </div>
+                <span className="text-base sm:text-lg font-extrabold text-blue-700">
+                  {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
+                </span>
+              </div>
+            </div>
+
+            {/* Quyền lợi & Chính sách */}
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60 text-[11px] text-slate-600 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                <ShieldCheck size={14} className="text-blue-600" />
+                <span>Cam kết dịch vụ MedSched</span>
+              </div>
+              <p>• Giá khám đã bao gồm công khám bệnh, tư vấn đơn thuốc và hướng dẫn điều trị.</p>
+              <p>• Miễn phí đổi hoặc dời lịch khám trước giờ hẹn 2 tiếng.</p>
+              <p>• Hỗ trợ xuất hóa đơn điện tử VAT ngay tại quầy thu ngân bệnh viện.</p>
+            </div>
+
+            {/* Nút đóng */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowFeeModal(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-blue-600/20 cursor-pointer text-center"
+              >
+                Đã hiểu &amp; Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup: Thông Tin Người Thân Khám Hộ */}
+      {showRelativeModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          onClick={() => setShowRelativeModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Thông Tin Người Thân Đi Khám</h3>
+                  <span className="text-[11px] text-slate-500">Đặt lịch khám hộ cho gia đình</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRelativeModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Họ và tên người khám <span className="text-rose-500">*</span>:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={relativeInfo.fullName}
+                  onChange={(e) => setRelativeInfo({ ...relativeInfo, fullName: e.target.value })}
+                  placeholder="Ví dụ: Nguyễn Văn An"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Mối quan hệ:
+                  </label>
+                  <select
+                    value={relativeInfo.relationship}
+                    onChange={(e) => setRelativeInfo({ ...relativeInfo, relationship: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="Ba / Mẹ">Ba / Mẹ</option>
+                    <option value="Con cái">Con cái</option>
+                    <option value="Vợ / Chồng">Vợ / Chồng</option>
+                    <option value="Anh / Chị / Em">Anh / Chị / Em</option>
+                    <option value="Ông / Bà">Ông / Bà</option>
+                    <option value="Người thân khác">Người thân khác</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Giới tính:
+                  </label>
+                  <select
+                    value={relativeInfo.gender}
+                    onChange={(e) => setRelativeInfo({ ...relativeInfo, gender: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="NAM">Nam</option>
+                    <option value="NU">Nữ</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Năm sinh:
+                  </label>
+                  <input
+                    type="number"
+                    value={relativeInfo.birthYear}
+                    onChange={(e) => setRelativeInfo({ ...relativeInfo, birthYear: e.target.value })}
+                    placeholder="1995"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Số điện thoại liên hệ:
+                  </label>
+                  <input
+                    type="tel"
+                    value={relativeInfo.phone}
+                    onChange={(e) => setRelativeInfo({ ...relativeInfo, phone: e.target.value })}
+                    placeholder="0901234567"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Lưu & Đóng */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingFor('relative');
+                  setShowRelativeModal(false);
+                }}
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-purple-600/20 cursor-pointer text-center"
+              >
+                Lưu &amp; Áp Dụng Thông Tin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup: Đề Xuất Chuyên Môn Spring AI */}
+      {showAiModal && aiPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          onClick={() => setShowAiModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Trợ Lý AI Phân Tích Gói Khám</h3>
+                  <span className="text-[11px] text-purple-600 font-semibold">Công nghệ Spring AI Y Khoa</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Nội dung tư vấn */}
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <span className="font-bold text-slate-700 block mb-1">Triệu chứng bạn đã nhập:</span>
+                <p className="text-slate-600 italic">"{symptoms}"</p>
+              </div>
+
+              <div className="p-3.5 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-900 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-purple-600" />
+                    Đề Xuất Lâm Sàng &amp; Hướng Dẫn:
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                    Đã Tối Ưu
+                  </span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  {(aiPreview as any).clinicalSummary || aiPreview.summary}
+                </p>
+              </div>
+
+              {(aiPreview as any).recommendedDepartment && (
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
+                  <span className="font-bold text-blue-900 block text-xs">Chuyên khoa khuyến nghị:</span>
+                  <span className="text-xs text-blue-700 font-bold block mt-0.5">
+                    {(aiPreview as any).recommendedDepartment}
+                  </span>
+                </div>
+              )}
+
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-[11px] text-amber-800">
+                <p>⚠️ <em>Khuyến cáo: Kết quả phân tích từ AI chỉ mang tính chất tham khảo hỗ trợ định hướng trước khám, không thay thế chẩn đoán y khoa chính thức của bác sĩ.</em></p>
+              </div>
+            </div>
+
+            {/* Nút đóng */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-purple-600/20 cursor-pointer text-center"
+              >
+                Đã hiểu &amp; Áp dụng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup: Quản Lý Tệp Đính Kèm Hồ Sơ (0/5) */}
+      {showAttachmentModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          onClick={() => setShowAttachmentModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                  <Paperclip size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Quản Lý Tệp Đính Kèm Hồ Sơ</h3>
+                  <span className="text-[11px] text-slate-500">Tối đa 5 tệp ({attachments.length}/5 đã tải)</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAttachmentModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Nút Upload */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachments.length >= 5}
+                className="w-full py-3 px-4 border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-2xl text-xs font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-100/50 transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <FileText size={16} className="text-blue-600" />
+                <span>+ Tải lên tệp hồ sơ (PNG, JPG, PDF)</span>
+              </button>
+
+              {/* Danh sách tệp đã tải */}
+              {attachments.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200/60 text-xs">
+                  <Paperclip size={28} className="mx-auto mb-2 text-slate-300" />
+                  <p className="font-medium text-slate-600">Chưa có tệp đính kèm nào</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Tải lên kết quả xét nghiệm, đơn thuốc cũ hoặc ảnh X-Quang giúp bác sĩ nắm rõ tiền sử bệnh.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-700 block">Danh sách tệp đã tải ({attachments.length}/5):</span>
+                  {attachments.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                        <FileText size={16} className="text-blue-600 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-slate-800 block truncate">{file.name}</span>
+                          <span className="text-[10px] text-slate-400 block">{file.size}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(idx)}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        title="Xóa tệp"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Note & Nút đóng */}
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAttachmentModal(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-blue-600/20 cursor-pointer text-center"
+              >
+                Xong &amp; Lưu Tệp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup: Mã Ưu Đãi / Voucher Miễn Tiền Cọc */}
+      {showVoucherModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          onClick={() => setShowVoucherModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Gift size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Mã Ưu Đãi / Voucher Miễn Cọc</h3>
+                  <span className="text-[11px] text-amber-700 font-medium">Hỗ trợ Giảng viên &amp; Tester kiểm thử</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVoucherModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                aria-label="Đóng popup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Trạng thái áp dụng */}
+            {appliedPromo ? (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 block">
+                      Đang áp dụng mã: <strong className="font-mono text-blue-700 text-sm">{appliedPromo}</strong>
+                    </span>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      ✓ Đã miễn 100% tiền đặt cọc giữ chỗ (0 đ). Phiếu khám được xuất trực tiếp khi bấm Xác nhận.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRemovePromo();
+                      setPromoInput('');
+                    }}
+                    className="flex-1 py-2 text-xs text-rose-600 hover:bg-rose-50 rounded-xl font-bold cursor-pointer transition border border-rose-200 text-center"
+                  >
+                    Hủy mã này
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowVoucherModal(false)}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer transition shadow-xs text-center"
+                  >
+                    Tiếp tục sử dụng
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Nhập mã ưu đãi của bạn:</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => {
+                        setPromoInput(e.target.value);
+                        if (promoError) setPromoError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyPromo();
+                        }
+                      }}
+                      placeholder="Nhập GIAOVIEN hoặc MEDFREE..."
+                      className="flex-1 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyPromo();
+                      }}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap"
+                    >
+                      Áp Dụng
+                    </button>
+                  </div>
+                  {promoError && (
+                    <p className="text-[11px] text-rose-600 font-medium">{promoError}</p>
+                  )}
+                </div>
+
+                {/* Phím tắt chọn nhanh mã kiểm thử */}
+                <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-2">
+                  <span className="text-[11px] font-bold text-amber-900 block">
+                    ⚡ Chọn nhanh mã kiểm thử hệ thống:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoInput('GIAOVIEN');
+                        setAppliedPromo('GIAOVIEN');
+                        setPromoError(null);
+                      }}
+                      className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
+                    >
+                      <span className="font-mono font-bold text-blue-700 text-xs block group-hover:text-blue-800">GIAOVIEN</span>
+                      <span className="text-[10px] text-slate-500 block">Dành cho Thầy/Cô chấm thi (0đ cọc)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoInput('MEDFREE');
+                        setAppliedPromo('MEDFREE');
+                        setPromoError(null);
+                      }}
+                      className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
+                    >
+                      <span className="font-mono font-bold text-emerald-700 text-xs block group-hover:text-emerald-800">MEDFREE</span>
+                      <span className="text-[10px] text-slate-500 block">Miễn 100% tiền cọc kiểm thử</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowVoucherModal(false)}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer text-center"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
