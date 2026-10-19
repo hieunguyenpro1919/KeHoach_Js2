@@ -140,6 +140,8 @@ export default function BookingForm() {
   const [showVoucherModal, setShowVoucherModal] = useState<boolean>(false);
   const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
   const [doctorModalData, setDoctorModalData] = useState<any>(null);
+  const [showSpecialtyModal, setShowSpecialtyModal] = useState<boolean>(false);
+  const [selectedSpecialtyModalData, setSelectedSpecialtyModalData] = useState<any>(null);
 
   // Validation errors cho các bước (Khoanh vùng đỏ + thông báo khi chưa chọn đủ tiêu chí)
   const [step1Errors, setStep1Errors] = useState<{ center?: string; specialty?: string }>({});
@@ -236,6 +238,16 @@ export default function BookingForm() {
     return `${dayName}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
   };
 
+  // Rút gọn tên chuyên khoa tinh tế, loại bỏ tiền tố thừa "Chuyên khoa / Khoa" để tránh tràn chữ ".."
+  const formatSpecialtyShortName = (name: string): string => {
+    if (!name) return '';
+    const cleaned = name.replace(/^(Chuyên khoa|Khoa)\s+/i, '').trim();
+    if (cleaned.toLowerCase() === 'nội') return 'Nội khoa';
+    if (cleaned.toLowerCase() === 'ngoại') return 'Ngoại khoa';
+    if (cleaned.toLowerCase() === 'nhi') return 'Nhi khoa';
+    return cleaned || name;
+  };
+
   const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
 
   const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>(() => {
@@ -300,6 +312,7 @@ export default function BookingForm() {
         setShowAttachmentModal(false);
         setShowVoucherModal(false);
         setShowDoctorModal(false);
+        setShowSpecialtyModal(false);
       }
     };
     if (
@@ -312,7 +325,8 @@ export default function BookingForm() {
       showAiModal ||
       showAttachmentModal ||
       showVoucherModal ||
-      showDoctorModal
+      showDoctorModal ||
+      showSpecialtyModal
     ) {
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -330,6 +344,7 @@ export default function BookingForm() {
     showAttachmentModal,
     showVoucherModal,
     showDoctorModal,
+    showSpecialtyModal,
   ]);
 
   const handlePrevMonth = (e: React.MouseEvent) => {
@@ -1026,12 +1041,26 @@ export default function BookingForm() {
                             <Stethoscope size={14} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <span 
-                              className="font-semibold text-xs sm:text-sm leading-tight block truncate"
-                              title={spec.name}
-                            >
-                              {spec.name}
-                            </span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span 
+                                className="font-bold text-xs sm:text-sm leading-snug break-words"
+                                title={spec.name}
+                              >
+                                {formatSpecialtyShortName(spec.name)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSpecialtyModalData(spec);
+                                  setShowSpecialtyModal(true);
+                                }}
+                                className="w-4 h-4 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition shrink-0 cursor-pointer"
+                                title="Xem thông tin chi tiết chuyên khoa"
+                              >
+                                <Info size={11} />
+                              </button>
+                            </div>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               {hasDoctors ? (
                                 <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded truncate">
@@ -3131,6 +3160,105 @@ export default function BookingForm() {
                     <span>Chọn Bác Sĩ Này &amp; Đóng</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Thông Tin Chi Tiết Chuyên Khoa */}
+      {showSpecialtyModal && selectedSpecialtyModalData && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setShowSpecialtyModal(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-md rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <Stethoscope size={20} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
+                    Thông Tin Chuyên Khoa
+                  </span>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    {selectedSpecialtyModalData.name}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSpecialtyModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-3 text-xs text-slate-600">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70">
+                <span className="font-bold text-slate-700 block mb-1">Mô tả chuyên môn &amp; phạm vi khám:</span>
+                <p className="leading-relaxed text-slate-600">
+                  {selectedSpecialtyModalData.description || 
+                    `Tiếp nhận thăm khám, chẩn đoán, tư vấn phác đồ điều trị và chăm sóc chuyên sâu thuộc ${selectedSpecialtyModalData.name} theo tiêu chuẩn y khoa MedSched.`}
+                </p>
+              </div>
+
+              {/* Danh sách bác sĩ thuộc khoa này tại chi nhánh */}
+              <div>
+                <span className="font-bold text-slate-700 block mb-2">
+                  Bác sĩ phụ trách ({doctors.filter((d: any) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialtyModalData.id).length}):
+                </span>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {doctors
+                    .filter((d: any) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialtyModalData.id)
+                    .map((doc: any) => (
+                      <div key={doc.id} className="p-2.5 rounded-xl bg-blue-50/50 border border-blue-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                            {getDoctorInitials(doc.name)}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-800 block">{doc.name}</span>
+                            <span className="text-[10px] text-slate-500">{doc.title || doc.specialty} • {doc.room}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-blue-700">{Number(doc.fee).toLocaleString('vi-VN')} đ</span>
+                      </div>
+                    ))}
+                  {doctors.filter((d: any) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialtyModalData.id).length === 0 && (
+                    <p className="text-xs text-slate-400 italic text-center py-2">Chưa có bác sĩ trực tại chi nhánh đã chọn</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSpecialtyModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSpecialty(selectedSpecialtyModalData.id);
+                  setStep1Errors((prev) => ({ ...prev, specialty: undefined }));
+                  setShowSpecialtyModal(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check size={14} />
+                <span>Chọn chuyên khoa này</span>
               </button>
             </div>
           </div>
