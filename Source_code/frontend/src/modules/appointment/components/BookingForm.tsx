@@ -202,20 +202,35 @@ export default function BookingForm() {
     }
   }, [showDatePicker, bookingDate]);
 
-  // Đóng lịch khi nhấn phím Escape
+  // Quản lý hiển thị 2 popup chọn khung giờ (1 là chọn Buổi, 2 là chọn Khung giờ)
+  const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
+  const [showSessionModal, setShowSessionModal] = useState<boolean>(false);
+  const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
+
+  // Tự động đồng bộ Buổi theo Khung giờ đã chọn
+  useEffect(() => {
+    if (selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ') {
+      const hour = parseInt(selectedSlot.time.split(':')[0], 10) || 0;
+      setSelectedSession(hour >= 12 ? 'afternoon' : 'morning');
+    }
+  }, [selectedSlot.time]);
+
+  // Đóng lịch & các popup chọn ca khám khi nhấn phím Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowDatePicker(false);
+        setShowSessionModal(false);
+        setShowSlotModal(false);
       }
     };
-    if (showDatePicker) {
+    if (showDatePicker || showSessionModal || showSlotModal) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showDatePicker]);
+  }, [showDatePicker, showSessionModal, showSlotModal]);
 
   const handlePrevMonth = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1223,8 +1238,8 @@ export default function BookingForm() {
                         </div>
                       </div>
 
-                      {/* Phân nhóm Khung giờ Khám (Sáng vs Chiều - Chuẩn Ảnh 1 Screen 3) */}
-                      <div className="space-y-4">
+                      {/* Chọn Khung Giờ Khám (Time-slot) - 2 Popup: 1 Chọn Buổi, 2 Chọn Khung Giờ */}
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-bold text-slate-700 uppercase">
                             {filteredDoctors.length > 1 ? '3. Chọn Khung Giờ Khám (Time-slot):' : '2. Chọn Khung Giờ Khám (Time-slot):'}
@@ -1236,87 +1251,328 @@ export default function BookingForm() {
                           )}
                         </div>
 
-                        {/* Buổi Sáng */}
-                        <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
-                          <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
-                            <div className="flex items-center gap-1.5 text-amber-700">
-                              <Sun size={15} className="text-amber-500" />
-                              <span>Buổi Sáng (07:30 - 12:00)</span>
+                        {/* 2 Nút Trigger: 1 Chọn Buổi, 2 Chọn Khung Giờ */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Nút 1: Chọn Buổi Khám */}
+                          <button
+                            type="button"
+                            onClick={() => setShowSessionModal(true)}
+                            aria-haspopup="dialog"
+                            aria-expanded={showSessionModal}
+                            className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
+                          >
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                                selectedSession === 'morning'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-indigo-100 text-indigo-700'
+                              }`}
+                            >
+                              {selectedSession === 'morning' ? <Sun size={15} /> : <Sunset size={15} />}
                             </div>
-                            <span className="text-[11px] font-normal text-slate-500">
-                              {morningSlots.filter((s) => !s.disabled).length} khung giờ còn trống
-                            </span>
-                          </div>
+                            <div className="text-left">
+                              <span className="text-[10px] text-slate-400 block font-normal leading-tight">Buổi khám:</span>
+                              <span className="font-bold text-slate-900 block leading-tight">
+                                {selectedSession === 'morning' ? 'Buổi Sáng (07:30 - 12:00)' : 'Buổi Chiều (13:30 - 17:30)'}
+                              </span>
+                            </div>
+                            <ChevronDown size={14} className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors" />
+                          </button>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {morningSlots.map((slot) => {
-                              const isSelected = selectedSlot.id === slot.id;
-                              return (
-                                <button
-                                  key={slot.id}
-                                  type="button"
-                                  disabled={slot.disabled}
-                                  onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date || formatISODateToVN(bookingDate) })}
-                                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                                    slot.disabled
-                                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-                                      : isSelected
-                                      ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
-                                      : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
-                                  }`}
-                                >
-                                  <span className="text-xs font-extrabold">{slot.time}</span>
-                                  <span className={`text-[10px] mt-0.5 font-medium ${
-                                    isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
-                                  }`}>
-                                    {slot.label}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
+                          {/* Nút 2: Chọn Khung Giờ Khám */}
+                          <button
+                            type="button"
+                            onClick={() => setShowSlotModal(true)}
+                            aria-haspopup="dialog"
+                            aria-expanded={showSlotModal}
+                            className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Clock size={15} />
+                            </div>
+                            <div className="text-left">
+                              <span className="text-[10px] text-slate-400 block font-normal leading-tight">Khung giờ:</span>
+                              <span className="font-bold text-blue-700 block leading-tight">
+                                {selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ'
+                                  ? selectedSlot.time
+                                  : 'Chưa chọn giờ'}
+                              </span>
+                            </div>
+                            <ChevronDown size={14} className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors" />
+                          </button>
+
+                          {/* Badge hiển thị tóm tắt giờ đã chọn */}
+                          <span className="text-xs text-emerald-800 font-semibold bg-emerald-50 px-3.5 py-2.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                            <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                            <span>
+                              Giờ đã chọn:{' '}
+                              <strong>
+                                {selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ'
+                                  ? `${selectedSlot.time} (${selectedSession === 'morning' ? 'Buổi Sáng' : 'Buổi Chiều'})`
+                                  : 'Chưa có giờ khám'}
+                              </strong>
+                            </span>
+                          </span>
                         </div>
 
-                        {/* Buổi Chiều */}
-                        <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200 space-y-2.5">
-                          <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
-                            <div className="flex items-center gap-1.5 text-indigo-700">
-                              <Sunset size={15} className="text-indigo-500" />
-                              <span>Buổi Chiều (13:30 - 17:30)</span>
-                            </div>
-                            <span className="text-[11px] font-normal text-slate-500">
-                              {afternoonSlots.filter((s) => !s.disabled).length} khung giờ còn trống
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {afternoonSlots.map((slot) => {
-                              const isSelected = selectedSlot.id === slot.id;
-                              return (
+                        {/* Popup 1: Chọn Buổi Khám Bệnh (Sáng / Chiều) - Phủ mờ toàn bộ thông tin khác */}
+                        {showSessionModal && (
+                          <div
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+                            onClick={() => setShowSessionModal(false)}
+                          >
+                            <div
+                              className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4 animate-scaleUp"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {/* Header popup */}
+                              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                                    <Sun size={17} />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-extrabold text-slate-800 text-sm">
+                                      1. Chọn Buổi Khám Bệnh
+                                    </h3>
+                                    <span className="text-[11px] text-slate-500 block">
+                                      Chọn ca trực Sáng hoặc Chiều để xem khung giờ phù hợp
+                                    </span>
+                                  </div>
+                                </div>
                                 <button
-                                  key={slot.id}
                                   type="button"
-                                  disabled={slot.disabled}
-                                  onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date || formatISODateToVN(bookingDate) })}
-                                  className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                                    slot.disabled
-                                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-                                      : isSelected
-                                      ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 cursor-pointer'
-                                      : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
+                                  onClick={() => setShowSessionModal(false)}
+                                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                                  aria-label="Đóng popup"
+                                >
+                                  <X size={15} />
+                                </button>
+                              </div>
+
+                              {/* Danh sách 2 Buổi: Sáng & Chiều */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Card Buổi Sáng */}
+                                <div
+                                  onClick={() => {
+                                    setSelectedSession('morning');
+                                    setShowSessionModal(false);
+                                    setShowSlotModal(true);
+                                  }}
+                                  className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between gap-3 ${
+                                    selectedSession === 'morning'
+                                      ? 'border-amber-500 bg-amber-50/50 shadow-sm ring-1 ring-amber-200'
+                                      : 'border-slate-200 hover:border-amber-300 bg-white hover:bg-amber-50/20'
                                   }`}
                                 >
-                                  <span className="text-xs font-extrabold">{slot.time}</span>
-                                  <span className={`text-[10px] mt-0.5 font-medium ${
-                                    isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'
-                                  }`}>
-                                    {slot.label}
-                                  </span>
-                                </button>
-                              );
-                            })}
+                                  <div className="flex items-center justify-between">
+                                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                                      <Sun size={20} />
+                                    </div>
+                                    {selectedSession === 'morning' && (
+                                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                        Đang chọn
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <h4 className="font-extrabold text-slate-800 text-sm">Buổi Sáng</h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">07:30 - 12:00</p>
+                                  </div>
+                                  <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                                      {morningSlots.filter((s) => !s.disabled).length} giờ trống
+                                    </span>
+                                    <span className="text-xs font-bold text-blue-600 flex items-center gap-0.5">
+                                      Chọn giờ <ChevronRight size={13} />
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Card Buổi Chiều */}
+                                <div
+                                  onClick={() => {
+                                    setSelectedSession('afternoon');
+                                    setShowSessionModal(false);
+                                    setShowSlotModal(true);
+                                  }}
+                                  className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between gap-3 ${
+                                    selectedSession === 'afternoon'
+                                      ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-200'
+                                      : 'border-slate-200 hover:border-indigo-300 bg-white hover:bg-indigo-50/20'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                      <Sunset size={20} />
+                                    </div>
+                                    {selectedSession === 'afternoon' && (
+                                      <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                        Đang chọn
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <h4 className="font-extrabold text-slate-800 text-sm">Buổi Chiều</h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">13:30 - 17:30</p>
+                                  </div>
+                                  <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                                      {afternoonSlots.filter((s) => !s.disabled).length} giờ trống
+                                    </span>
+                                    <span className="text-xs font-bold text-blue-600 flex items-center gap-0.5">
+                                      Chọn giờ <ChevronRight size={13} />
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
+                                <Info size={14} className="shrink-0 text-blue-500" />
+                                <span>Bấm vào buổi khám để lập tức mở danh sách khung giờ chi tiết.</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {/* Popup 2: Chọn Khung Giờ Khám (Time-slot) - Phủ mờ toàn bộ thông tin khác */}
+                        {showSlotModal && (
+                          <div
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+                            onClick={() => setShowSlotModal(false)}
+                          >
+                            <div
+                              className="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4 animate-scaleUp max-h-[90vh] flex flex-col"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {/* Header popup */}
+                              <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                    <Clock size={17} />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-extrabold text-slate-800 text-sm">
+                                      2. Chọn Khung Giờ Khám (Time-slot)
+                                    </h3>
+                                    <span className="text-[11px] text-slate-500 block">
+                                      Ngày khám: <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSlotModal(false)}
+                                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
+                                  aria-label="Đóng popup"
+                                >
+                                  <X size={15} />
+                                </button>
+                              </div>
+
+                              {/* Tabs chuyển đổi Buổi Sáng / Buổi Chiều ngay trong popup */}
+                              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedSession('morning')}
+                                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                    selectedSession === 'morning'
+                                      ? 'bg-white text-amber-800 shadow-xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Sun size={15} className={selectedSession === 'morning' ? 'text-amber-500' : 'text-slate-400'} />
+                                  <span>Buổi Sáng ({morningSlots.filter((s) => !s.disabled).length} trống)</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedSession('afternoon')}
+                                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                    selectedSession === 'afternoon'
+                                      ? 'bg-white text-indigo-800 shadow-xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <Sunset size={15} className={selectedSession === 'afternoon' ? 'text-indigo-500' : 'text-slate-400'} />
+                                  <span>Buổi Chiều ({afternoonSlots.filter((s) => !s.disabled).length} trống)</span>
+                                </button>
+                              </div>
+
+                              {/* Lưới danh sách Time Slots */}
+                              <div className="overflow-y-auto pr-1 flex-1 py-1">
+                                {loadingSlots ? (
+                                  <div className="py-12 text-center text-xs text-blue-600 font-semibold animate-pulse">
+                                    Đang tải khung giờ bác sĩ...
+                                  </div>
+                                ) : (selectedSession === 'morning' ? morningSlots : afternoonSlots).length === 0 ? (
+                                  <div className="py-10 text-center text-xs text-slate-500">
+                                    Hiện không có ca trực trong buổi này.
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                    {(selectedSession === 'morning' ? morningSlots : afternoonSlots).map((slot) => {
+                                      const isSelected = selectedSlot.id === slot.id;
+                                      return (
+                                        <button
+                                          key={slot.id}
+                                          type="button"
+                                          disabled={slot.disabled}
+                                          onClick={() => {
+                                            setSelectedSlot({
+                                              id: slot.id,
+                                              time: slot.time,
+                                              date: selectedSlot.date || formatISODateToVN(bookingDate),
+                                            });
+                                            setShowSlotModal(false);
+                                          }}
+                                          className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-center ${
+                                            slot.disabled
+                                              ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-65'
+                                              : isSelected
+                                              ? 'border-blue-600 bg-blue-600 text-white shadow-md ring-2 ring-blue-300 cursor-pointer'
+                                              : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 hover:bg-blue-50/40 cursor-pointer'
+                                          }`}
+                                        >
+                                          <span className="text-xs sm:text-sm font-extrabold">{slot.time}</span>
+                                          <span
+                                            className={`text-[10px] mt-0.5 font-semibold ${
+                                              isSelected
+                                                ? 'text-blue-100'
+                                                : slot.disabled
+                                                ? 'text-slate-400'
+                                                : 'text-emerald-600'
+                                            }`}
+                                          >
+                                            {slot.label}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Footer ghi chú */}
+                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
+                                <span className="flex items-center gap-1.5">
+                                  <Info size={13} className="text-blue-600" />
+                                  <span>Bấm vào khung giờ khả dụng để hoàn tất chọn.</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowSlotModal(false);
+                                    setShowSessionModal(true);
+                                  }}
+                                  className="text-blue-600 font-bold hover:underline cursor-pointer"
+                                >
+                                  Đổi buổi khác
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : filteredDoctors.length > 0 ? (
