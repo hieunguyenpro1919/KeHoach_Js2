@@ -59,7 +59,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   isOpen,
   onClose,
   onConfirmSuccess,
-  title = 'Thanh Toán Qua VietQR & Ví MoMo (Napas 247)',
+  title = 'Thanh Toán Qua VietQR & Ví MoMo',
   amount,
   description,
   bookingCode = 'MED-2026',
@@ -308,9 +308,9 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
       <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white shrink-0 shadow-sm">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
             <Building2 size={18} className="text-emerald-300 shrink-0" />
-            <span className="font-bold text-xs sm:text-sm tracking-tight truncate">{title}</span>
+            <span className="font-bold text-xs sm:text-sm tracking-tight whitespace-normal leading-tight">{title}</span>
           </div>
           <button
             type="button"
