@@ -1028,99 +1028,113 @@ export default function BookingForm() {
 
         {/* Steps 2 & 3: Layout 2 Cột Chuẩn YouMed Web (Ảnh 3 Desktop Experience) */}
         {(step === 2 || step === 3) && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:items-stretch items-start">
             
-            {/* Cột Trái: Doctor & Clinic Profile Card (Sticky Card - Ảnh 3) */}
-            <div className="lg:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
-              <div className="pb-3.5 sm:pb-4 border-b border-slate-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider block">
-                    Bác sĩ phụ trách
+            {/* Cột Trái: Doctor & Clinic Profile Card (Cân bằng chiều cao từ laptop trở lên) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 lg:h-full flex flex-col justify-between shadow-2xs">
+              <div className="space-y-4">
+                <div className="pb-3.5 sm:pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider block">
+                      Bác sĩ phụ trách
+                    </span>
+                    {selectedDoctor && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const details = getDoctorFullDetails(selectedDoctor, activeSpecialtyObj?.name, activeCenterObj?.name);
+                          setDoctorModalData(details);
+                          setShowDoctorModal(true);
+                        }}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg transition"
+                      >
+                        <span>Hồ sơ bác sĩ</span>
+                        <ChevronRight size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <h3 
+                    className="font-extrabold text-slate-800 text-sm sm:text-base leading-tight mt-0.5"
+                    title={selectedDoctor?.name}
+                  >
+                    {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
+                  </h3>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 mt-1 font-medium">
+                    <Stethoscope size={13} className="text-blue-500 shrink-0" />
+                    <span>{selectedDoctor?.specialty || activeSpecialtyObj?.name || 'Chuyên khoa'}</span>
                   </span>
-                  {selectedDoctor && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const details = getDoctorFullDetails(selectedDoctor, activeSpecialtyObj?.name, activeCenterObj?.name);
-                        setDoctorModalData(details);
-                        setShowDoctorModal(true);
-                      }}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg transition"
-                    >
-                      <span>Hồ sơ bác sĩ</span>
-                      <ChevronRight size={12} />
-                    </button>
-                  )}
                 </div>
-                <h3 
-                  className="font-extrabold text-slate-800 text-sm sm:text-base leading-tight mt-0.5"
-                  title={selectedDoctor?.name}
+
+                {/* Chi tiết phòng khám & Địa chỉ (Mặc định thu gọn, bấm mở popup để tiết kiệm diện tích) */}
+                <button
+                  type="button"
+                  onClick={() => setShowClinicInfoModal(true)}
+                  className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
                 >
-                  {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
-                </h3>
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 mt-1 font-medium">
-                  <Stethoscope size={13} className="text-blue-500 shrink-0" />
-                  <span>{selectedDoctor?.specialty || activeSpecialtyObj?.name || 'Chuyên khoa'}</span>
-                </span>
+                  <div className="flex items-center gap-2 min-w-0 text-left">
+                    <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                      <Building2 size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-slate-800 text-xs block truncate">
+                        {activeCenterObj?.name || 'Cơ sở khám bệnh'}
+                      </span>
+                      <span className="text-[11px] text-blue-600 font-semibold block truncate">
+                        {selectedDoctor?.room ? `Buồng ${selectedDoctor.room}` : 'Buồng khám'} • Thứ 2 - CN (07:30 - 17:30)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                    <span>Chi tiết</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </button>
+
+                {/* Bảng giá niêm yết minh bạch (Thu gọn thành nút bấm mở popup thông tin) */}
+                <button
+                  type="button"
+                  onClick={() => setShowFeeModal(true)}
+                  className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0 text-left">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                      <ReceiptText size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-slate-800 text-xs block">
+                        Chi phí khám niêm yết
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium block truncate">
+                        Tổng tạm tính: <strong className="text-blue-700 font-bold">{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</strong> (Miễn phí tiện ích)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
+                    <span>Chi tiết</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </button>
               </div>
 
-              {/* Chi tiết phòng khám & Địa chỉ (Mặc định thu gọn, bấm mở popup để tiết kiệm diện tích) */}
-              <button
-                type="button"
-                onClick={() => setShowClinicInfoModal(true)}
-                className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
-              >
-                <div className="flex items-center gap-2 min-w-0 text-left">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
-                    <Building2 size={14} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="font-bold text-slate-800 text-xs block truncate">
-                      {activeCenterObj?.name || 'Cơ sở khám bệnh'}
-                    </span>
-                    <span className="text-[11px] text-blue-600 font-semibold block truncate">
-                      {selectedDoctor?.room ? `Buồng ${selectedDoctor.room}` : 'Buồng khám'} • Thứ 2 - CN (07:30 - 17:30)
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
-                  <span>Chi tiết</span>
-                  <ChevronRight size={13} />
-                </div>
-              </button>
-
-              {/* Bảng giá niêm yết minh bạch (Thu gọn thành nút bấm mở popup thông tin) */}
-              <button
-                type="button"
-                onClick={() => setShowFeeModal(true)}
-                className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
-              >
-                <div className="flex items-center gap-2 min-w-0 text-left">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
-                    <ReceiptText size={14} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="font-bold text-slate-800 text-xs block">
-                      Chi phí khám niêm yết
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-medium block truncate">
-                      Tổng tạm tính: <strong className="text-blue-700 font-bold">{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</strong> (Miễn phí tiện ích)
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
-                  <span>Chi tiết</span>
-                  <ChevronRight size={13} />
-                </div>
-              </button>
+              {/* Thanh cam kết chuẩn y tế chân thẻ giúp cân bằng chiều cao với cột phải */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 mt-4">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/70">
+                  <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
+                  <span>Tiếp đón ưu tiên 1S</span>
+                </span>
+                <span className="flex items-center gap-1 text-slate-400 font-medium">
+                  <Clock size={12} />
+                  <span>07:30 - 17:30</span>
+                </span>
+              </div>
             </div>
 
             {/* Cột Phải: Form Thao Tác Chi Tiết */}
-            <div className="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs space-y-6">
+            <div className="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs lg:h-full flex flex-col justify-between space-y-6">
               
               {/* Step 2: Chọn Ngày & Ca Khám (Phân ca Sáng / Chiều - Ảnh 1 & 3) */}
               {step === 2 && (
-                <div className="space-y-6">
+                <div className="h-full flex flex-col justify-between space-y-6">
                   {/* Danh sách bác sĩ: Chỉ hiển thị khi có từ 2 bác sĩ trở lên để bệnh nhân chọn đổi */}
                   {filteredDoctors.length > 1 && (
                     <div>
@@ -1758,7 +1772,7 @@ export default function BookingForm() {
                   ) : null}
 
                   {/* Navigation Buttons */}
-                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between gap-3 mt-auto">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
