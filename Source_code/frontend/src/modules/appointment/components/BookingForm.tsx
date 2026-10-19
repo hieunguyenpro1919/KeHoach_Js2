@@ -762,107 +762,107 @@ export default function BookingForm() {
     <div className="w-full max-w-4xl mx-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
       <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
 
-      {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Card độc lập) */}
+      {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Trong suốt, không khung trắng) */}
       {step < 4 && (
-        <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-2xs border border-slate-200/80 select-none">
+        <div className="py-2 sm:py-3 select-none">
           <div className="relative max-w-xl mx-auto px-1 sm:px-4">
-              {/* Đường ray kết nối nền */}
-              <div className="absolute left-6 right-6 sm:left-10 sm:right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
-                {/* Đường tiến trình màu xanh đã đạt được */}
+            {/* Đường ray kết nối nền */}
+            <div className="absolute left-6 right-6 sm:left-10 sm:right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
+              {/* Đường tiến trình màu xanh đã đạt được */}
+              <div
+                className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: step === 1 ? '0%' : step === 2 ? '50%' : '100%',
+                }}
+              />
+            </div>
+
+            {/* Các điểm mốc tiến trình (Step Nodes) */}
+            <div className="relative flex items-start justify-between">
+              
+              {/* Bước 1 */}
+              <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[130px] sm:max-w-[160px]">
                 <div
-                  className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
-                  style={{
-                    width: step === 1 ? '0%' : step === 2 ? '50%' : '100%',
-                  }}
-                />
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                    step > 1
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : step === 1
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                      : 'bg-white border-2 border-slate-300 text-slate-400'
+                  }`}
+                >
+                  {step > 1 ? <Check size={16} strokeWidth={2.8} /> : '1'}
+                </div>
+                <div className="mt-1.5 px-0.5">
+                  <span
+                    className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight whitespace-nowrap ${
+                      step === 1 ? 'text-blue-700' : step > 1 ? 'text-slate-800' : 'text-slate-400'
+                    }`}
+                  >
+                    1. Cơ Sở &amp; Khoa
+                  </span>
+                  <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                    Chọn phòng khám
+                  </span>
+                </div>
               </div>
 
-              {/* Các điểm mốc tiến trình (Step Nodes) */}
-              <div className="relative flex items-start justify-between">
-                
-                {/* Bước 1 */}
-                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
-                  <div
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                      step > 1
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : step === 1
-                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
-                        : 'bg-white border-2 border-slate-300 text-slate-400'
+              {/* Bước 2 */}
+              <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[130px] sm:max-w-[160px]">
+                <div
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                    step > 2
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : step === 2
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                      : 'bg-white border-2 border-slate-300 text-slate-400'
+                  }`}
+                >
+                  {step > 2 ? <Check size={16} strokeWidth={2.8} /> : '2'}
+                </div>
+                <div className="mt-1.5 px-0.5">
+                  <span
+                    className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight whitespace-nowrap ${
+                      step === 2 ? 'text-blue-700' : step > 2 ? 'text-slate-800' : 'text-slate-400'
                     }`}
                   >
-                    {step > 1 ? <Check size={16} strokeWidth={2.8} /> : '1'}
-                  </div>
-                  <div className="mt-1 sm:mt-1.5 px-0.5">
-                    <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
-                        step === 1 ? 'text-blue-700' : step > 1 ? 'text-slate-800' : 'text-slate-400'
-                      }`}
-                    >
-                      1. Cơ Sở &amp; Khoa
-                    </span>
-                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
-                      Chọn phòng khám
-                    </span>
-                  </div>
+                    2. Bác Sĩ &amp; Giờ
+                  </span>
+                  <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                    Chọn ca khám
+                  </span>
                 </div>
-
-                {/* Bước 2 */}
-                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
-                  <div
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                      step > 2
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : step === 2
-                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
-                        : 'bg-white border-2 border-slate-300 text-slate-400'
-                    }`}
-                  >
-                    {step > 2 ? <Check size={16} strokeWidth={2.8} /> : '2'}
-                  </div>
-                  <div className="mt-1 sm:mt-1.5 px-0.5">
-                    <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
-                        step === 2 ? 'text-blue-700' : step > 2 ? 'text-slate-800' : 'text-slate-400'
-                      }`}
-                    >
-                      2. Bác Sĩ &amp; Giờ
-                    </span>
-                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
-                      Chọn ca khám
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bước 3 */}
-                <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[110px]">
-                  <div
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                      step === 3
-                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
-                        : 'bg-white border-2 border-slate-300 text-slate-400'
-                    }`}
-                  >
-                    3
-                  </div>
-                  <div className="mt-1 sm:mt-1.5 px-0.5">
-                    <span
-                      className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight ${
-                        step === 3 ? 'text-blue-700' : 'text-slate-400'
-                      }`}
-                    >
-                      3. Hồ Sơ Bệnh Nhân
-                    </span>
-                    <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
-                      Xác nhận thông tin
-                    </span>
-                  </div>
-                </div>
-
               </div>
+
+              {/* Bước 3 */}
+              <div className="flex flex-col items-center text-center flex-1 min-w-0 max-w-[130px] sm:max-w-[160px]">
+                <div
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                    step === 3
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md shadow-blue-500/25'
+                      : 'bg-white border-2 border-slate-300 text-slate-400'
+                  }`}
+                >
+                  3
+                </div>
+                <div className="mt-1.5 px-0.5">
+                  <span
+                    className={`block text-[11px] sm:text-xs font-bold transition-colors leading-tight whitespace-nowrap ${
+                      step === 3 ? 'text-blue-700' : 'text-slate-400'
+                    }`}
+                  >
+                    3. Hồ Sơ Bệnh Nhân
+                  </span>
+                  <span className="hidden sm:block text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                    Xác nhận thông tin
+                  </span>
+                </div>
+              </div>
+
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Error Alert */}
         {error && (
