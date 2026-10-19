@@ -2333,10 +2333,11 @@ export default function BookingForm() {
           <div className="mt-6 max-w-2xl mx-auto space-y-6">
             <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white p-4 sm:p-6 rounded-t-3xl relative overflow-hidden shadow-md">
               <div className="flex items-center justify-between gap-2 relative z-10">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <ShieldCheck size={18} className="text-cyan-300 shrink-0" />
-                  <span className="font-extrabold tracking-wider text-[11px] sm:text-xs md:text-sm uppercase whitespace-nowrap truncate">
-                    HỆ THỐNG Y TẾ MEDSCHED
+                  <span className="font-extrabold tracking-wider text-xs sm:text-sm uppercase whitespace-nowrap">
+                    <span className="sm:hidden">MEDSCHED</span>
+                    <span className="hidden sm:inline">HỆ THỐNG Y TẾ MEDSCHED</span>
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-[11px] bg-white/20 px-2.5 py-1 rounded-full font-mono font-bold tracking-wider whitespace-nowrap shrink-0">
