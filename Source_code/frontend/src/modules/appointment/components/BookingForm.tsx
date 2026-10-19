@@ -884,21 +884,29 @@ export default function BookingForm() {
                   <div
                     key={center.id}
                     onClick={() => setSelectedCenter(center.id)}
-                    className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                    className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 ${
                       selectedCenter === center.id
                         ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-slate-800 text-xs sm:text-sm">{center.name}</span>
-                        {selectedCenter === center.id && <CheckCircle2 size={16} className="text-blue-600 shrink-0" />}
-                      </div>
-                      <p className="text-[11px] sm:text-xs text-slate-500 flex items-start gap-1">
-                        <MapPin size={13} className="shrink-0 mt-0.5 text-slate-400" />
-                        <span>{center.address}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-slate-800 text-xs sm:text-sm block truncate" title={center.name}>
+                        {center.name}
+                      </span>
+                      <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate" title={center.address}>
+                        <MapPin size={13} className="shrink-0 text-slate-400" />
+                        <span className="truncate">{center.address}</span>
                       </p>
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        selectedCenter === center.id
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'border-2 border-slate-300 bg-white'
+                      }`}
+                    >
+                      {selectedCenter === center.id && <Check size={12} strokeWidth={3} />}
                     </div>
                   </div>
                 ))}
@@ -937,7 +945,7 @@ export default function BookingForm() {
                             ? `Chọn ${spec.name}` 
                             : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
                         }
-                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-start justify-between select-none min-h-[66px] sm:min-h-[72px] ${
+                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between gap-2 select-none min-h-[66px] sm:min-h-[72px] ${
                           !hasDoctors
                             ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
                             : isSelected
@@ -945,33 +953,43 @@ export default function BookingForm() {
                             : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
                         }`}
                       >
-                        <div className="flex items-start gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                        <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
                             !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
                           }`}>
                             <Stethoscope size={14} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <span 
-                              className="font-semibold text-[11px] sm:text-sm leading-snug block line-clamp-2 break-words"
+                              className="font-semibold text-xs sm:text-sm leading-tight block truncate"
                               title={spec.name}
                             >
                               {spec.name}
                             </span>
-                            <div className="flex items-center gap-1.5 mt-1">
+                            <div className="flex items-center gap-1.5 mt-0.5">
                               {hasDoctors ? (
-                                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
+                                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded truncate">
                                   {docCount} bác sĩ
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded">
+                                <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded truncate">
                                   Chưa có bác sĩ
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
-                        {isSelected && <CheckCircle2 size={16} className="text-blue-600 shrink-0 ml-1 mt-0.5" />}
+                        {hasDoctors && (
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'border border-slate-300 bg-white'
+                            }`}
+                          >
+                            {isSelected && <Check size={10} strokeWidth={3} />}
+                          </div>
+                        )}
                       </div>
                     );
                   })
