@@ -203,11 +203,12 @@ export default function BookingForm() {
     return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
   };
 
-  // Nếu hiện tại đã quá 14:30 chiều, tự động gợi ý ngày mai
+  // Nếu hiện tại đã quá 15:30 chiều (khung giờ khám cuối cùng 15:30 - 16:00 đã qua/bắt đầu),
+  // hoặc đã hết giờ hành chính, ngày hôm nay không còn nhận lịch hẹn nữa
   const isPastAllTodaySlots = () => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    return currentMinutes > 14 * 60 + 30;
+    return currentMinutes >= 15 * 60 + 30;
   };
 
   // Tìm ngày làm việc hợp lệ tiếp theo (Thứ 2 đến Thứ 6), tuyệt đối không rơi vào Thứ 7 hoặc Chủ Nhật
@@ -290,6 +291,21 @@ export default function BookingForm() {
   // Trạng thái đã chọn ngày khám hay chưa (mặc định ẩn ô chọn buổi & giờ, chọn ngày xong mới hiện)
   const [hasSelectedDate, setHasSelectedDate] = useState<boolean>(false);
 
+  // Tự động chuyển ngày khám sang ngày làm việc tiếp theo nếu ngày đang chọn là hôm nay mà đã hết giờ
+  useEffect(() => {
+    const todayIso = getTodayISODate();
+    if (bookingDate === todayIso && isPastAllTodaySlots()) {
+      const nextDate = getNextAvailableWeekday();
+      setBookingDate(nextDate);
+      if (hasSelectedDate) {
+        setSelectedSlot((prev) => ({
+          ...prev,
+          date: formatISODateToVN(nextDate),
+        }));
+      }
+    }
+  }, [bookingDate, hasSelectedDate]);
+
   // Tự động đồng bộ Buổi theo Khung giờ đã chọn
   useEffect(() => {
     if (selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ') {
@@ -363,6 +379,17 @@ export default function BookingForm() {
     const dayOfWeek = dateObj.getDay();
     // Chặn triệt để Thứ 7 (6) và Chủ Nhật (0)
     if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return;
+    }
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Chặn ngày quá khứ
+    if (dateObj < today) {
+      return;
+    }
+    // Chặn ngày hôm nay nếu đã hết giờ hành chính / hết khung giờ nhận khám
+    const isToday = dateObj.getTime() === today.getTime();
+    if (isToday && isPastAllTodaySlots()) {
       return;
     }
     setBookingDate(isoString);
@@ -1479,6 +1506,7 @@ export default function BookingForm() {
                                     ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                     const isSelected = isoString === bookingDate;
                                     const isCurrentDay = currentDate.getTime() === todayDateOnly.getTime();
+                                    const isTodayExpired = isCurrentDay && isPastAllTodaySlots();
 
                                     // Thứ 7 & CN: Tuyệt đối bị khóa
                                     if (isWeekend) {
@@ -1495,15 +1523,15 @@ export default function BookingForm() {
                                       );
                                     }
 
-                                    // Ngày quá khứ: Bị khóa
-                                    if (isPast) {
+                                    // Ngày quá khứ hoặc ngày hôm nay đã hết giờ hành chính / hết ca khám: Bị khóa
+                                    if (isPast || isTodayExpired) {
                                       return (
                                         <button
                                           key={day}
                                           type="button"
                                           disabled
-                                          title="Ngày đã qua"
-                                          className="h-8.5 rounded-xl text-xs font-medium text-slate-300 cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
+                                          title={isTodayExpired ? 'Đã hết giờ tiếp nhận đặt khám trong ngày hôm nay (sau 15:30)' : 'Ngày đã qua'}
+                                          className="h-8.5 rounded-xl text-xs font-medium text-slate-300 bg-slate-50/60 line-through cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
                                         >
                                           {day}
                                         </button>
@@ -1530,12 +1558,19 @@ export default function BookingForm() {
                                   })}
                                 </div>
 
-                                {/* Ghi chú rõ ràng phòng khám nghỉ Thứ 7 & CN */}
-                                <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px] text-amber-800 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-200/60">
-                                  <Info size={14} className="shrink-0 text-amber-600" />
-                                  <span>
-                                    Phòng khám chỉ nhận lịch <strong>Thứ 2 đến Thứ 6</strong>. Thứ 7 & Chủ Nhật không tiếp nhận đặt trước.
-                                  </span>
+                                {/* Ghi chú rõ ràng phòng khám nghỉ Thứ 7 & CN và hết giờ tiếp nhận */}
+                                <div className="pt-2 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-amber-800 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-200/60">
+                                  <div className="flex items-center gap-1.5">
+                                    <Info size={14} className="shrink-0 text-amber-600" />
+                                    <span>
+                                      Phòng khám chỉ nhận lịch <strong>Thứ 2 đến Thứ 6</strong>. Thứ 7 &amp; Chủ Nhật không tiếp nhận đặt trước.
+                                    </span>
+                                  </div>
+                                  {isPastAllTodaySlots() && (
+                                    <span className="text-[10px] text-rose-600 font-bold pl-5">
+                                      • Hôm nay đã hết giờ tiếp nhận khám (sau 15:30), vui lòng chọn từ ngày mai.
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
