@@ -460,9 +460,7 @@ export default function BookingForm() {
         if (c && c.length > 0) {
           const activeCenters = c.filter((item: any) => item.active !== false);
           setCenters(activeCenters);
-          if (activeCenters.length > 0) {
-            setSelectedCenter(activeCenters[0].id);
-          }
+          // Tuyệt đối không chọn sẵn chi nhánh - để người dùng tự bấm chọn
         }
         if (s && s.length > 0) {
           setSpecialties(s);
@@ -495,22 +493,16 @@ export default function BookingForm() {
     return specialties.filter((s) => !s.medicalCenterId || s.medicalCenterId === selectedCenter);
   }, [specialties, selectedCenter]);
 
-  // Tự động đồng bộ chuyên khoa khi thay đổi chi nhánh hoặc danh sách chuyên khoa
+  // Khi đổi chi nhánh: nếu chuyên khoa đã chọn không còn khả dụng thì reset về rỗng
   useEffect(() => {
-    if (filteredSpecialties.length > 0) {
-      // Kiểm tra chuyên khoa hiện tại có tồn tại và có bác sĩ ở chi nhánh này không
-      const currentValidWithDoc = filteredSpecialties.some(
+    if (selectedSpecialty) {
+      const isValid = filteredSpecialties.some(
         (s) => s.id === selectedSpecialty && doctors.some((d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === s.id)
       );
-      if (!currentValidWithDoc) {
-        // Ưu tiên chọn chuyên khoa đầu tiên có bác sĩ khả dụng
-        const firstWithDoc = filteredSpecialties.find((s) =>
-          doctors.some((d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === s.id)
-        );
-        setSelectedSpecialty(firstWithDoc?.id || '');
+      if (!isValid) {
+        setSelectedSpecialty('');
+        setSelectedDoctor(null);
       }
-    } else {
-      setSelectedSpecialty('');
     }
   }, [filteredSpecialties, selectedSpecialty, doctors, selectedCenter]);
 
@@ -523,17 +515,15 @@ export default function BookingForm() {
     });
   }, [doctors, selectedCenter, selectedSpecialty]);
 
-  // Tự động chọn bác sĩ đầu tiên của chuyên khoa đã chọn
+  // Khi danh sách bác sĩ thay đổi: nếu bác sĩ đã chọn không còn khả dụng thì reset về null
   useEffect(() => {
-    if (filteredDoctors.length > 0) {
-      const exists = filteredDoctors.some((d) => d.id === selectedDoctor?.id);
+    if (selectedDoctor) {
+      const exists = filteredDoctors.some((d) => d.id === selectedDoctor.id);
       if (!exists) {
-        setSelectedDoctor(filteredDoctors[0]);
+        setSelectedDoctor(null);
       }
-    } else {
-      setSelectedDoctor(null);
     }
-  }, [filteredDoctors, selectedDoctor?.id]);
+  }, [filteredDoctors, selectedDoctor]);
 
   const handleAnalyzeSymptoms = async () => {
     if (!symptoms.trim()) return;
@@ -1197,8 +1187,8 @@ export default function BookingForm() {
               {/* Step 2: Chọn Ngày & Ca Khám (Phân ca Sáng / Chiều - Ảnh 1 & 3) */}
               {step === 2 && (
                 <div className="h-full flex flex-col justify-between space-y-6">
-                  {/* Danh sách bác sĩ: Chỉ hiển thị khi có từ 2 bác sĩ trở lên để bệnh nhân chọn đổi */}
-                  {filteredDoctors.length > 1 && (
+                  {/* Danh sách bác sĩ: Hiển thị để bệnh nhân tự bấm chọn bác sĩ phụ trách */}
+                  {filteredDoctors.length > 0 && (
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                         1. Chọn Bác Sĩ Phụ Trách:
@@ -1212,8 +1202,6 @@ export default function BookingForm() {
                               key={doc.id}
                               onClick={() => {
                                 setSelectedDoctor(doc);
-                                setDoctorModalData(details);
-                                setShowDoctorModal(true);
                                 setStep2Errors((prev) => ({ ...prev, doctor: undefined }));
                               }}
                               className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 group hover:shadow-xs ${
@@ -1246,12 +1234,22 @@ export default function BookingForm() {
                                 </span>
                                 <div className="flex items-center gap-1 mt-0.5">
                                   {isSelected ? (
-                                    <span className="text-[10px] font-bold text-emerald-600">Đang chọn</span>
+                                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                                      <Check size={12} strokeWidth={3} /> Đã chọn
+                                    </span>
                                   ) : (
-                                    <span className="text-[10px] font-bold text-blue-600 flex items-center gap-0.5 group-hover:underline">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDoctorModalData(details);
+                                        setShowDoctorModal(true);
+                                      }}
+                                      className="text-[10px] font-bold text-blue-600 flex items-center gap-0.5 hover:underline"
+                                    >
                                       <span>Xem hồ sơ</span>
                                       <ChevronRight size={10} />
-                                    </span>
+                                    </button>
                                   )}
                                 </div>
                               </div>
