@@ -2876,32 +2876,21 @@ export default function BookingForm() {
           onClick={() => setShowDoctorModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header popup */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                  <Stethoscope size={18} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Thông Tin Bác Sĩ Phụ Trách</h3>
-                  <span className="text-[11px] text-slate-500">Hồ sơ chuyên môn &amp; Kinh nghiệm lâm sàng</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDoctorModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
-                aria-label="Đóng popup"
-              >
-                <X size={16} />
-              </button>
-            </div>
+            {/* Nút đóng góc phải */}
+            <button
+              type="button"
+              onClick={() => setShowDoctorModal(false)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/90 hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer shadow-xs border border-slate-200/80"
+              aria-label="Đóng popup"
+            >
+              <X size={16} />
+            </button>
 
             {/* Doctor Profile Banner */}
-            <div className="p-3.5 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 rounded-2xl border border-blue-200/80 flex items-center gap-3.5">
+            <div className="p-3.5 pr-12 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 rounded-2xl border border-blue-200/80 flex items-center gap-3.5">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-extrabold text-xl shadow-md shrink-0">
                 {getDoctorInitials(doctorModalData.name)}
               </div>
