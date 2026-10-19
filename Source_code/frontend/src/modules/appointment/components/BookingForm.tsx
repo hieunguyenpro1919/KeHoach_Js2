@@ -41,6 +41,15 @@ import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOver
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
 
+// Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
+const getDoctorInitials = (name?: string): string => {
+  if (!name) return 'BS';
+  const cleanName = name.replace(/^(BS\.CK[I|V]+|ThS\.BS|PGS\.TS|TS\.BS|BS|Bác sĩ)\s+/i, '').trim();
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  const lastWord = words[words.length - 1];
+  return lastWord ? lastWord.charAt(0).toUpperCase() : 'BS';
+};
+
 export default function BookingForm() {
   const { isBlocked, handleTakeOver } = useSingleTabLock({
     channelKey: 'patient_booking',
@@ -516,7 +525,7 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-4 sm:px-4 pb-28 sm:pb-12">
+    <div className="w-full max-w-6xl mx-auto space-y-4 sm:px-4 pb-36 sm:pb-14">
       {/* Header Banner - Thanh tiến trình Stepper */}
       <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
         <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
@@ -775,13 +784,16 @@ export default function BookingForm() {
             <div className="lg:col-span-4 bg-slate-50/80 rounded-3xl p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
               <div className="flex items-center gap-3.5 pb-4 border-b border-slate-200">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-600/20 shrink-0">
-                  {selectedDoctor?.name ? selectedDoctor.name.charAt(selectedDoctor.name.length - 1) : 'BS'}
+                  {getDoctorInitials(selectedDoctor?.name)}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
                     {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
                   </span>
-                  <h3 className="font-extrabold text-slate-800 text-base leading-tight truncate">
+                  <h3 
+                    className="font-extrabold text-slate-800 text-base leading-tight line-clamp-2 break-words"
+                    title={selectedDoctor?.name}
+                  >
                     {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
                   </h3>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-0.5">
@@ -869,27 +881,27 @@ export default function BookingForm() {
                           <div
                             key={doc.id}
                             onClick={() => setSelectedDoctor(doc)}
-                            className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between ${
+                            className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 ${
                               selectedDoctor?.id === doc.id
                                 ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                                 : 'border-slate-200 hover:border-slate-300 bg-white'
                             }`}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                                {doc.name.charAt(doc.name.length - 1)}
+                                {getDoctorInitials(doc.name)}
                               </div>
-                              <div>
-                                <h4 className="font-bold text-slate-800 text-xs sm:text-sm">{doc.name}</h4>
-                                <p className="text-[11px] text-slate-500">{doc.title} • {doc.room}</p>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-slate-800 text-xs sm:text-sm line-clamp-1 break-words">{doc.name}</h4>
+                                <p className="text-[11px] text-slate-500 truncate">{doc.title} • {doc.room}</p>
                               </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right shrink-0 ml-2 whitespace-nowrap">
                               <span className="text-xs font-bold text-blue-700 block">
                                 {Number(doc.fee).toLocaleString('vi-VN')} đ
                               </span>
                               {selectedDoctor?.id === doc.id && (
-                                <span className="text-[10px] font-bold text-emerald-600">Đang chọn</span>
+                                <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">Đang chọn</span>
                               )}
                             </div>
                           </div>
