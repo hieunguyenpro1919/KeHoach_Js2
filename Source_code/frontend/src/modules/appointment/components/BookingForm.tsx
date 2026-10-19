@@ -2233,16 +2233,16 @@ export default function BookingForm() {
                   {/* Thanh Xác Nhận Tóm Tắt & Nút Đặt Khám (Ảnh 3 Sticky Footer) */}
                   <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                      <div className="space-y-0.5">
-                        <div className="text-slate-700">
+                      <div className="space-y-0.5 shrink-0">
+                        <div className="text-slate-700 whitespace-nowrap">
                           <span className="text-slate-500">Khám cùng: </span>
                           <strong className="text-slate-800">{selectedDoctor?.name}</strong>
                         </div>
-                        <div className="text-blue-700 font-bold">
+                        <div className="text-blue-700 font-bold whitespace-nowrap">
                           {selectedSlot.time} (Ngày {selectedSlot.date})
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         {appliedPromo ? (
                           <div>
                             <div className="text-[11px] text-emerald-600 font-bold">
