@@ -310,7 +310,7 @@ export default function HeaderNav() {
                 MedSched
               </span>
               <span className="text-[9px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                Phiên bản v1.1.0
+                Phiên bản v1.2.0
               </span>
             </div>
           </Link>
@@ -418,7 +418,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                  Phiên bản v1.1.0
+                  Phiên bản v1.2.0
                 </span>
               </div>
             </Link>
