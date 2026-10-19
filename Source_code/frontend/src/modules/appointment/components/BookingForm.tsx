@@ -571,6 +571,13 @@ export default function BookingForm() {
     }
   }, [filteredDoctors, selectedDoctor]);
 
+  // Khi thay đổi bác sĩ, ngày hoặc khung giờ: reset phiếu chờ thanh toán
+  useEffect(() => {
+    if (!isPaidOnline) {
+      setResult(null);
+    }
+  }, [selectedDoctor?.id, bookingDate, selectedSlot.id, isPaidOnline]);
+
   const handleAnalyzeSymptoms = async () => {
     if (!symptoms.trim()) return;
     setAnalyzingAi(true);
@@ -628,6 +635,13 @@ export default function BookingForm() {
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Nếu đã tạo phiếu hẹn và đang chờ thanh toán cọc thì chỉ cần mở lại modal VietQR
+    if (result && result.id && !isPaidOnline) {
+      setShowPaymentModal(true);
+      return;
+    }
+
     if (!selectedSlot.id || timeSlots.find((s) => s.id === selectedSlot.id)?.disabled) {
       setError('Khung giờ bạn chọn đã qua hoặc không còn khả dụng. Vui lòng chọn khung giờ khác hoặc ngày khác.');
       return;
@@ -668,7 +682,6 @@ export default function BookingForm() {
         medicalHistory: '',
       });
       setResult(res);
-      setStep(4);
 
       if (appliedPromo) {
         // Tự động xác nhận cọc 0 đ cho Giảng viên / Tester
@@ -683,11 +696,13 @@ export default function BookingForm() {
           setIsPaidOnline(true);
           setPaidPromoCode(appliedPromo);
           setShowPaymentModal(false);
+          setStep(4);
         } catch (autoErr) {
           console.warn('Auto confirm promo payment warning:', autoErr);
           setShowPaymentModal(true);
         }
       } else {
+        // Bắt buộc thanh toán cọc thành công mới được chuyển sang Bước 4 (Phiếu hẹn)
         setShowPaymentModal(true);
       }
     } catch (err: any) {
@@ -2267,6 +2282,19 @@ export default function BookingForm() {
                       </div>
                     </div>
 
+                    {result && !isPaidOnline && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
+                        <span>Phiếu hẹn <strong>{result.bookingCode}</strong> đang chờ thanh toán cọc để chính thức xác nhận.</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPaymentModal(true)}
+                          className="text-xs font-bold text-amber-900 underline hover:no-underline ml-2 cursor-pointer"
+                        >
+                          Mở mã QR
+                        </button>
+                      </div>
+                    )}
+
                     <div className="pt-4 border-t border-blue-200/60 flex items-center justify-between gap-3">
                       <button
                         type="button"
@@ -2289,7 +2317,7 @@ export default function BookingForm() {
                         ) : (
                           <>
                             <CheckCircle2 size={15} className="shrink-0" />
-                            <span>Xác nhận đặt</span>
+                            <span>{result && !isPaidOnline ? 'Tiếp tục thanh toán VietQR' : 'Xác nhận đặt & Thanh toán'}</span>
                           </>
                         )}
                       </button>
@@ -3355,6 +3383,8 @@ export default function BookingForm() {
             if (info?.promoCode) {
               setPaidPromoCode(info.promoCode);
             }
+            setShowPaymentModal(false);
+            setStep(4); // CHỈ CHUYỂN SANG BƯỚC 4 KHI THANH TOÁN THÀNH CÔNG!
           }}
           amount={Number(selectedDoctor?.fee) || 200000}
           appointmentId={result.id}
