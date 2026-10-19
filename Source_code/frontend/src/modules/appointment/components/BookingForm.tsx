@@ -781,9 +781,9 @@ export default function BookingForm() {
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* Cột Trái: Doctor & Clinic Profile Card (Sticky Card - Ảnh 3) */}
-            <div className="lg:col-span-4 bg-slate-50/80 rounded-3xl p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
-              <div className="flex items-center gap-3.5 pb-4 border-b border-slate-200">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-xl shadow-md shadow-blue-600/20 shrink-0">
+            <div className="lg:col-span-4 bg-slate-50/80 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
+              <div className="flex items-center gap-2.5 sm:gap-3.5 pb-3.5 sm:pb-4 border-b border-slate-200">
+                <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-base sm:text-xl shadow-md shadow-blue-600/20 shrink-0">
                   {getDoctorInitials(selectedDoctor?.name)}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -791,7 +791,7 @@ export default function BookingForm() {
                     {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
                   </span>
                   <h3 
-                    className="font-extrabold text-slate-800 text-base leading-tight line-clamp-2 break-words"
+                    className="font-extrabold text-slate-800 text-[13px] sm:text-base leading-tight truncate"
                     title={selectedDoctor?.name}
                   >
                     {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
