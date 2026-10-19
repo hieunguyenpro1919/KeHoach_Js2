@@ -659,7 +659,7 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-4 sm:px-4 pb-36 sm:pb-14">
+    <div className="w-full max-w-6xl mx-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
       {/* Header Banner - Thanh tiến trình Stepper */}
       <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
         <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
