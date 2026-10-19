@@ -487,12 +487,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                         <span>Mở <strong>App Ngân hàng</strong> hoặc <strong>Ví MoMo</strong> quét mã</span>
                       </div>
                     </div>
-
-                    {/* Polling Liveness Badge */}
-                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-teal-700 font-medium mt-1.5">
-                      <Loader2 size={12} className="animate-spin text-teal-600" />
-                      <span>Đang tự động lắng nghe giao dịch từ tài khoản...</span>
-                    </div>
                   </div>
 
                 </>
@@ -568,9 +562,9 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
             ) : (
               <>
                 {/* Thanh trạng thái tự động bắt giao dịch */}
-                <div className="w-full py-2.5 px-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-2 text-emerald-800 text-xs font-semibold">
-                  <Loader2 size={15} className="animate-spin text-emerald-600 shrink-0" />
-                  <span>Hệ thống đang tự động xác thực biến động số dư qua KienlongBank...</span>
+                <div className="w-full py-2 px-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-2 text-emerald-800 text-xs font-semibold">
+                  <Loader2 size={14} className="animate-spin text-emerald-600 shrink-0" />
+                  <span>Đang xác thực</span>
                 </div>
 
                 {/* Action Row */}

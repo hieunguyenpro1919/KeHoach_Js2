@@ -229,7 +229,7 @@ function MockVnPayContent() {
 
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-teal-700 font-medium mt-1.5">
               <Loader2 size={12} className="animate-spin text-teal-600" />
-              <span>Đang tự động lắng nghe giao dịch từ tài khoản...</span>
+              <span>Đang xác thực</span>
             </div>
           </div>
 
