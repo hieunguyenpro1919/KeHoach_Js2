@@ -2555,11 +2555,11 @@ export default function BookingForm() {
       {/* Modal Popup: Chi Tiết Biểu Phí Khám Niêm Yết */}
       {showFeeModal && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowFeeModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -2663,11 +2663,11 @@ export default function BookingForm() {
       {/* Modal Popup: Thông Tin Người Thân Khám Hộ */}
       {showRelativeModal && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowRelativeModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -2788,11 +2788,11 @@ export default function BookingForm() {
       {/* Modal Popup: Đề Xuất Chuyên Môn Spring AI */}
       {showAiModal && aiPreview && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowAiModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -2869,11 +2869,11 @@ export default function BookingForm() {
       {/* Modal Popup: Quản Lý Tệp Đính Kèm Hồ Sơ (0/5) */}
       {showAttachmentModal && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowAttachmentModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -2964,11 +2964,11 @@ export default function BookingForm() {
       {/* Modal Popup: Mã Ưu Đãi / Voucher Miễn Tiền Cọc */}
       {showVoucherModal && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowVoucherModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -3113,11 +3113,11 @@ export default function BookingForm() {
       {/* Modal Popup: Thông Tin Chuyên Môn Bác Sĩ (Chuyên khoa, Học vị, Năm kinh nghiệm, Đơn vị đào tạo, Thế mạnh lâm sàng) */}
       {showDoctorModal && doctorModalData && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowDoctorModal(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto relative"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto relative animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Nút đóng góc phải */}
