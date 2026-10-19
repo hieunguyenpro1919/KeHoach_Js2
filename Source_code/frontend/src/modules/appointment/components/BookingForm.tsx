@@ -206,6 +206,8 @@ export default function BookingForm() {
   const [selectedSession, setSelectedSession] = useState<'morning' | 'afternoon'>('morning');
   const [showSessionModal, setShowSessionModal] = useState<boolean>(false);
   const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
+  // Trạng thái đã chọn ngày khám hay chưa (mặc định ẩn ô chọn buổi & giờ, chọn ngày xong mới hiện)
+  const [hasSelectedDate, setHasSelectedDate] = useState<boolean>(false);
 
   // Tự động đồng bộ Buổi theo Khung giờ đã chọn
   useEffect(() => {
@@ -259,6 +261,9 @@ export default function BookingForm() {
       time: 'Đang tải...',
     }));
     setShowDatePicker(false);
+    setHasSelectedDate(true);
+    // Tự động mở Popup chọn Buổi khám sau khi vừa chọn ngày xong
+    setShowSessionModal(true);
   };
 
   const todayDateOnly = useMemo(() => {
@@ -1048,13 +1053,17 @@ export default function BookingForm() {
                             onClick={() => setShowDatePicker(true)}
                             aria-haspopup="dialog"
                             aria-expanded={showDatePicker}
-                            className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            className={`flex items-center gap-2.5 px-4 py-2.5 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100 ${
+                              hasSelectedDate
+                                ? 'border-blue-500 text-slate-900 bg-blue-50/20'
+                                : 'border-amber-300 hover:border-blue-500 text-slate-800'
+                            }`}
                           >
                             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                               <Calendar size={15} />
                             </div>
                             <span className="font-bold text-slate-900">
-                              {formatVietnameseFullDate(bookingDate)}
+                              {hasSelectedDate ? formatVietnameseFullDate(bookingDate) : 'Bấm vào để chọn ngày khám'}
                             </span>
                             <ChevronDown
                               size={14}
@@ -1229,27 +1238,35 @@ export default function BookingForm() {
                             </div>
                           )}
 
-                          <span className="text-xs text-blue-800 font-semibold bg-blue-50 px-3.5 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5">
-                            <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
-                            <span>
-                              Ngày đã chọn: <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                          {hasSelectedDate ? (
+                            <span className="text-xs text-blue-800 font-semibold bg-blue-50 px-3.5 py-2.5 rounded-xl border border-blue-200 flex items-center gap-1.5 animate-fadeIn">
+                              <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
+                              <span>
+                                Ngày đã chọn: <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                              </span>
                             </span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Chọn Khung Giờ Khám (Time-slot) - 2 Popup: 1 Chọn Buổi, 2 Chọn Khung Giờ */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold text-slate-700 uppercase">
-                            {filteredDoctors.length > 1 ? '3. Chọn Khung Giờ Khám (Time-slot):' : '2. Chọn Khung Giờ Khám (Time-slot):'}
-                          </label>
-                          {loadingSlots && (
-                            <span className="text-[11px] text-blue-600 animate-pulse font-medium">
-                              Đang tải khung giờ thực tế...
+                          ) : (
+                            <span className="text-xs text-amber-800 font-medium bg-amber-50 px-3.5 py-2.5 rounded-xl border border-amber-200/80 flex items-center gap-1.5">
+                              <Info size={14} className="text-amber-600 shrink-0" />
+                              <span>Vui lòng chọn ngày trước để xem ca khám</span>
                             </span>
                           )}
                         </div>
+                      </div>
+
+                      {/* Chọn Khung Giờ Khám (Time-slot) - Ẩn mặc định, CHỈ HIỆN KHI ĐÃ CHỌN NGÀY XONG */}
+                      {hasSelectedDate ? (
+                        <div className="space-y-3 animate-fadeIn pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold text-slate-700 uppercase">
+                              {filteredDoctors.length > 1 ? '3. Chọn Khung Giờ Khám (Time-slot):' : '2. Chọn Khung Giờ Khám (Time-slot):'}
+                            </label>
+                            {loadingSlots && (
+                              <span className="text-[11px] text-blue-600 animate-pulse font-medium">
+                                Đang tải khung giờ thực tế...
+                              </span>
+                            )}
+                          </div>
 
                         {/* 2 Nút Trigger: 1 Chọn Buổi, 2 Chọn Khung Giờ */}
                         <div className="flex flex-wrap items-center gap-3">
@@ -1574,6 +1591,12 @@ export default function BookingForm() {
                           </div>
                         )}
                       </div>
+                    ) : (
+                      <div className="p-4 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                        <Clock size={16} className="text-slate-400 shrink-0" />
+                        <span>Sau khi chọn ngày khám bệnh, hệ thống sẽ mở các ca khám và khung giờ tương ứng để bạn lựa chọn</span>
+                      </div>
+                    )}
                     </>
                   ) : filteredDoctors.length > 0 ? (
                     <div className="py-6 px-4 text-center bg-blue-50/50 rounded-2xl border border-blue-200 text-blue-800 text-xs">
@@ -1593,7 +1616,7 @@ export default function BookingForm() {
                     </button>
                     <button
                       type="button"
-                      disabled={!selectedDoctor || !selectedSlot.id}
+                      disabled={!selectedDoctor || !selectedSlot.id || !hasSelectedDate}
                       onClick={() => setStep(3)}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
