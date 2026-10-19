@@ -1019,7 +1019,7 @@ export default function BookingForm() {
               <div className="pb-3.5 sm:pb-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider block">
-                    {selectedDoctor?.academicTitle || 'Bác sĩ chuyên khoa'}
+                    Bác sĩ phụ trách
                   </span>
                   {selectedDoctor && (
                     <button
@@ -1391,6 +1391,21 @@ export default function BookingForm() {
                             </span>
                           )}
                         </div>
+
+                        {/* Thẻ hướng dẫn tinh gọn khi chưa chọn ngày */}
+                        {!hasSelectedDate && (
+                          <div className="mt-3 p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/30 rounded-2xl border border-blue-100 flex items-center gap-3 text-xs text-slate-600 animate-fadeIn">
+                            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                              <CalendarDays size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="font-bold text-slate-800 block text-xs">Chưa chọn ngày khám bệnh</span>
+                              <span className="text-[11px] text-slate-500 block">
+                                Vui lòng bấm nút phía trên để chọn ngày khám từ Thứ 2 đến Thứ 6. Hệ thống sẽ tự động hiển thị ca trực và khung giờ còn trống.
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Chọn Khung Giờ Khám (Time-slot) - Ẩn mặc định, CHỈ HIỆN KHI ĐÃ CHỌN NGÀY XONG */}
@@ -1740,11 +1755,11 @@ export default function BookingForm() {
                   ) : null}
 
                   {/* Navigation Buttons */}
-                  <div className="pt-4 grid grid-cols-2 gap-2.5 border-t border-slate-100">
+                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="py-2.5 sm:py-3 px-3 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      className="py-2.5 px-4 sm:px-5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-1/2 sm:w-auto shrink-0 shadow-2xs"
                     >
                       <ArrowLeft size={15} />
                       <span>Quay lại</span>
@@ -1753,10 +1768,10 @@ export default function BookingForm() {
                       type="button"
                       disabled={!selectedDoctor || !selectedSlot.id || !hasSelectedDate}
                       onClick={() => setStep(3)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed w-1/2 sm:w-auto shrink-0"
                     >
-                      <span className="truncate">Tiếp tục</span>
-                      <ArrowRight size={15} className="shrink-0" />
+                      <span>Tiếp tục</span>
+                      <ArrowRight size={15} />
                     </button>
                   </div>
                 </div>
@@ -2024,11 +2039,11 @@ export default function BookingForm() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-blue-200/60">
+                    <div className="pt-4 border-t border-blue-200/60 flex items-center justify-between gap-3">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="py-2.5 sm:py-3 px-3 rounded-2xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
+                        className="py-2.5 px-4 sm:px-5 rounded-xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 font-semibold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 w-1/2 sm:w-auto shrink-0 shadow-2xs"
                       >
                         <ArrowLeft size={15} />
                         <span>Quay lại</span>
@@ -2036,12 +2051,12 @@ export default function BookingForm() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 rounded-2xl transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 w-1/2 sm:w-auto shrink-0"
                       >
                         {submitting ? (
                           <>
                             <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-                            <span className="truncate">Đang tạo vé...</span>
+                            <span>Đang tạo vé...</span>
                           </>
                         ) : (
                           <>
