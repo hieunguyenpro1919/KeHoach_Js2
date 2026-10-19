@@ -760,14 +760,12 @@ export default function BookingForm() {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
-      {/* Header Banner - Thanh tiến trình Stepper */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-sm border border-slate-200">
-        <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
+      <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
 
-        {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Không tương tác trực tiếp) */}
-        {step < 4 && (
-          <div className="pt-1 pb-3 sm:pb-4 border-b border-slate-100 select-none">
-            <div className="relative max-w-xl mx-auto px-1 sm:px-4">
+      {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Card độc lập) */}
+      {step < 4 && (
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-2xs border border-slate-200/80 select-none">
+          <div className="relative max-w-xl mx-auto px-1 sm:px-4">
               {/* Đường ray kết nối nền */}
               <div className="absolute left-6 right-6 sm:left-10 sm:right-10 top-4 -translate-y-1/2 h-1 bg-slate-200/80 rounded-full">
                 {/* Đường tiến trình màu xanh đã đạt được */}
@@ -1012,10 +1010,10 @@ export default function BookingForm() {
 
         {/* Steps 2 & 3: Layout 2 Cột Chuẩn YouMed Web (Ảnh 3 Desktop Experience) */}
         {(step === 2 || step === 3) && (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             
             {/* Cột Trái: Doctor & Clinic Profile Card (Sticky Card - Ảnh 3) */}
-            <div className="lg:col-span-5 bg-slate-50/80 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
+            <div className="lg:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 space-y-4 lg:sticky lg:top-6 shadow-2xs">
               <div className="pb-3.5 sm:pb-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider block">
@@ -1100,7 +1098,7 @@ export default function BookingForm() {
             </div>
 
             {/* Cột Phải: Form Thao Tác Chi Tiết */}
-            <div className="lg:col-span-7 space-y-6">
+            <div className="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs space-y-6">
               
               {/* Step 2: Chọn Ngày & Ca Khám (Phân ca Sáng / Chiều - Ảnh 1 & 3) */}
               {step === 2 && (
@@ -2220,7 +2218,6 @@ export default function BookingForm() {
             </div>
           </div>
         )}
-      </div>
 
       {/* Popup Chi Tiết Phòng Khám & Buồng Khám (Mở khi bấm vào ô thu gọn) */}
       {showClinicInfoModal && (
