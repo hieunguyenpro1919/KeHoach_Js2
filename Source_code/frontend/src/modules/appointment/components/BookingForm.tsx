@@ -1104,9 +1104,9 @@ export default function BookingForm() {
             {/* Cột Trái: Doctor & Clinic Profile Card (Cân bằng chiều cao từ laptop trở lên) */}
             <div className="lg:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 lg:h-full flex flex-col justify-between shadow-2xs">
               <div className="space-y-4">
-                <div className="pb-3 sm:pb-3.5 border-b border-slate-200/90 flex items-center justify-between gap-2">
+                <div className="pb-3 sm:pb-3.5 border-b border-slate-200/90 flex items-center justify-between gap-2.5">
                   <h3 
-                    className="font-extrabold text-slate-800 text-sm sm:text-base leading-tight truncate min-w-0"
+                    className="font-extrabold text-slate-800 text-xs sm:text-sm leading-snug break-words flex-1"
                     title={selectedDoctor?.name}
                   >
                     {selectedDoctor?.name || 'Chưa chọn bác sĩ'}
@@ -1119,7 +1119,7 @@ export default function BookingForm() {
                         setDoctorModalData(details);
                         setShowDoctorModal(true);
                       }}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition shrink-0 shadow-2xs"
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition shrink-0 shadow-2xs whitespace-nowrap"
                     >
                       <span>Hồ sơ bác sĩ</span>
                       <ChevronRight size={12} />
