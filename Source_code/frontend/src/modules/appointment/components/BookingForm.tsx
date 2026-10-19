@@ -410,10 +410,14 @@ export default function BookingForm() {
   const handleContinueStep2 = () => {
     const errors: { doctor?: string; date?: string; slot?: string } = {};
 
-    if (filteredDoctors.length > 1 && !selectedDoctor) {
-      errors.doctor = 'Vui lòng chọn Bác sĩ phụ trách';
+    // 1. Phải chọn bác sĩ trước tiên
+    if (!selectedDoctor) {
+      errors.doctor = 'Vui lòng bấm chọn 1 Bác sĩ phụ trách ở trên';
+      setStep2Errors(errors);
+      return;
     }
 
+    // 2. Khi đã có bác sĩ, kiểm tra ngày và khung giờ
     if (!hasSelectedDate) {
       errors.date = 'Vui lòng chọn ngày khám bệnh (Thứ 2 đến Thứ 6)';
     } else if (
@@ -1239,6 +1243,8 @@ export default function BookingForm() {
                               className={`p-3.5 rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 group hover:shadow-xs ${
                                 isSelected
                                   ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                                  : step2Errors.doctor
+                                  ? 'border-red-400 bg-red-50/30 ring-2 ring-red-200'
                                   : 'border-slate-200 hover:border-blue-400 bg-white'
                               }`}
                             >
@@ -1289,6 +1295,16 @@ export default function BookingForm() {
                           );
                         })}
                       </div>
+
+                      {/* Thông báo lỗi khi chưa chọn bác sĩ */}
+                      {step2Errors.doctor && (
+                        <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                          <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                            <AlertCircle size={14} />
+                          </div>
+                          <span>{step2Errors.doctor}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1907,11 +1923,23 @@ export default function BookingForm() {
                     )}
                     </>
                   ) : filteredDoctors.length > 0 ? (
-                    <div className="py-6 px-4 text-center bg-blue-50/50 rounded-2xl border border-blue-200 text-blue-800 text-xs">
-                      <User size={24} className="mx-auto text-blue-500 mb-1.5" />
-                      <p className="font-semibold">Vui lòng chọn 1 Bác sĩ ở trên để xem lịch khám và chọn khung giờ</p>
+                    <div className={`py-6 px-4 text-center rounded-2xl border text-xs transition ${
+                      step2Errors.doctor 
+                        ? 'bg-red-50/80 border-red-300 text-red-800' 
+                        : 'bg-blue-50/50 border-blue-200 text-blue-800'
+                    }`}>
+                      <User size={24} className={`mx-auto mb-1.5 ${step2Errors.doctor ? 'text-red-500' : 'text-blue-500'}`} />
+                      <p className="font-bold">{step2Errors.doctor || 'Vui lòng chọn 1 Bác sĩ ở trên để xem lịch khám và chọn khung giờ'}</p>
                     </div>
                   ) : null}
+
+                  {/* Banner báo lỗi tổng quát của Bước 2 khi nhấn Tiếp tục */}
+                  {(step2Errors.doctor || step2Errors.date || step2Errors.slot) && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                      <AlertCircle size={16} className="shrink-0 text-red-600" />
+                      <span>{step2Errors.doctor || step2Errors.date || step2Errors.slot}</span>
+                    </div>
+                  )}
 
                   {/* Navigation Buttons */}
                   <div className="pt-6 border-t border-slate-100 flex items-center justify-between gap-3 mt-auto">
