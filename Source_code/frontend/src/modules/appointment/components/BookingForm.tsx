@@ -1481,9 +1481,9 @@ export default function BookingForm() {
                                 </div>
                               </div>
 
-                              <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
-                                <Info size={14} className="shrink-0 text-blue-500" />
-                                <span>Bấm vào buổi khám để lập tức mở danh sách khung giờ chi tiết.</span>
+                              <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap overflow-hidden">
+                                <Info size={13} className="shrink-0 text-blue-500" />
+                                <span className="truncate">Chạm vào buổi khám để mở khung giờ chi tiết</span>
                               </div>
                             </div>
                           </div>
@@ -1607,11 +1607,11 @@ export default function BookingForm() {
                                 )}
                               </div>
 
-                              {/* Footer ghi chú */}
-                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
-                                <span className="flex items-center gap-1.5">
-                                  <Info size={13} className="text-blue-600" />
-                                  <span>Bấm vào khung giờ khả dụng để hoàn tất chọn.</span>
+                              {/* Footer ghi chú - Khống chế tuyệt đối trên 1 hàng */}
+                              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] text-slate-500 shrink-0 whitespace-nowrap">
+                                <span className="flex items-center gap-1.5 min-w-0 truncate">
+                                  <Info size={13} className="text-blue-600 shrink-0" />
+                                  <span className="truncate">Chạm khung giờ để chọn</span>
                                 </span>
                                 <button
                                   type="button"
@@ -1619,7 +1619,7 @@ export default function BookingForm() {
                                     setShowSlotModal(false);
                                     setShowSessionModal(true);
                                   }}
-                                  className="text-blue-600 font-bold hover:underline cursor-pointer"
+                                  className="text-blue-600 font-bold hover:underline cursor-pointer shrink-0 ml-auto whitespace-nowrap text-[11px]"
                                 >
                                   Đổi buổi khác
                                 </button>
