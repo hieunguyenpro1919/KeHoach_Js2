@@ -494,34 +494,12 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
 
               {/* Cảnh báo khi người dùng bấm kiểm tra nhưng tiền chưa về */}
               {checkError && (
-                <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3.5 rounded-2xl text-xs space-y-2 animate-in fade-in">
+                <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3.5 rounded-2xl text-xs space-y-1.5 animate-in fade-in">
                   <div className="flex items-center gap-1.5 font-bold text-rose-900">
                     <AlertCircle size={15} className="text-rose-600 shrink-0" />
                     <span>Chưa Nhận Được Thanh Toán Tự Động:</span>
                   </div>
                   <p className="text-[11px] leading-relaxed text-rose-700">{checkError}</p>
-
-                  {/* Cứu cánh khi người dùng chuyển thẳng vào STK cá nhân thay vì tài khoản PayOS */}
-                  <div className="pt-1 border-t border-rose-200">
-                    <button
-                      type="button"
-                      disabled={isManualConfirming}
-                      onClick={handleManualConfirm}
-                      className="text-xs text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 w-full cursor-pointer shadow-xs"
-                    >
-                      {isManualConfirming ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" />
-                          <span>Đang xác nhận lịch khám...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={15} className="text-emerald-700 shrink-0" />
-                          <span>Tôi đã chuyển {activeAmount.toLocaleString('vi-VN')} đ vào tài khoản KienlongBank ({bankConfig.accountNo})</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
                 </div>
               )}
             </>
