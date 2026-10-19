@@ -991,116 +991,119 @@ export default function BookingForm() {
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
-                <Stethoscope size={15} className="text-blue-600" />
-                <span>2. Chọn Chuyên Khoa Thăm Khám:</span>
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-                {filteredSpecialties.length === 0 ? (
-                  <div className="col-span-full py-6 px-4 text-center bg-slate-50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200">
-                    <Stethoscope size={24} className="mx-auto text-slate-400 mb-1.5" />
-                    <p className="text-xs font-semibold text-slate-600">Chi nhánh này hiện chưa có chuyên khoa khả dụng</p>
-                  </div>
-                ) : (
-                  filteredSpecialties.map((spec) => {
-                    const docCount = doctors.filter(
-                      (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
-                    ).length;
-                    const hasDoctors = docCount > 0;
-                    const isSelected = selectedSpecialty === spec.id && hasDoctors;
+            {/* 2. Chọn Chuyên Khoa Thăm Khám: Ẩn đi khi chưa chọn chi nhánh */}
+            {selectedCenter ? (
+              <div className="animate-fadeIn">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                  <Stethoscope size={15} className="text-blue-600" />
+                  <span>2. Chọn Chuyên Khoa Thăm Khám:</span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+                  {filteredSpecialties.length === 0 ? (
+                    <div className="col-span-full py-6 px-4 text-center bg-slate-50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200">
+                      <Stethoscope size={24} className="mx-auto text-slate-400 mb-1.5" />
+                      <p className="text-xs font-semibold text-slate-600">Chi nhánh này hiện chưa có chuyên khoa khả dụng</p>
+                    </div>
+                  ) : (
+                    filteredSpecialties.map((spec) => {
+                      const docCount = doctors.filter(
+                        (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
+                      ).length;
+                      const hasDoctors = docCount > 0;
+                      const isSelected = selectedSpecialty === spec.id && hasDoctors;
 
-                    return (
-                      <div
-                        key={spec.id}
-                        onClick={() => {
-                          if (hasDoctors) {
-                            setSelectedSpecialty(spec.id);
-                            setStep1Errors((prev) => ({ ...prev, specialty: undefined }));
+                      return (
+                        <div
+                          key={spec.id}
+                          onClick={() => {
+                            if (hasDoctors) {
+                              setSelectedSpecialty(spec.id);
+                              setStep1Errors((prev) => ({ ...prev, specialty: undefined }));
+                            }
+                          }}
+                          title={
+                            hasDoctors 
+                              ? `Chọn ${spec.name}` 
+                              : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
                           }
-                        }}
-                        title={
-                          hasDoctors 
-                            ? `Chọn ${spec.name}` 
-                            : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
-                        }
-                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between gap-2 select-none min-h-[66px] sm:min-h-[72px] ${
-                          !hasDoctors
-                            ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
-                            : isSelected
-                            ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs cursor-pointer'
-                            : step1Errors.specialty
-                            ? 'border-red-400 bg-red-50/20 hover:border-red-500 text-slate-800 cursor-pointer'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
-                            !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
-                          }`}>
-                            <Stethoscope size={14} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span 
-                                className="font-bold text-xs sm:text-sm leading-snug break-words"
-                                title={spec.name}
-                              >
-                                {formatSpecialtyShortName(spec.name)}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedSpecialtyModalData(spec);
-                                  setShowSpecialtyModal(true);
-                                }}
-                                className="w-4 h-4 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition shrink-0 cursor-pointer"
-                                title="Xem thông tin chi tiết chuyên khoa"
-                              >
-                                <Info size={11} />
-                              </button>
+                          className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between gap-2 select-none min-h-[66px] sm:min-h-[72px] ${
+                            !hasDoctors
+                              ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+                              : isSelected
+                              ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs cursor-pointer'
+                              : step1Errors.specialty
+                              ? 'border-red-400 bg-red-50/20 hover:border-red-500 text-slate-800 cursor-pointer'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
+                              !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
+                            }`}>
+                              <Stethoscope size={14} />
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {hasDoctors ? (
-                                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded truncate">
-                                  {docCount} bác sĩ
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span 
+                                  className="font-bold text-xs sm:text-sm leading-snug break-words"
+                                  title={spec.name}
+                                >
+                                  {formatSpecialtyShortName(spec.name)}
                                 </span>
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded truncate">
-                                  Chưa có bác sĩ
-                                </span>
-                              )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSpecialtyModalData(spec);
+                                    setShowSpecialtyModal(true);
+                                  }}
+                                  className="w-4 h-4 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition shrink-0 cursor-pointer"
+                                  title="Xem thông tin chi tiết chuyên khoa"
+                                >
+                                  <Info size={11} />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {hasDoctors ? (
+                                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded truncate">
+                                    {docCount} bác sĩ
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded truncate">
+                                    Chưa có bác sĩ
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
+                          {hasDoctors && (
+                            <div
+                              className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'border border-slate-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check size={10} strokeWidth={3} />}
+                            </div>
+                          )}
                         </div>
-                        {hasDoctors && (
-                          <div
-                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected
-                                ? 'bg-blue-600 text-white shadow-xs'
-                                : 'border border-slate-300 bg-white'
-                            }`}
-                          >
-                            {isSelected && <Check size={10} strokeWidth={3} />}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Thông báo lỗi khi chưa chọn chuyên khoa */}
+                {step1Errors.specialty && (
+                  <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
+                    <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                      <AlertCircle size={14} />
+                    </div>
+                    <span>{step1Errors.specialty}</span>
+                  </div>
                 )}
               </div>
-
-              {/* Thông báo lỗi khi chưa chọn chuyên khoa */}
-              {step1Errors.specialty && (
-                <div className="mt-2.5 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700 font-semibold animate-fadeIn">
-                  <div className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                    <AlertCircle size={14} />
-                  </div>
-                  <span>{step1Errors.specialty}</span>
-                </div>
-              )}
-            </div>
+            ) : null}
 
             {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ */}
             <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
