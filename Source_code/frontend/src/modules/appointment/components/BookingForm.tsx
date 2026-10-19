@@ -1150,8 +1150,8 @@ export default function BookingForm() {
           </div>
         )}
 
-        {/* Steps 2 & 3: Layout 2 Cột Chuẩn YouMed Web (Ảnh 3 Desktop Experience) */}
-        {(step === 2 || step === 3) && (
+        {/* Step 2: Layout 2 Cột Chuẩn YouMed Web */}
+        {step === 2 && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:items-stretch items-start">
             
             {/* Cột Trái: Doctor & Clinic Profile Card (Cân bằng chiều cao từ laptop trở lên) */}
@@ -1248,8 +1248,7 @@ export default function BookingForm() {
             <div className="lg:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs lg:h-full flex flex-col justify-between space-y-6">
               
               {/* Step 2: Chọn Ngày & Ca Khám (Phân ca Sáng / Chiều - Ảnh 1 & 3) */}
-              {step === 2 && (
-                <div className="h-full flex flex-col justify-between space-y-6">
+              <div className="h-full flex flex-col justify-between space-y-6">
                   {/* Danh sách bác sĩ: Hiển thị để bệnh nhân tự bấm chọn bác sĩ phụ trách */}
                   {filteredDoctors.length > 0 && (
                     <div>
@@ -1996,11 +1995,15 @@ export default function BookingForm() {
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              {/* Step 3: Hồ Sơ Người Khám & Triệu Chứng & Đính Kèm (Ảnh 1 & 3) */}
-              {step === 3 && (
-                <form onSubmit={handleBook} className="space-y-6">
+        {/* Step 3: Hồ Sơ Bệnh Nhân (Độc lập, căn giữa, ẩn thông tin bác sĩ bên trái để tránh chiếm diện tích) */}
+        {step === 3 && (
+          <div className="max-w-2xl mx-auto w-full">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs space-y-6">
+              <form onSubmit={handleBook} className="space-y-6">
                   
                   {/* Chọn Người Khám: Bản thân vs Người thân (Chuẩn YouMed - Ảnh 1 Screen 4) */}
                   <div className="space-y-3">
@@ -2293,7 +2296,6 @@ export default function BookingForm() {
                     </div>
                   </div>
                 </form>
-              )}
             </div>
           </div>
         )}
