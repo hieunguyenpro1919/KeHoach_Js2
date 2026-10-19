@@ -1912,23 +1912,23 @@ export default function BookingForm() {
                           <Paperclip size={14} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-800 text-xs block">
-                              3. Tệp đính kèm hồ sơ khám
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="font-bold text-slate-800 text-xs">
+                              Tệp đính kèm
                             </span>
-                            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded-md">
-                              {attachments.length}/5 tệp
+                            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md">
+                              {attachments.length}/5
                             </span>
                           </div>
-                          <span className="text-[11px] text-slate-500 block truncate">
+                          <span className="text-[11px] text-slate-400 block truncate">
                             {attachments.length === 0
-                              ? 'Kết quả xét nghiệm, đơn thuốc cũ, ảnh chụp X-Quang...'
+                              ? 'Đơn thuốc, xét nghiệm cũ'
                               : attachments.map((f) => f.name).join(', ')}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2">
-                        <span>{attachments.length === 0 ? '+ Thêm tệp' : 'Quản lý'}</span>
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2 whitespace-nowrap">
+                        <span>{attachments.length === 0 ? 'Thêm' : 'Quản lý'}</span>
                         <ChevronRight size={13} />
                       </div>
                     </button>
@@ -1962,32 +1962,32 @@ export default function BookingForm() {
                         <Gift size={14} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-800 text-xs block">
-                            Mã ưu đãi / Voucher miễn tiền cọc
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="font-bold text-slate-800 text-xs">
+                            Mã ưu đãi
                           </span>
                           {appliedPromo ? (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md">
-                              Đã giảm 100%
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-md">
+                              -100% cọc
                             </span>
                           ) : (
-                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-md">
-                              Giảng viên / Tester
+                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md">
+                              Miễn cọc
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-600 block truncate">
+                        <span className="text-[11px] text-slate-500 block truncate">
                           {appliedPromo ? (
                             <span className="text-emerald-700 font-semibold">
-                              Đã áp dụng: <strong className="font-mono text-blue-700">{appliedPromo}</strong> (Miễn phí 100% cọc giữ chỗ)
+                              Mã: <strong className="font-mono text-blue-700">{appliedPromo}</strong>
                             </span>
                           ) : (
-                            'Chạm để nhập mã hoặc chọn mã nhanh (GIAOVIEN, MEDFREE)'
+                            'Dành cho Giảng viên & Tester'
                           )}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-1 rounded-lg shrink-0 group-hover:bg-amber-200 transition ml-2">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-1 rounded-lg shrink-0 group-hover:bg-amber-200 transition ml-2 whitespace-nowrap">
                       <span>{appliedPromo ? 'Đổi mã' : 'Nhập mã'}</span>
                       <ChevronRight size={13} />
                     </div>
