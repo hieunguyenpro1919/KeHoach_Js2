@@ -3359,6 +3359,7 @@ export default function BookingForm() {
           bookingCode={result.bookingCode}
           patientName={result.patientName || 'Bệnh nhân'}
           description={`Thanh toán tiền khám bệnh phiếu ${result.bookingCode}`}
+          initialPromoCode={appliedPromo || undefined}
         />
       )}
     </div>

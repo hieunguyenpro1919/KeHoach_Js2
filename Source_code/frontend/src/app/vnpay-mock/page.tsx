@@ -188,62 +188,15 @@ function MockVnPayContent() {
 
         {/* Chế độ thanh toán: Đặt cọc vs Trọn gói */}
         <div className="p-4 sm:p-5 space-y-4">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-              <span>Hình Thức Thanh Toán:</span>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
-                Napas 247 Chuyển Khoản Tức Thì
-              </span>
+          {/* Quy định bắt buộc đặt cọc giữ chỗ & chính sách hoàn tiền */}
+          <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-200/90 text-xs text-blue-900 space-y-1.5 text-left">
+            <div className="flex items-center gap-1.5 font-bold text-blue-950">
+              <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+              <span>Quy định: Bắt buộc đặt cọc giữ chỗ ({depositAmount.toLocaleString('vi-VN')} đ)</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentType("DEPOSIT");
-                  setCheckError(null);
-                }}
-                className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between ${
-                  paymentType === "DEPOSIT"
-                    ? "bg-white text-emerald-800 shadow-sm border border-emerald-400 font-bold"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs">🟢 Đặt cọc giữ chỗ</span>
-                  {paymentType === "DEPOSIT" && <Check size={14} className="text-emerald-600" />}
-                </div>
-                <div className="text-sm font-black text-emerald-700 font-mono mt-1">
-                  {depositAmount.toLocaleString("vi-VN")} đ
-                </div>
-                <span className="text-[10px] text-slate-400 font-normal mt-0.5">
-                  Giữ slot, còn lại trả tại quầy
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentType("FULL");
-                  setCheckError(null);
-                }}
-                className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between ${
-                  paymentType === "FULL"
-                    ? "bg-white text-blue-800 shadow-sm border border-blue-400 font-bold"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs">🔵 Thanh toán trọn gói</span>
-                  {paymentType === "FULL" && <Check size={14} className="text-blue-600" />}
-                </div>
-                <div className="text-sm font-black text-blue-700 font-mono mt-1">
-                  {fullAmount.toLocaleString("vi-VN")} đ
-                </div>
-                <span className="text-[10px] text-slate-400 font-normal mt-0.5">
-                  Ưu tiên thẳng vào buồng khám
-                </span>
-              </button>
-            </div>
+            <p className="text-[11px] text-blue-800 leading-relaxed">
+              Bắt buộc đặt cọc giữ chỗ để xác nhận slot khám (không chuyển hết một lần, phần còn lại thanh toán tại quầy). Trường hợp cần hủy lịch, quý khách vui lòng liên hệ trước <strong>2 tiếng</strong> qua số điện thoại <a href="tel:0818872833" className="font-bold underline text-blue-700">0818872833</a> để được hoàn lại tiền cọc.
+            </p>
           </div>
 
           {/* QR Code Container */}
@@ -279,55 +232,7 @@ function MockVnPayContent() {
             </div>
           </div>
 
-          {/* Account Details Box */}
-          <div className="bg-slate-50 rounded-2xl p-3.5 text-left space-y-2 border border-slate-200 text-xs">
-            <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-500">Ngân hàng nhận:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 font-black rounded text-[10px]">
-                  KLB
-                </span>
-                <strong className="text-slate-800 font-semibold">{bankConfig.bankName}</strong>
-              </div>
-            </div>
 
-            <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-500">Số tài khoản:</span>
-              <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-                <span className="text-sm text-emerald-800 font-black">{bankConfig.accountNo}</span>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(bankConfig.accountNo, "account")}
-                  className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                  title="Sao chép số tài khoản"
-                >
-                  {copiedField === "account" ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-500">Chủ tài khoản:</span>
-              <strong className="text-slate-800 font-semibold uppercase">{bankConfig.accountName}</strong>
-            </div>
-
-            <div className="flex items-center justify-between py-1">
-              <span className="text-slate-500">Nội dung CK:</span>
-              <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-800">
-                <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-xs border border-emerald-300">
-                  {transferContent}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(transferContent, "content")}
-                  className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                  title="Sao chép nội dung chuyển khoản"
-                >
-                  {copiedField === "content" ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                </button>
-              </div>
-            </div>
-          </div>
 
           {/* Cảnh báo khi bấm kiểm tra mà chưa có tiền */}
           {checkError && (

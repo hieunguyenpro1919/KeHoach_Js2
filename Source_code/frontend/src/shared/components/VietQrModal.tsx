@@ -34,6 +34,14 @@ export const OFFICIAL_BANK_CONFIG: BankConfig = {
   depositAmount: 2000,
 };
 
+export const VALID_PROMO_CODES: Record<string, { discountPercent: number; message: string }> = {
+  GIAOVIEN: { discountPercent: 100, message: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).' },
+  MEDFREE: { discountPercent: 100, message: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).' },
+  GIAM100: { discountPercent: 100, message: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).' },
+  TESTER: { discountPercent: 100, message: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).' },
+  VIP: { discountPercent: 100, message: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).' },
+};
+
 interface VietQrModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -44,6 +52,7 @@ interface VietQrModalProps {
   bookingCode?: string;
   appointmentId?: string;
   patientName?: string;
+  initialPromoCode?: string;
 }
 
 export const VietQrModal: React.FC<VietQrModalProps> = ({
@@ -56,6 +65,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   bookingCode = 'MED-2026',
   appointmentId,
   patientName,
+  initialPromoCode,
 }) => {
   // 1. Tài khoản ngân hàng nhận tiền chính thức
   const bankConfig = OFFICIAL_BANK_CONFIG;
@@ -78,14 +88,33 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     qrCode?: string;
   } | null>(null);
 
-  // 4. Mã khuyến mãi / Voucher ưu đãi (Free cọc cho Giảng viên / Tester)
-  const [promoInput, setPromoInput] = useState<string>('');
+  // 4. Mã khuyến mãi / Voucher ưu đãi (kế thừa từ bước 3)
   const [appliedPromo, setAppliedPromo] = useState<{
     code: string;
     discountPercent: number;
     message: string;
-  } | null>(null);
-  const [promoError, setPromoError] = useState<string | null>(null);
+  } | null>(() => {
+    if (initialPromoCode && VALID_PROMO_CODES[initialPromoCode.trim().toUpperCase()]) {
+      const codeUpper = initialPromoCode.trim().toUpperCase();
+      return {
+        code: codeUpper,
+        discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
+        message: VALID_PROMO_CODES[codeUpper].message,
+      };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (initialPromoCode && VALID_PROMO_CODES[initialPromoCode.trim().toUpperCase()]) {
+      const codeUpper = initialPromoCode.trim().toUpperCase();
+      setAppliedPromo({
+        code: codeUpper,
+        discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
+        message: VALID_PROMO_CODES[codeUpper].message,
+      });
+    }
+  }, [initialPromoCode]);
 
   const cleanBookingCode = (bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   const transferContent = `MEDPAY ${cleanBookingCode}`;
@@ -96,32 +125,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   const isDepositFree = appliedPromo !== null && paymentType === 'DEPOSIT';
   const depositAmount = isDepositFree ? 0 : baseDepositAmount;
   const activeAmount = paymentType === 'DEPOSIT' ? depositAmount : fullAmount;
-
-  const handleApplyPromo = () => {
-    setPromoError(null);
-    const cleaned = promoInput.trim().toUpperCase();
-    if (!cleaned) {
-      setPromoError('Vui lòng nhập mã khuyến mãi');
-      return;
-    }
-    const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
-    if (validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
-      setAppliedPromo({
-        code: cleaned,
-        discountPercent: 100,
-        message: 'Áp dụng mã thành công! Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ).',
-      });
-      setPaymentType('DEPOSIT');
-    } else {
-      setPromoError('Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
-    }
-  };
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null);
-    setPromoInput('');
-    setPromoError(null);
-  };
 
   const handleConfirmFreePromo = async () => {
     setIsManualConfirming(true);
@@ -373,140 +376,34 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Tab Selector: 2 Chế Độ Thanh Toán */}
-              <div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                  <span>1. Chọn Chế Độ Thanh Toán:</span>
-                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Napas 247 Realtime
-                  </span>
+              {/* Quy định bắt buộc đặt cọc giữ chỗ & chính sách hoàn tiền qua hotline */}
+              <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-200/90 text-xs text-blue-900 space-y-1.5 text-left">
+                <div className="flex items-center gap-1.5 font-bold text-blue-950">
+                  <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                  <span>Quy định: Bắt buộc đặt cọc giữ chỗ ({baseDepositAmount.toLocaleString('vi-VN')} đ)</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                  {/* Option 1: Giữ Chỗ (DEPOSIT) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentType('DEPOSIT');
-                      setCheckError(null);
-                    }}
-                    className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between ${
-                      paymentType === 'DEPOSIT'
-                        ? 'bg-white text-emerald-800 shadow-sm border border-emerald-400 font-bold'
-                        : 'text-slate-600 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs">🟢 Đặt cọc giữ chỗ</span>
-                      {paymentType === 'DEPOSIT' && <Check size={14} className="text-emerald-600" />}
-                    </div>
-                    <div className="text-sm font-black text-emerald-700 font-mono mt-1 flex items-center gap-1">
-                      <span>{depositAmount.toLocaleString('vi-VN')}</span>
-                      <span className="text-xs font-normal">đ</span>
-                      {isDepositFree && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-sans font-bold">
-                          Free 100%
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-normal mt-0.5 leading-tight">
-                      {isDepositFree ? 'Miễn phí giữ chỗ bằng mã ưu đãi' : 'Giữ slot chắc chắn, phần còn lại trả tại quầy'}
-                    </span>
-                  </button>
-
-                  {/* Option 2: Thanh Toán Đủ (FULL) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentType('FULL');
-                      setCheckError(null);
-                    }}
-                    className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between ${
-                      paymentType === 'FULL'
-                        ? 'bg-white text-blue-800 shadow-sm border border-blue-400 font-bold'
-                        : 'text-slate-600 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs">🔵 Thanh toán trọn gói</span>
-                      {paymentType === 'FULL' && <Check size={14} className="text-blue-600" />}
-                    </div>
-                    <div className="text-sm font-black text-blue-700 font-mono mt-1">
-                      {fullAmount.toLocaleString('vi-VN')} <span className="text-xs font-normal">đ</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-normal mt-0.5 leading-tight">
-                      Trả đủ 100%, ưu tiên vào khám ngay
-                    </span>
-                  </button>
-                </div>
+                <p className="text-[11px] text-blue-800 leading-relaxed">
+                  Bắt buộc đặt cọc giữ chỗ để hoàn tất lịch hẹn (không chuyển hết một lần, phần còn lại thanh toán tại quầy). Trường hợp cần hủy lịch, quý khách vui lòng liên hệ trước <strong>2 tiếng</strong> qua số điện thoại <a href="tel:0818872833" className="font-bold underline text-blue-700">0818872833</a> để được hoàn lại tiền cọc.
+                </p>
               </div>
 
-              {/* Khung Nhập Mã Khuyến Mãi / Voucher (Free Đặt Cọc cho Giảng Viên / Tester) */}
-              <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-3 text-left">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
-                    <Gift size={14} className="text-emerald-700" />
-                    <span>Mã Khuyến Mãi / Ưu Đãi Đặt Cọc:</span>
+              {/* Thông báo voucher đã áp dụng từ bước trước (nếu có) */}
+              {appliedPromo && (
+                <div className="flex items-center justify-between bg-emerald-50 px-3.5 py-2.5 rounded-2xl border border-emerald-300 text-xs shadow-2xs text-left">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="text-emerald-950 font-bold block">
+                        Voucher áp dụng: <span className="font-mono text-emerald-700 font-extrabold">{appliedPromo.code}</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-medium">Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ)</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                    -2.000 đ
                   </span>
-                  {appliedPromo && (
-                    <button
-                      type="button"
-                      onClick={handleRemovePromo}
-                      className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold underline cursor-pointer"
-                    >
-                      Bỏ áp dụng
-                    </button>
-                  )}
                 </div>
-
-                {appliedPromo ? (
-                  <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-emerald-300 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <Sparkles size={16} className="text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="text-emerald-950 font-bold block">
-                          Mã ưu đãi: <span className="font-mono text-emerald-700">{appliedPromo.code}</span>
-                        </span>
-                        <span className="text-[10px] text-emerald-700">Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ)</span>
-                      </div>
-                    </div>
-                    <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
-                      -2.000 đ
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={promoInput}
-                        onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleApplyPromo();
-                          }
-                        }}
-                        placeholder="Nhập mã: GIAOVIEN hoặc MEDFREE"
-                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-mono uppercase placeholder:normal-case placeholder:font-sans placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleApplyPromo}
-                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
-                      >
-                        Áp dụng
-                      </button>
-                    </div>
-                    {promoError && (
-                      <p className="text-[10px] text-rose-600 font-medium mt-1">{promoError}</p>
-                    )}
-                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                      <span>💡</span>
-                      <span>Dành cho Giảng viên / Kiểm thử: Nhập <strong>GIAOVIEN</strong> hoặc <strong>MEDFREE</strong> để miễn phí cọc 0 đ.</span>
-                    </p>
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Amount Display & Patient info */}
               <div className="text-center pt-1">
@@ -597,55 +494,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Account Details Box with 1-click Copy */}
-                  <div className="bg-slate-50 rounded-2xl p-3.5 text-left space-y-2 border border-slate-200 text-xs">
-                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                      <span className="text-slate-500">Ngân hàng nhận:</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 font-black rounded text-[10px]">
-                          KLB
-                        </span>
-                        <strong className="text-slate-800 font-semibold">{bankConfig.bankName}</strong>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                      <span className="text-slate-500">Số tài khoản:</span>
-                      <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-                        <span className="text-sm text-emerald-800 font-black">{effectiveAccountNo}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(effectiveAccountNo, 'account')}
-                          className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                          title="Sao chép số tài khoản"
-                        >
-                          {copiedField === 'account' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                      <span className="text-slate-500">Chủ tài khoản:</span>
-                      <strong className="text-slate-800 font-semibold uppercase">{effectiveAccountName}</strong>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-slate-500">Nội dung CK:</span>
-                      <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-800">
-                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-xs border border-emerald-300">
-                          {transferContent}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(transferContent, 'content')}
-                          className="text-emerald-600 hover:text-emerald-700 p-1 cursor-pointer"
-                          title="Sao chép nội dung chuyển khoản"
-                        >
-                          {copiedField === 'content' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -658,7 +506,7 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                   </div>
                   <p className="text-[11px] leading-relaxed text-rose-700">{checkError}</p>
 
-                  {/* Cứu cánh khi người dùng chuyển thẳng vào STK cá nhân 18112007 thay vì tài khoản PayOS */}
+                  {/* Cứu cánh khi người dùng chuyển thẳng vào STK cá nhân thay vì tài khoản PayOS */}
                   <div className="pt-1 border-t border-rose-200">
                     <button
                       type="button"
@@ -681,14 +529,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                   </div>
                 </div>
               )}
-
-              {/* Gợi ý test MoMo */}
-              <div className="text-[11px] text-slate-500 bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex items-start gap-2">
-                <span className="text-amber-600 text-sm leading-none shrink-0">💡</span>
-                <span>
-                  <strong>Hướng dẫn:</strong> Mở App MoMo hoặc App Ngân hàng ➔ Chọn <strong>Quét Mã</strong> ➔ Quét mã QR KienlongBank ở trên. Sau khi chuyển xong, hệ thống sẽ tự động xác nhận số dư.
-                </span>
-              </div>
             </>
           )}
         </div>
