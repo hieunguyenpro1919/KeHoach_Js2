@@ -5,22 +5,34 @@
 # --- Node & Next.js (Frontend) ---
 **/node_modules/
 **/.next/
-**/out/
+# CHU Y: KHONG dung "**/out/" o day. Kien truc hexagonal cua backend co cac goi
+# Java ten "out" (core/port/out, app/adapter/out) - mau "**/out/" se am tham bo
+# qua toan bo file .java trong do, khien "git add" khong bao loi nhung code khong
+# bao gio len repo va build hong o may nguoi khac. Chi chan dung thu muc build
+# cua Next.js:
+Source_code/frontend/out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .env.local
+.env
+**/.env
 .env.development.local
 .env.test.local
 .env.production.local
+*.tsbuildinfo
 
 # --- Java & Gradle (Backend) ---
 .gradle/
 **/build/
+**/bin/
 !src/**/build/
 *.class
 *.jar
+# Ngoai le: Gradle wrapper jar PHAI duoc commit, neu khong ai clone repo ve
+# cung khong chay duoc ./gradlew (loi "Unable to access jarfile").
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -52,3 +64,8 @@ ehthumbs_vista.db
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# --- Tài liệu học tập & Slide lý thuyết (Chỉ lưu máy cục bộ, không đẩy lên Git) ---
+Ly_Thuyet/
+*.docx
+*.xlsx

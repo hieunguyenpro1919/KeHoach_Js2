@@ -24,9 +24,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Admin - quản lý người dùng theo vai trò, tạo tài khoản Lễ tân và Bác sĩ. */
+/** Admin - manage users by role and create receptionist and doctor accounts. */
 @Service
 public class AdminUserService {
+
+    /** Allow-list of sortable fields, so sensitive columns cannot be exposed. */
+    private static final List<String> SORTABLE_FIELDS =
+            List.of("createdAt", "updatedAt", "email", "fullName", "active");
 
     private final UserJpaRepository users;
     private final UserMedicalCenterRoleJpaRepository roles;
@@ -50,17 +54,16 @@ public class AdminUserService {
     }
 
     /**
-     * Danh sách người dùng, lọc theo vai trò.
+     * Lists users, optionally filtered by role.
      *
-     * @param role     null = tất cả; CUSTOMER = tài khoản không có quyền nhân sự nào
-     * @param centerId chỉ áp dụng khi lọc theo vai trò nhân sự
+     * @param role     null = everyone; CUSTOMER = accounts with no staff role
+     * @param centerId only applies when filtering by a staff role
      */
     @Transactional(readOnly = true)
     public AdminDtos.PageResponse<AdminDtos.UserSummary> list(String role, String centerId, String keyword,
-                                                              int page, int size) {
+                                                              int page, int size, String sort) {
         String q = "%" + (keyword == null ? "" : keyword.trim().toLowerCase()) + "%";
-        var pageable = PageRequest.of(Math.max(page, 0), size <= 0 || size > 100 ? 20 : size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+        var pageable = PageRequest.of(Math.max(page, 0), size <= 0 || size > 100 ? 20 : size, parseSort(sort));
 
         Page<UserEntity> result;
         if (role == null || role.isBlank() || "ALL".equalsIgnoreCase(role)) {
@@ -84,7 +87,7 @@ public class AdminUserService {
         return toSummary(requireUser(userId));
     }
 
-    /** Tạo tài khoản Lễ tân và cấp quyền ROLE_STAFF tại đúng chi nhánh. */
+    /** Creates a receptionist account and grants ROLE_STAFF at the right branch. */
     @Transactional
     public AdminDtos.UserSummary createStaff(AdminDtos.CreateStaffRequest request, String actorId) {
         MedicalCenterEntity center = medicalCenters.findById(request.medicalCenterId())
@@ -95,9 +98,9 @@ public class AdminUserService {
     }
 
     /**
-     * Tạo tài khoản Bác sĩ: 1 dòng users + 1 dòng quyền ROLE_DOCTOR + 1 hồ sơ
-     * doctors. Chi nhánh lấy từ chuyên khoa nên không thể gán nhầm bác sĩ vào
-     * chi nhánh không có chuyên khoa đó.
+     * Creates a doctor account: one users row + one ROLE_DOCTOR grant + one
+     * doctors profile. The branch comes from the specialty, so a doctor can never
+     * be attached to a branch that does not offer that specialty.
      */
     @Transactional
     public AdminDtos.UserSummary createDoctor(AdminDtos.CreateDoctorRequest request, String actorId) {
@@ -109,15 +112,15 @@ public class AdminUserService {
 
         Instant now = Instant.now();
         DoctorEntity doctor = new DoctorEntity(UUID.randomUUID().toString(), user.getId(), specialty.getId(),
-                blankToNull(request.academicTitle()), request.experienceYears(), request.consultationFee(),
-                blankToNull(request.roomNumber()), null, null, now, now);
+                blankToNull(request.academicTitle()), request.consultationFee(),
+                blankToNull(request.roomNumber()), blankToNull(request.bio()), null, now, now);
         doctor.setCreatedBy(actorId);
         doctor.setUpdatedBy(actorId);
         doctors.save(doctor);
         return toSummary(user);
     }
 
-    /** Khóa / mở khóa tài khoản. Tài khoản bị khóa không đăng nhập được nữa. */
+    /** Locks / unlocks an account. A locked account can no longer sign in. */
     @Transactional
     public AdminDtos.UserSummary updateStatus(String userId, boolean active, String actorId) {
         UserEntity user = requireUser(userId);
@@ -131,7 +134,18 @@ public class AdminUserService {
         return toSummary(user);
     }
 
-    /** Cấp thêm quyền nhân sự cho tài khoản đã có tại một chi nhánh. */
+    /** Admin resets password for a user. */
+    @Transactional
+    public AdminDtos.UserSummary resetPassword(String userId, String newPassword, String actorId) {
+        UserEntity user = requireUser(userId);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(Instant.now());
+        user.setUpdatedBy(actorId);
+        users.save(user);
+        return toSummary(user);
+    }
+
+    /** Grants an additional staff role to an existing account at a branch. */
     @Transactional
     public AdminDtos.UserSummary grantRole(String userId, AdminDtos.GrantRoleRequest request, String actorId) {
         UserEntity user = requireUser(userId);
@@ -142,8 +156,8 @@ public class AdminUserService {
     }
 
     /**
-     * Thu hồi quyền: đặt cờ is_active = false thay vì xóa dòng, để vẫn tra được
-     * lịch sử "ai từng làm việc ở chi nhánh nào".
+     * Revoking a role sets is_active = false instead of deleting the row, so the
+     * history of who worked at which branch remains auditable.
      */
     @Transactional
     public AdminDtos.UserSummary revokeRole(String userId, String assignmentId, String actorId) {
@@ -157,6 +171,38 @@ public class AdminUserService {
         assignment.setUpdatedAt(Instant.now());
         assignment.setUpdatedBy(actorId);
         roles.save(assignment);
+        return toSummary(user);
+    }
+
+    /** Cập nhật thông tin chuyên môn / phân buồng khám cho tài khoản Bác sĩ. */
+    @Transactional
+    public AdminDtos.UserSummary updateDoctorProfile(String userId, AdminDtos.UpdateDoctorProfileRequest req, String actorId) {
+        UserEntity user = requireUser(userId);
+        List<DoctorEntity> docList = doctors.findByUserId(userId);
+        if (docList.isEmpty()) {
+            throw new AppExceptions.NotFoundException("Tài khoản này chưa có hồ sơ Bác sĩ");
+        }
+        DoctorEntity doc = docList.get(0);
+        if (req.roomNumber() != null) {
+            doc.setRoomNumber(blankToNull(req.roomNumber().trim().toUpperCase()));
+        }
+        if (req.specialtyId() != null && !req.specialtyId().isBlank()) {
+            specialties.findById(req.specialtyId())
+                    .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy chuyên khoa"));
+            doc.setSpecialtyId(req.specialtyId());
+        }
+        if (req.academicTitle() != null) {
+            doc.setAcademicTitle(blankToNull(req.academicTitle()));
+        }
+        if (req.consultationFee() != null) {
+            doc.setConsultationFee(req.consultationFee());
+        }
+        if (req.bio() != null) {
+            doc.setBio(blankToNull(req.bio()));
+        }
+        doc.setUpdatedAt(Instant.now());
+        doc.setUpdatedBy(actorId);
+        doctors.save(doc);
         return toSummary(user);
     }
 
@@ -193,13 +239,52 @@ public class AdminUserService {
             assignments.add(new AdminDtos.RoleAssignment(role.getId(), role.getRole(),
                     role.getMedicalCenterId(), centerName, role.isActive()));
         }
+
+        String specialtyName = null;
+        String academicTitle = null;
+        String roomNumber = null;
+
+        List<com.medsched.persistence.entity.DoctorEntity> docList = doctors.findByUserId(user.getId());
+        if (!docList.isEmpty()) {
+            com.medsched.persistence.entity.DoctorEntity doc = docList.get(0);
+            academicTitle = doc.getAcademicTitle();
+            roomNumber = doc.getRoomNumber();
+            if (doc.getSpecialtyId() != null) {
+                specialtyName = specialties.findById(doc.getSpecialtyId())
+                        .map(s -> s.getName())
+                        .orElse(null);
+            }
+        }
+
         return new AdminDtos.UserSummary(user.getId(), user.getEmail(), user.getFullName(), user.getPhone(),
-                user.isActive(), assignments, user.getCreatedAt());
+                user.isActive(), assignments, user.getCreatedAt(), specialtyName, academicTitle, roomNumber);
     }
 
     private UserEntity requireUser(String userId) {
         return users.findById(userId)
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
+    }
+
+    /**
+     * Turns a "field,direction" sort parameter (e.g. "fullName,asc") into a
+     * {@link Sort}. Only allow-listed fields are accepted, so callers cannot sort
+     * by a sensitive column such as passwordHash or break the query.
+     */
+    private static Sort parseSort(String sort) {
+        Sort defaultSort = Sort.by(Sort.Direction.DESC, "createdAt");
+        if (sort == null || sort.isBlank()) {
+            return defaultSort;
+        }
+        String[] parts = sort.split(",");
+        String field = parts[0].trim();
+        if (!SORTABLE_FIELDS.contains(field)) {
+            throw new AppExceptions.BadRequestException(
+                    "Không sắp xếp được theo trường '" + field + "'. Chỉ nhận: " + String.join(", ", SORTABLE_FIELDS));
+        }
+        Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+        return Sort.by(direction, field);
     }
 
     private static UserRole parseRole(String role) {
