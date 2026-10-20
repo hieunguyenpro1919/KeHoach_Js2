@@ -469,97 +469,120 @@ public class PaymentController {
     @PostMapping("/confirm")
     @Transactional
     public ResponseEntity<?> confirmPayment(@RequestBody ConfirmPaymentRequest req) {
-        AppointmentEntity appointment = findAppointment(req.appointmentId(), req.bookingCode()).orElse(null);
+        try {
+            AppointmentEntity appointment = findAppointment(req.appointmentId(), req.bookingCode()).orElse(null);
 
-        if (appointment == null) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "error", "Không tìm thấy lịch hẹn"));
-        }
+            if (appointment == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "error", "Không tìm thấy lịch hẹn"));
+            }
 
-        boolean isPromoFree = (req.promoCode() != null && !req.promoCode().isBlank())
-                || "PROMO_FREE".equalsIgnoreCase(req.paymentType())
-                || "VOUCHER".equalsIgnoreCase(req.paymentType());
+            boolean isPromoFree = (req.promoCode() != null && !req.promoCode().isBlank())
+                    || "PROMO_FREE".equalsIgnoreCase(req.paymentType())
+                    || "VOUCHER".equalsIgnoreCase(req.paymentType());
 
-        String type = isPromoFree
-                ? "PROMO_FREE"
-                : (req.paymentType() != null && req.paymentType().equalsIgnoreCase("DEPOSIT")) 
-                    ? "DEPOSIT" 
-                    : "FULL";
+            String type = isPromoFree
+                    ? "PROMO_FREE"
+                    : (req.paymentType() != null && req.paymentType().equalsIgnoreCase("DEPOSIT")) 
+                        ? "DEPOSIT" 
+                        : "FULL";
 
-        BigDecimal finalAmount = req.amount();
-        if (isPromoFree) {
-            finalAmount = BigDecimal.ZERO;
-        } else if (finalAmount == null || finalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            finalAmount = "DEPOSIT".equals(type) ? new BigDecimal("2000") : new BigDecimal("200000");
-        }
+            BigDecimal finalAmount = req.amount();
+            if (isPromoFree) {
+                finalAmount = BigDecimal.ZERO;
+            } else if (finalAmount == null || finalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                finalAmount = "DEPOSIT".equals(type) ? new BigDecimal("2000") : new BigDecimal("200000");
+            }
 
-        String promoTag = (req.promoCode() != null && !req.promoCode().isBlank())
-                ? req.promoCode().trim().toUpperCase()
-                : (isPromoFree ? "GIAOVIEN" : "");
+            String promoTag = (req.promoCode() != null && !req.promoCode().isBlank())
+                    ? req.promoCode().trim().toUpperCase()
+                    : (isPromoFree ? "GIAOVIEN" : "");
 
-        String noteText = isPromoFree
-                ? ("VOUCHER:" + promoTag + ":MEDPAY " + appointment.getBookingCode())
-                : (type + ":MEDPAY " + appointment.getBookingCode());
+            String noteText = isPromoFree
+                    ? ("VOUCHER:" + promoTag + ":MEDPAY " + appointment.getBookingCode())
+                    : (type + ":MEDPAY " + appointment.getBookingCode());
 
-        List<PaymentEntity> payments = paymentJpaRepository.findByAppointmentId(appointment.getId());
-        PaymentEntity successPayment = payments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.SUCCEEDED)
-                .findFirst()
-                .orElse(null);
+            String fallbackTxnRef = (req.transactionRef() != null && !req.transactionRef().isBlank())
+                    ? req.transactionRef().trim()
+                    : (isPromoFree ? ("VOUCHER-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase()) : ("CONFIRM" + System.currentTimeMillis()));
 
-        if (successPayment == null) {
-            // Tìm payment pending để hoàn tất thành công
-            PaymentEntity pendingPayment = payments.stream()
-                    .filter(p -> p.getStatus() == PaymentStatus.PENDING)
+            List<PaymentEntity> payments = paymentJpaRepository.findByAppointmentId(appointment.getId());
+            PaymentEntity successPayment = payments.stream()
+                    .filter(p -> p.getStatus() == PaymentStatus.SUCCEEDED)
                     .findFirst()
                     .orElse(null);
 
-            if (pendingPayment != null) {
-                pendingPayment.setStatus(PaymentStatus.SUCCEEDED);
-                pendingPayment.setAmount(finalAmount);
-                pendingPayment.setMethod(PaymentMethod.BANK_TRANSFER);
-                pendingPayment.setPaidAt(Instant.now());
-                pendingPayment.setUpdatedAt(Instant.now());
-                pendingPayment.setNote(noteText);
-                successPayment = paymentJpaRepository.save(pendingPayment);
+            if (successPayment == null) {
+                // Tìm payment pending để hoàn tất thành công
+                PaymentEntity pendingPayment = payments.stream()
+                        .filter(p -> p.getStatus() == PaymentStatus.PENDING)
+                        .findFirst()
+                        .orElse(null);
+
+                if (pendingPayment != null) {
+                    pendingPayment.setStatus(PaymentStatus.SUCCEEDED);
+                    pendingPayment.setAmount(finalAmount);
+                    pendingPayment.setMethod(PaymentMethod.BANK_TRANSFER);
+                    pendingPayment.setPaidAt(Instant.now());
+                    pendingPayment.setUpdatedAt(Instant.now());
+                    pendingPayment.setNote(noteText);
+                    if (pendingPayment.getTransactionRef() == null || pendingPayment.getTransactionRef().isBlank()) {
+                        pendingPayment.setTransactionRef(fallbackTxnRef);
+                    }
+                    successPayment = paymentJpaRepository.save(pendingPayment);
+                } else {
+                    PaymentEntity newPayment = new PaymentEntity(
+                            UUID.randomUUID().toString(),
+                            appointment.getId(),
+                            finalAmount,
+                            PaymentMethod.BANK_TRANSFER,
+                            PaymentStatus.SUCCEEDED,
+                            fallbackTxnRef,
+                            Instant.now(),
+                            Instant.now()
+                    );
+                    newPayment.setPaidAt(Instant.now());
+                    newPayment.setNote(noteText);
+                    successPayment = paymentJpaRepository.save(newPayment);
+                }
             } else {
-                String txnRef = (req.transactionRef() != null && !req.transactionRef().isBlank())
-                        ? req.transactionRef().trim()
-                        : (isPromoFree ? ("VOUCHER" + System.currentTimeMillis()) : ("CONFIRM" + System.currentTimeMillis()));
-
-                PaymentEntity newPayment = new PaymentEntity(
-                        UUID.randomUUID().toString(),
-                        appointment.getId(),
-                        finalAmount,
-                        PaymentMethod.BANK_TRANSFER,
-                        PaymentStatus.SUCCEEDED,
-                        txnRef,
-                        Instant.now(),
-                        Instant.now()
-                );
-                newPayment.setPaidAt(Instant.now());
-                newPayment.setNote(noteText);
-                successPayment = paymentJpaRepository.save(newPayment);
+                if (successPayment.getTransactionRef() == null || successPayment.getTransactionRef().isBlank()) {
+                    successPayment.setTransactionRef(fallbackTxnRef);
+                    successPayment = paymentJpaRepository.save(successPayment);
+                }
             }
-        }
 
-        // Cập nhật trạng thái ca khám sang CONFIRMED nếu đang PENDING
-        if (appointment.getStatus() == AppointmentStatus.PENDING) {
-            appointment.setStatus(AppointmentStatus.CONFIRMED);
-            appointment.setUpdatedAt(Instant.now());
-            appointmentJpaRepository.save(appointment);
-        }
+            // Cập nhật trạng thái ca khám sang CONFIRMED (hỗ trợ cả PENDING hoặc khôi phục từ CANCELLED do trễ)
+            if (appointment.getStatus() == AppointmentStatus.PENDING || appointment.getStatus() == AppointmentStatus.CANCELLED) {
+                appointment.setStatus(AppointmentStatus.CONFIRMED);
+                appointment.setUpdatedAt(Instant.now());
+                appointmentJpaRepository.save(appointment);
+            }
 
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", isPromoFree ? "Áp dụng mã ưu đãi thành công! Miễn phí 100% tiền đặt cọc giữ chỗ." : "Xác nhận chuyển tiền đặt cọc thành công",
-                "appointmentId", appointment.getId(),
-                "bookingCode", appointment.getBookingCode(),
-                "amountPaid", successPayment != null ? successPayment.getAmount() : finalAmount,
-                "paymentType", type,
-                "promoCode", promoTag,
-                "transactionRef", successPayment != null ? successPayment.getTransactionRef() : "",
-                "status", "SUCCEEDED"
-        ));
+            String effectiveTxnRef = successPayment != null && successPayment.getTransactionRef() != null
+                    ? successPayment.getTransactionRef()
+                    : fallbackTxnRef;
+
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("success", true);
+            resp.put("status", "SUCCEEDED");
+            resp.put("message", isPromoFree ? "Áp dụng mã ưu đãi thành công! Miễn phí 100% tiền đặt cọc giữ chỗ." : "Xác nhận chuyển tiền đặt cọc thành công");
+            resp.put("appointmentId", appointment.getId());
+            resp.put("bookingCode", appointment.getBookingCode());
+            resp.put("amountPaid", successPayment != null && successPayment.getAmount() != null ? successPayment.getAmount() : finalAmount);
+            resp.put("paymentType", type);
+            resp.put("promoCode", promoTag);
+            resp.put("transactionRef", effectiveTxnRef);
+            resp.put("paidAt", successPayment != null && successPayment.getPaidAt() != null ? successPayment.getPaidAt().toString() : Instant.now().toString());
+
+            return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PaymentController.class).error("Lỗi xác nhận confirmPayment:", e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "status", "FAILED",
+                    "error", e.getMessage() != null ? e.getMessage() : "Lỗi hệ thống khi xác nhận thanh toán"
+            ));
+        }
     }
 
     /**

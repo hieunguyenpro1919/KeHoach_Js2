@@ -44,9 +44,7 @@ export default function LoginForm() {
       });
 
       const roles: string[] = res.user?.roles || res.roles || [];
-      const priorityRoles = ['ROLE_ADMIN', 'ROLE_DOCTOR', 'ROLE_STAFF', 'ROLE_PATIENT'];
-      const displayRole = priorityRoles.find((r) => roles.includes(r)) || roles[0] || 'CUSTOMER';
-      setSuccessMessage(`Đăng nhập thành công! Vai trò: ${displayRole}. Đang chuyển hướng...`);
+      setSuccessMessage('Đăng nhập thành công');
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('auth-change'));

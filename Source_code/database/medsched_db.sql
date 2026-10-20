@@ -540,7 +540,7 @@ CREATE TABLE payments (
     created_by VARCHAR(36),
     updated_by VARCHAR(36),
     CONSTRAINT uq_payment_txn UNIQUE (transaction_ref),
-    CONSTRAINT chk_payment_amount CHECK (amount > 0),
+    CONSTRAINT chk_payment_amount CHECK (amount >= 0),
     CONSTRAINT chk_payment_refund CHECK (
         refunded_amount >= 0
         AND refunded_amount <= amount

@@ -35,7 +35,7 @@ export default function Footer() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 sm:gap-2">
         {/* Hàng 1: Logo & Thông tin hệ thống */}
-        <div className="flex items-center gap-2 whitespace-nowrap">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
           <img src="/logo.png" alt="MedSched Logo" className="w-4 h-4 sm:w-5 sm:h-5 object-contain shrink-0" />
           <span className="font-bold text-pine-teal shrink-0">MedSched</span>
           <span className="text-slate-600 text-[11px] sm:text-xs">
@@ -44,7 +44,7 @@ export default function Footer() {
         </div>
 
         {/* Hàng 2: Bản quyền (gióng thẳng hàng với mép trái logo) */}
-        <p className="text-slate-400 text-[10px] sm:text-[11px] whitespace-nowrap text-left">
+        <p className="text-slate-400 text-[10px] sm:text-[11px] sm:whitespace-nowrap text-left break-words">
           © 2026 MedSched Healthcare System. All rights reserved.
         </p>
       </div>
