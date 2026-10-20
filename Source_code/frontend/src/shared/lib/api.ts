@@ -609,6 +609,39 @@ export const api = {
     }
   },
 
+  async aiChat(message: string, role: string = 'STAFF', context: string = '') {
+    try {
+      return await request<{
+        reply: string;
+        executedTool?: string | null;
+        toolResult?: any;
+        answerSource?: string;
+        tokenSaved?: boolean;
+      }>("/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ message, role, context }),
+      });
+    } catch (e: any) {
+      return {
+        reply: "Không thể kết nối đến Máy chủ Trợ lý AI MedSched: " + (e?.message || "Lỗi mạng"),
+        executedTool: null,
+        toolResult: null,
+        answerSource: "ERROR",
+        tokenSaved: false,
+      };
+    }
+  },
+
+  async aiExecuteTool(toolName: string, args: Record<string, any> = {}) {
+    return request<{
+      toolName: string;
+      result: string;
+    }>("/ai/tools/execute", {
+      method: "POST",
+      body: JSON.stringify({ toolName, arguments: args }),
+    });
+  },
+
   // --- 6. QUẦY TIẾP ĐÓN LỄ TÂN & KIOSK TỰ PHỤC VỤ (RECEPTION & KIOSK CHECK-IN) ---
   async checkInQr(bookingCode: string) {
     let cleanCode = bookingCode.trim();

@@ -2,6 +2,8 @@ server:
   port: ${PORT:8080}
 
 spring:
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   application:
     name: medsched
   main:
@@ -58,6 +60,12 @@ spring:
 spring.ai.openai.api-key: ${OPENAI_API_KEY:chua-cau-hinh}
 
 medsched:
+  ai:
+    guard:
+      max-requests-per-window: ${AI_MAX_REQUESTS_PER_WINDOW:20}
+      window-seconds: ${AI_WINDOW_SECONDS:60}
+      duplicate-seconds: ${AI_DUPLICATE_SECONDS:5}
+      max-message-chars: ${AI_MAX_MESSAGE_CHARS:2000}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-duration: 3600s
@@ -72,6 +80,15 @@ brevo:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
 
 app:
+  openrouter:
+    api-key: ${OPENROUTER_API_KEY:}
+    model: ${OPENROUTER_MODEL:openrouter/free}
+    base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+    site-url: ${OPENROUTER_SITE_URL:http://localhost:3000}
+    app-name: ${OPENROUTER_APP_NAME:MedSched AI}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 86400

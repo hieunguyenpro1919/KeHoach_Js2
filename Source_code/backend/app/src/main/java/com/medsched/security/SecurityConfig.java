@@ -104,6 +104,9 @@ public class SecurityConfig {
                                 "/api/v1/appointments/checkin/qr"
                         ).permitAll()
 
+                        // MCP tool execution is privileged; keep public AI chat/triage below for patients.
+                        .requestMatchers(HttpMethod.POST, "/api/ai/tools/execute", "/api/v1/ai/tools/execute").authenticated()
+
                         // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook / Tra cứu thanh toán
                         .requestMatchers(
                                 "/api/ai/**",

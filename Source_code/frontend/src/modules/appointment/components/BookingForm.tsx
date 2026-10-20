@@ -49,6 +49,16 @@ export default function BookingForm() {
   });
 
   const router = useRouter();
+  const aiPrefillRef = useRef<{ specialtyCode: string; specialtyId: string; doctorId: string; symptoms: string } | null>(null);
+  if (aiPrefillRef.current === null) {
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    aiPrefillRef.current = {
+      specialtyCode: params.get('specialtyCode') || '',
+      specialtyId: params.get('specialtyId') || '',
+      doctorId: params.get('doctorId') || '',
+      symptoms: params.get('symptoms') || '',
+    };
+  }
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [authChecking, setAuthChecking] = useState(true);
@@ -173,8 +183,9 @@ export default function BookingForm() {
         if (s && s.length > 0) {
           setSpecialties(s);
         }
+        let mappedDoctors: any[] = [];
         if (docList && docList.length > 0) {
-          const mapped = docList.map((d: any) => ({
+          mappedDoctors = docList.map((d: any) => ({
             id: d.id,
             name: formatDoctorFullName(d.academicTitle, d.fullName),
             rawName: d.fullName,
@@ -186,7 +197,22 @@ export default function BookingForm() {
             specialtyId: d.specialtyId,
             centerId: d.medicalCenterId,
           }));
-          setDoctors(mapped);
+          setDoctors(mappedDoctors);
+        }
+
+        const prefill = aiPrefillRef.current!;
+        if (prefill.symptoms) setSymptoms(prefill.symptoms);
+        const requestedDoctor = mappedDoctors.find((doctor: any) => doctor.id === prefill.doctorId);
+        const requestedSpecialty = (s || []).find((specialty: any) =>
+          specialty.id === prefill.specialtyId || specialty.code === prefill.specialtyCode
+        );
+        if (requestedDoctor) {
+          setSelectedCenter(requestedDoctor.centerId || requestedSpecialty?.medicalCenterId || '');
+          setSelectedSpecialty(requestedDoctor.specialtyId || requestedSpecialty?.id || '');
+          setSelectedDoctor(requestedDoctor);
+        } else if (requestedSpecialty) {
+          setSelectedCenter(requestedSpecialty.medicalCenterId || '');
+          setSelectedSpecialty(requestedSpecialty.id);
         }
       } finally {
         setLoadingData(false);

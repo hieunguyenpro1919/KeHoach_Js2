@@ -44,6 +44,18 @@ class MedSchedAiToolsTest {
     @Mock
     private AppointmentJpaRepository appointmentRepository;
 
+    @Mock
+    private com.medsched.persistence.repository.PatientProfileJpaRepository patientProfileRepository;
+
+    @Mock
+    private com.medsched.persistence.repository.UserJpaRepository userRepository;
+
+    @Mock
+    private com.medsched.persistence.repository.MedicineJpaRepository medicineRepository;
+
+    @Mock
+    private com.medsched.persistence.repository.PaymentJpaRepository paymentRepository;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -164,13 +176,23 @@ class MedSchedAiToolsTest {
     }
 
     @Test
-    @DisplayName("getToolDefinitions() returns 4 tool schemas")
+    @DisplayName("getToolDefinitions() returns all 9 medical tool schemas")
     void getToolDefinitions_returnsDefinitions() {
         List<Map<String, Object>> defs = aiTools.getToolDefinitions();
 
-        assertThat(defs).hasSize(4);
+        assertThat(defs).hasSize(9);
         assertThat(defs).extracting(m -> m.get("name"))
-                .contains("triage_patient_symptoms", "lookup_doctor_directory", "get_available_time_slots", "verify_booking_code");
+                .contains(
+                        "triage_patient_symptoms",
+                        "lookup_doctor_directory",
+                        "get_available_time_slots",
+                        "verify_booking_code",
+                        "reception_checkin",
+                        "search_patient",
+                        "doctor_summarize_patient",
+                        "doctor_consult_medicines",
+                        "get_admin_statistics"
+                );
     }
 
     @Test

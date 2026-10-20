@@ -23,6 +23,8 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentEntit
 
     List<AppointmentEntity> findByPatientProfileIdOrderByCreatedAtDesc(String patientProfileId);
 
+    List<AppointmentEntity> findByPatientProfileIdInOrderByCreatedAtDesc(Collection<String> patientProfileIds);
+
     long countByStatus(AppointmentStatus status);
 
     long countByDoctorIdAndStatus(String doctorId, AppointmentStatus status);

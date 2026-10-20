@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
 import React from "react";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
 import Footer from "@/shared/components/Footer/Footer";
 import FloatingWidgets from "@/shared/components/FloatingWidgets/FloatingWidgets";
 import ConcurrentSessionModal from "@/shared/components/Feedback/ConcurrentSessionModal";
-
-const inter = Inter({
-  subsets: ["latin", "vietnamese"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "MedSched - Hệ Thống Y Khoa Chuyên Sâu Quốc Tế & Đặt Lịch Tiếp Đón 1S",
@@ -31,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" className="scroll-smooth" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
+      <body className="min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased font-sans">
         <ConcurrentSessionModal />
         <HeaderNav />
         <AppMainLayout>

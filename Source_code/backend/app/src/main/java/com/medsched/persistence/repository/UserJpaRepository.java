@@ -18,6 +18,10 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
     boolean existsByEmail(String email);
 
+    long countByActiveTrue();
+
+    long countByActiveFalse();
+
     /** Tìm theo email/họ tên/SĐT, không lọc vai trò. Tham số q đã ở dạng %tu-khoa%. */
     @Query("""
             SELECT u FROM UserEntity u

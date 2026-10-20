@@ -16,10 +16,12 @@ import {
   Layers, 
   HelpCircle,
   FileSpreadsheet,
-  Lock
+  Lock,
+  Bot
 } from 'lucide-react';
 import { getAuthUser, getAuthToken, api } from '@/shared/lib/api';
 import LoginForm from '@/modules/auth/components/LoginForm';
+import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 import { TimeGranularity, UserRoleScope } from '../types';
 import { getStatisticsData, fetchStatisticsDataAsync, exportStatisticsCSV } from '../services/statisticsService';
 import AnalyticsLineChart from './AnalyticsLineChart';
@@ -45,6 +47,7 @@ export default function StatisticsOverview() {
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   // Thống kê ca trực & khung giờ khám (Tổng số ca trực, Tổng khung giờ, Khung giờ còn trống, Đã có người đặt)
   const [scheduleStats, setScheduleStats] = useState({
@@ -297,6 +300,17 @@ export default function StatisticsOverview() {
             </div>
           </div>
 
+          {/* Nút Trợ Lý AI Báo Cáo (MCP Analytics) */}
+          <button
+            type="button"
+            onClick={() => setShowAiModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white border border-teal-500/40 transition cursor-pointer shadow-md"
+            title="Hỏi đáp và trích xuất số liệu phòng khám thông minh qua AI (MCP)"
+          >
+            <Bot size={15} className="text-teal-300 animate-pulse" />
+            <span>Trợ Lý AI Báo Cáo</span>
+          </button>
+
           {/* Nút Xuất Báo Cáo CSV / Excel */}
           <button
             type="button"
@@ -489,6 +503,13 @@ export default function StatisticsOverview() {
           />
         </div>
       </div>
+
+      {/* ── Trợ Lý AI Báo Cáo MedSched (Chuẩn MCP) ── */}
+      <UniversalAiAssistantModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        defaultRole="ADMIN"
+      />
     </div>
   );
 }
