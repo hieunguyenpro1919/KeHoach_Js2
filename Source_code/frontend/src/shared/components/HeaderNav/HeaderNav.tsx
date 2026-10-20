@@ -291,7 +291,7 @@ export default function HeaderNav() {
       {/* ========================================================================= */}
       {/* 1. GIAO DIỆN ĐIỆN THOẠI (MOBILE): GHIM CỐ ĐỊNH THANH ĐEN Ở TRÊN CÙNG       */}
       {/* ========================================================================= */}
-      <div className="md:hidden sticky top-0 z-50 w-full bg-[#0a1e36] text-slate-300 text-[11px] border-b border-slate-800/80 shadow-md">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 w-full bg-[#0a1e36] text-slate-300 text-[11px] border-b border-slate-800/80 shadow-md">
         <div className="px-3.5 sm:px-6 flex items-center justify-between h-12">
           {/* Logo MedSched */}
           <Link href={logoHref} className="flex items-center gap-2 group shrink-0 py-0.5">
@@ -310,7 +310,7 @@ export default function HeaderNav() {
                 MedSched
               </span>
               <span className="text-[9px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                Phiên bản v1.1.0
+                Phiên bản v1.2.0
               </span>
             </div>
           </Link>
@@ -390,6 +390,9 @@ export default function HeaderNav() {
         )}
       </div>
 
+      {/* Spacer bù đắp chiều cao 48px của thanh fixed trên mobile */}
+      <div className="md:hidden h-12 w-full shrink-0" aria-hidden="true" />
+
       {/* ========================================================================= */}
       {/* 2. GIAO DIỆN MÁY TÍNH (DESKTOP): THANH ĐEN Ở ĐẦU TRANG CHỦ & MENU TRẮNG DÍNH */}
       {/* ========================================================================= */}
@@ -415,7 +418,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                  Phiên bản v1.1.0
+                  Phiên bản v1.2.0
                 </span>
               </div>
             </Link>

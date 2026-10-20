@@ -20,6 +20,10 @@ dependencies {
     // Email (Gmail SMTP for OTP Verification)
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+    // Monitoring & Observability (Actuator + Prometheus Metrics)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
     // Security & JWT
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
