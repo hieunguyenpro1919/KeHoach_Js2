@@ -607,6 +607,19 @@ export default function BookingForm() {
     }
   }, [selectedDoctor?.id, bookingDate, selectedSlot.id, isPaidOnline]);
 
+  // Tự động kích hoạt Trợ lý AI khi truy cập với ?mode=ai
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'ai') {
+        const timer = setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('medsched:open-booking-method', { detail: { mode: 'ai' } }));
+        }, 150);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
+
   const handleAnalyzeSymptoms = async () => {
     if (!symptoms.trim()) return;
     setAnalyzingAi(true);
@@ -1052,6 +1065,33 @@ export default function BookingForm() {
         {/* Step 1: Cơ Sở & Chuyên Khoa */}
         {step === 1 && (
           <div className="mt-4 sm:mt-5 space-y-3.5 sm:space-y-4">
+            {/* Banner Gợi ý Trợ Lý AI cho người chưa rõ chuyên khoa */}
+            <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200/90 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-purple-950 truncate">
+                    Bạn chưa biết nên khám Chuyên khoa nào?
+                  </p>
+                  <p className="text-[11px] text-purple-700 hidden sm:block">
+                    Hãy để Trợ Lý AI lắng nghe triệu chứng và định hướng bác sĩ tốt nhất cho bạn.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('medsched:open-booking-method', { detail: { mode: 'ai' } }));
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl transition shrink-0 shadow-xs flex items-center gap-1 cursor-pointer whitespace-nowrap active:scale-95"
+              >
+                <span>Hỏi AI Ngay</span>
+                <Sparkles size={12} className="text-yellow-300" />
+              </button>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                 <Building2 size={15} className="text-blue-600" />
@@ -2180,18 +2220,18 @@ export default function BookingForm() {
 
                   {/* 2. Mô Tả Triệu Chứng & Spring AI */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        2. Mô Tả Triệu Chứng &amp; Lý Do Đi Khám:
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 uppercase whitespace-nowrap">
+                        2. Mô Tả Triệu Chứng:
                       </label>
                       <button
                         type="button"
                         onClick={handleAnalyzeSymptoms}
                         disabled={analyzingAi || !symptoms.trim()}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
                       >
                         <Sparkles size={13} className={analyzingAi ? "animate-spin" : ""} />
-                        <span>{analyzingAi ? 'AI Đang Phân Tích...' : 'Trợ Lý AI Phân Tích Gói Khám'}</span>
+                        <span>{analyzingAi ? 'Đang phân tích...' : 'Trợ Lý AI'}</span>
                       </button>
                     </div>
 
@@ -2545,7 +2585,7 @@ export default function BookingForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push('/appointments')}
+                  onClick={() => router.push('/my-appointments')}
                   className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Xem Danh Sách Lịch Hẹn</span>

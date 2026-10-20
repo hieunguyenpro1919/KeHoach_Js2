@@ -27,11 +27,12 @@ export default function FloatingWidgets() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Không hiển thị nút nổi trên các trang xác thực
+  // Không hiển thị nút nổi trên các trang xác thực, chọn phương thức đặt lịch
   const isExcluded = 
     pathname === '/login' || 
     pathname === '/register' || 
-    pathname === '/forgot-password';
+    pathname === '/forgot-password' ||
+    pathname === '/booking-method';
 
   if (isExcluded) {
     return null;
@@ -49,7 +50,7 @@ export default function FloatingWidgets() {
   return (
     <>
       <div className="fixed bottom-3 right-2.5 sm:bottom-6 sm:right-5 z-40 flex flex-col items-center gap-2 sm:gap-2.5 select-none">
-        {/* Nút Trợ Lý AI Thông Minh (MCP) của Tân */}
+        {/* Nút Trợ Lý AI Thông Minh (MCP) */}
         <button
           type="button"
           onClick={() => setShowAiModal(true)}

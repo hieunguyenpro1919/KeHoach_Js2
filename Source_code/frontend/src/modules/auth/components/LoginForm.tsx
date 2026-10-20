@@ -10,7 +10,8 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/booking';
+  const redirectParam = searchParams.get('redirect');
+  const redirectUrl = redirectParam || '/booking-method';
   const isAuthRequired = searchParams.get('reason') === 'auth_required';
 
   const emailInputRef = React.useRef<HTMLInputElement>(null);
@@ -51,13 +52,18 @@ export default function LoginForm() {
       }
 
       setTimeout(() => {
-        let dest = redirectUrl;
+        let dest = '/booking-method';
         if (roles.includes('ROLE_ADMIN')) {
           dest = '/admin';
         } else if (roles.includes('ROLE_STAFF')) {
           dest = '/reception';
         } else if (roles.includes('ROLE_DOCTOR')) {
           dest = '/doctor';
+        } else if (redirectParam && redirectParam !== '/booking' && redirectParam !== '/') {
+          dest = redirectParam;
+        } else {
+          // Bệnh nhân / Người dùng đăng nhập xong chuyển ngay tới giao diện chọn phương thức đặt lịch
+          dest = '/booking-method';
         }
         window.location.href = dest;
       }, 500);
