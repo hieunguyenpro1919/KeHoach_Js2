@@ -35,6 +35,15 @@ subprojects {
 
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        systemProperty 'user.timezone', 'Asia/Ho_Chi_Minh'
+        systemProperty 'file.encoding', 'UTF-8'
+        testLogging {
+            events "failed", "skipped"
+            showExceptions true
+            showCauses true
+            showStackTraces true
+            exceptionFormat "full"
+        }
         finalizedBy jacocoTestReport
     }
 
