@@ -49,6 +49,8 @@ import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
+import { Bot } from 'lucide-react';
+import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 
 interface PatientQueueItem {
   id: string;
@@ -227,6 +229,7 @@ export default function DoctorClinicView() {
   const [clinicActive, setClinicActive] = useState(true);
   const [activePatientIndex, setActivePatientIndex] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   // ── Quản Lý Buồng Khám Trực Của Bác Sĩ ──
   const [activeRoom, setActiveRoom] = useState<string>('P.208');
@@ -1386,6 +1389,17 @@ export default function DoctorClinicView() {
                     <span className="font-bold text-emerald-700">{completedCount} ca</span>
                   </div>
                 </div>
+
+                {/* Nút Trợ Lý AI Y Tế (MCP Protocol) */}
+                <button
+                  type="button"
+                  onClick={() => setShowAiModal(true)}
+                  className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white transition cursor-pointer flex items-center gap-2 border border-teal-500/40 shadow-sm"
+                  title="Mở Trợ lý AI Y Tế MedSched (Tóm tắt bệnh án, tra cứu tương tác thuốc)"
+                >
+                  <Bot size={16} className="text-teal-300 animate-pulse" />
+                  <span>Trợ Lý AI Bác Sĩ</span>
+                </button>
 
                 {/* Công tắc Mở/Dừng Phòng Khám (Đồng bộ theo khung giờ làm việc thực tế) */}
                 <button
@@ -2944,6 +2958,14 @@ export default function DoctorClinicView() {
           </div>
         </div>
       )}
+
+      {/* ── Trợ Lý AI Y Tế MedSched (Chuẩn MCP) ── */}
+      <UniversalAiAssistantModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        defaultRole="DOCTOR"
+        currentContext={currentPatient ? `Mã ca khám: ${currentPatient.bookingCode}, Bệnh nhân: ${currentPatient.patientName}, Triệu chứng: ${currentPatient.symptoms || 'Chưa ghi nhận'}` : ''}
+      />
 
     </div>
   );

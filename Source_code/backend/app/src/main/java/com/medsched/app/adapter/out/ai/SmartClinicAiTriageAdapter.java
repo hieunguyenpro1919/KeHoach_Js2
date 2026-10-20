@@ -31,14 +31,20 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
     private static final String DEFAULT_DISCLAIMER = "Lưu ý: Kết quả định hướng bởi Trợ lý AI chỉ mang tính tham khảo dịch vụ, vui lòng thăm khám trực tiếp với bác sĩ chuyên khoa.";
 
     private final String geminiApiKey;
+    private final String geminiModel;
+    private final OpenRouterAiClient openRouter;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     public SmartClinicAiTriageAdapter(
             @Value("${app.gemini.api-key:${GEMINI_API_KEY:}}") String geminiApiKey,
+            @Value("${app.gemini.model:gemini-3.5-flash-lite}") String geminiModel,
+            OpenRouterAiClient openRouter,
             ObjectMapper objectMapper
     ) {
         this.geminiApiKey = geminiApiKey;
+        this.geminiModel = geminiModel;
+        this.openRouter = openRouter;
         this.objectMapper = objectMapper;
         var requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(java.time.Duration.ofSeconds(3));
@@ -80,7 +86,17 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
             return emergencyCheck;
         }
 
-        // 2. Thử gọi mô hình AI Gemini (nếu có API Key hợp lệ và mạng khả dụng)
+        // 2. Ưu tiên OpenRouter. openrouter/free tự chọn mô hình miễn phí phù hợp.
+        if (openRouter.isConfigured()) {
+            try {
+                TriageEvaluation aiResult = callOpenRouterLlmTriage(symptoms, medicalHistory);
+                if (aiResult != null) return aiResult;
+            } catch (Exception e) {
+                log.warn("OpenRouter tạm thời không phản hồi ({}), chuyển sang nhà cung cấp dự phòng", e.getMessage());
+            }
+        }
+
+        // 3. Gemini là nhà cung cấp dự phòng tùy chọn.
         if (geminiApiKey != null && !geminiApiKey.isBlank() && !geminiApiKey.contains("chua-cau-hinh")) {
             try {
                 TriageEvaluation aiResult = callGeminiLlmTriage(symptoms, medicalHistory);
@@ -92,7 +108,7 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
             }
         }
 
-        // 3. Fallback sang Clinic Expert Engine chuyên sâu cho phòng khám tư
+        // 4. Fallback sang Clinic Expert Engine chuyên sâu cho phòng khám tư
         return evaluateWithClinicExpertSystem(symptoms, medicalHistory);
     }
 
@@ -190,11 +206,8 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
         );
     }
 
-    /**
-     * Gọi Google Gemini LLM API để phân tích ngữ cảnh y khoa tự nhiên.
-     */
-    private TriageEvaluation callGeminiLlmTriage(String symptoms, String medicalHistory) {
-        String systemPrompt = """
+    private String triageSystemPrompt() {
+        return """
                 Bạn là Trợ lý AI Y tế của Chuỗi Phòng khám Tư nhân MedSched (Việt Nam).
                 Nhiệm vụ của bạn: Phân tích mô tả triệu chứng của bệnh nhân, gợi ý chuyên khoa, dịch vụ phòng khám, giá niêm yết, lời dặn chuẩn bị và tóm tắt bệnh án.
                 Danh sách chuyên khoa của phòng khám:
@@ -220,9 +233,24 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
                   "emergencyWarning": null
                 }
                 """;
+    }
 
-        String userPrompt = "Triệu chứng bệnh nhân: " + symptoms +
+    private String triageUserPrompt(String symptoms, String medicalHistory) {
+        return "Triệu chứng bệnh nhân: " + symptoms +
                 (medicalHistory != null && !medicalHistory.isBlank() ? "\nTiền sử bệnh: " + medicalHistory : "");
+    }
+
+    private TriageEvaluation callOpenRouterLlmTriage(String symptoms, String medicalHistory) {
+        return openRouter.complete(
+                        triageSystemPrompt(), triageUserPrompt(symptoms, medicalHistory), 0.2, 1024, true)
+                .map(text -> parseTriageText(text, symptoms, "OpenRouter"))
+                .orElse(null);
+    }
+
+    /** Gọi Google Gemini dự phòng nếu có cấu hình riêng. */
+    private TriageEvaluation callGeminiLlmTriage(String symptoms, String medicalHistory) {
+        String systemPrompt = triageSystemPrompt();
+        String userPrompt = triageUserPrompt(symptoms, medicalHistory);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", java.util.List.of(
@@ -235,15 +263,13 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
                 ),
                 "generationConfig", Map.of(
                         "temperature", 0.2,
-                        "maxOutputTokens", 1024,
-                        "thinkingConfig", Map.of("thinkingBudget", 0)
+                        "maxOutputTokens", 1024
                 )
         );
 
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
-
         String responseBody = restClient.post()
-                .uri(url)
+                .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", geminiModel)
+                .header("x-goog-api-key", geminiApiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
@@ -260,22 +286,7 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
                 JsonNode parts = candidates.get(0).path("content").path("parts");
                 if (parts.isArray() && !parts.isEmpty()) {
                     String rawText = parts.get(0).path("text").asText();
-                    String cleanJson = rawText.replaceAll("(?s)```json\\s*", "")
-                            .replaceAll("(?s)```\\s*", "")
-                            .strip();
-
-                    JsonNode aiJson = objectMapper.readTree(cleanJson);
-                    return new TriageEvaluation(
-                            aiJson.path("specialtyCode").asText("INTERNAL_MEDICINE"),
-                            aiJson.path("specialtyName").asText("Khoa Nội Tổng Quát"),
-                            aiJson.path("recommendedService").asText("Gói Khám Nội Khoa Tiêu Chuẩn"),
-                            aiJson.path("estimatedFee").asText("200.000 VNĐ"),
-                            aiJson.path("clinicalSummary").asText(symptoms),
-                            aiJson.path("preparationAdvice").asText("Vui lòng mang theo kết quả khám bệnh trước đây (nếu có)."),
-                            aiJson.path("isEmergency").asBoolean(false),
-                            aiJson.path("emergencyWarning").isNull() ? null : aiJson.path("emergencyWarning").asText(),
-                            DEFAULT_DISCLAIMER
-                    );
+                    return parseTriageText(rawText, symptoms, "Gemini");
                 }
             }
         } catch (Exception parseEx) {
@@ -283,5 +294,29 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
         }
 
         return null;
+    }
+
+    private TriageEvaluation parseTriageText(String rawText, String symptoms, String provider) {
+        if (rawText == null || rawText.isBlank()) return null;
+        try {
+            String cleanJson = rawText.replaceAll("(?s)```json\\s*", "")
+                    .replaceAll("(?s)```\\s*", "")
+                    .strip();
+            JsonNode aiJson = objectMapper.readTree(cleanJson);
+            return new TriageEvaluation(
+                    aiJson.path("specialtyCode").asText("INTERNAL_MEDICINE"),
+                    aiJson.path("specialtyName").asText("Khoa Nội Tổng Quát"),
+                    aiJson.path("recommendedService").asText("Gói Khám Nội Khoa Tiêu Chuẩn"),
+                    aiJson.path("estimatedFee").asText("200.000 VNĐ"),
+                    aiJson.path("clinicalSummary").asText(symptoms),
+                    aiJson.path("preparationAdvice").asText("Vui lòng mang theo kết quả khám bệnh trước đây (nếu có)."),
+                    aiJson.path("isEmergency").asBoolean(false),
+                    aiJson.path("emergencyWarning").isNull() ? null : aiJson.path("emergencyWarning").asText(),
+                    DEFAULT_DISCLAIMER
+            );
+        } catch (Exception parseEx) {
+            log.warn("Không thể parse JSON từ {} ({}): {}", provider, parseEx.getMessage(), rawText);
+            return null;
+        }
     }
 }

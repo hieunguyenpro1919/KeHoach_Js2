@@ -2,12 +2,16 @@ package com.medsched.app.adapter.in.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medsched.app.adapter.in.ai.MedSchedAiTools;
+import com.medsched.app.adapter.out.ai.GeminiGeneralAssistantService;
+import com.medsched.app.adapter.out.ai.InternalKnowledgeRagService;
+import com.medsched.app.adapter.out.ai.PatientBookingRecommendationService;
 import com.medsched.core.port.out.AiTriagePort;
 import com.medsched.core.port.out.TriageEvaluation;
 import com.medsched.security.AppUserDetailsService;
 import com.medsched.security.JwtAuthenticationFilter;
 import com.medsched.security.JwtService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -15,9 +19,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,6 +57,24 @@ class TriageControllerIntegrationTest {
 
     @MockBean
     private AppUserDetailsService appUserDetailsService;
+
+    @MockBean
+    private AiRequestGuard aiRequestGuard;
+
+    @MockBean
+    private InternalKnowledgeRagService knowledgeRag;
+
+    @MockBean
+    private GeminiGeneralAssistantService generalAssistant;
+
+    @MockBean
+    private PatientBookingRecommendationService bookingRecommendations;
+
+    @BeforeEach
+    void allowAiRequests() {
+        given(aiRequestGuard.check(any(), any()))
+                .willReturn(new AiRequestGuard.Decision(true, null, 0));
+    }
 
     @Test
     @DisplayName("POST /api/ai/triage returns triage analysis")
@@ -91,6 +115,7 @@ class TriageControllerIntegrationTest {
 
     @Test
     @DisplayName("POST /api/ai/tools/execute executes medical tool successfully")
+    @WithMockUser(username = "admin@medsched.vn", roles = "ADMIN")
     void executeTool_success() throws Exception {
         given(aiTools.executeTool(eq("verify_booking_code"), any())).willReturn("{\"status\":\"CONFIRMED\"}");
 
@@ -105,5 +130,59 @@ class TriageControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.toolName").value("verify_booking_code"))
                 .andExpect(jsonPath("$.result").value("{\"status\":\"CONFIRMED\"}"));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Patient switching symptoms starts a new clarification flow")
+    void patientSwitchesSymptomTopic() throws Exception {
+        var request = new TriageController.ChatRequest(
+                "đau bụng",
+                "PATIENT",
+                "[USER] Đau răng buốt khi uống nước lạnh\n[ASSISTANT] Bạn đau răng nào?"
+        );
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("trên rốn")))
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("răng nào"))));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Patient is asked only for symptom details that are still missing")
+    void patientIsNotAskedAnsweredDetailAgain() throws Exception {
+        var request = new TriageController.ChatRequest(
+                "bên phải",
+                "PATIENT",
+                "[USER] Tôi bị đau bụng\n[ASSISTANT] Bạn đau ở vị trí nào và cảm giác ra sao?"
+        );
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("Cảm giác")))
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("vị trí nào"))));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Unrelated new question uses real AI instead of repeating old symptom")
+    void unrelatedQuestionUsesGeneralAi() throws Exception {
+        String context = "[USER] Tôi bị đau đầu\n[ASSISTANT] Bạn đau ở vị trí nào?";
+        given(generalAssistant.answerDetailed("Thủ đô của Nhật Bản là gì?", "PATIENT", context))
+                .willReturn(Optional.of(new GeminiGeneralAssistantService.AiAnswer(
+                        "Thủ đô của Nhật Bản là Tokyo.", "OPENROUTER_API")));
+        var request = new TriageController.ChatRequest("Thủ đô của Nhật Bản là gì?", "PATIENT", context);
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value("Thủ đô của Nhật Bản là Tokyo."))
+                .andExpect(jsonPath("$.answerSource").value("OPENROUTER_API"));
     }
 }

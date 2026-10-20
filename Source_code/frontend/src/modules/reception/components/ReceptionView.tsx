@@ -38,6 +38,8 @@ import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/li
 import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
+import { Bot } from 'lucide-react';
+import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { QrCameraScannerModal, QrScanResult } from '@/shared/components/QrCameraScannerModal';
@@ -68,6 +70,7 @@ export default function ReceptionView() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AppointmentResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   // Live feed state of checked-in patients
   const [history, setHistory] = useState<any[]>([]);
@@ -614,6 +617,14 @@ export default function ReceptionView() {
 
         {/* Quick Stats Widget & History & Kiosk Button */}
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setShowAiModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white rounded-xl text-xs font-bold transition shadow-md hover:shadow-lg cursor-pointer ring-2 ring-teal-400/40"
+            title="Mở Trợ lý AI Tiếp Đón Bệnh Nhân theo chuẩn MCP"
+          >
+            <Bot size={17} className="text-teal-300 animate-pulse" />
+            <span>Trợ Lý AI Tiếp Đón (MCP)</span>
+          </button>
           <Link
             href="/checkin"
             target="_blank"
@@ -1637,6 +1648,22 @@ export default function ReceptionView() {
         moduleName="Quầy Tiếp Đón Ngoại Trú"
         onTakeOver={handleTakeOver}
         description="Để chống quét trùng mã QR, sai lệch thứ tự cấp số và xung đột in phiếu tiếp đón bệnh nhân, hệ thống MedSched chỉ cho phép 1 tab duy nhất được quyền điều hành Quầy Tiếp Đón."
+      />
+
+      {/* ── Trợ Lý AI Tiếp Đón Thông Minh (Chuẩn MCP) ── */}
+      <UniversalAiAssistantModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        defaultRole="STAFF"
+        onActionSuccess={() => {
+          // Đồng bộ lại live feed sau khi AI thực hiện check-in thành công.
+          loadTodayFeed();
+          try {
+            const syncChannel = new BroadcastChannel('medsched_queue_sync');
+            syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
+            syncChannel.close();
+          } catch {}
+        }}
       />
     </div>
   );
