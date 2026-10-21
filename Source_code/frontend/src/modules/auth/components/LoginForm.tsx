@@ -13,6 +13,7 @@ export default function LoginForm() {
   const redirectParam = searchParams.get('redirect');
   const redirectUrl = redirectParam || '/booking-method';
   const isAuthRequired = searchParams.get('reason') === 'auth_required';
+  const isAiRequired = searchParams.get('reason') === 'ai_required';
 
   const emailInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -97,6 +98,15 @@ export default function LoginForm() {
         <AlertMessage 
           type="info" 
           message="Vui lòng đăng nhập tài khoản bệnh nhân để tiếp tục đặt lịch khám." 
+          className="mb-2.5 py-1.5 text-xs" 
+        />
+      )}
+
+      {/* Thông báo yêu cầu đăng nhập nếu từ Trợ lý AI */}
+      {isAiRequired && !errorMessage && !successMessage && (
+        <AlertMessage 
+          type="info" 
+          message="Vui lòng đăng nhập tài khoản MedSched để sử dụng Trợ lý Sức Khỏe AI & phân loại triệu chứng." 
           className="mb-2.5 py-1.5 text-xs" 
         />
       )}
